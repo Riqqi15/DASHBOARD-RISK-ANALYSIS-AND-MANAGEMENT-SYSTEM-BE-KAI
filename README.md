@@ -1,58 +1,278 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# RAMS Dashboard
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+RAMS (**Risk Analysis and Management System**) Dashboard adalah aplikasi web untuk pemantauan aset, laporan gangguan, matriks risiko, keandalan, dan inventori Prasarana Sintel & LAA PT Kereta Api Indonesia (Persero).
 
-## About Laravel
+Project menggunakan arsitektur **Laravel + Inertia.js + Vue 3 dalam satu repository**. Laravel menangani route, autentikasi, validasi, aturan bisnis, dan akses data. Vue menangani tampilan dan interaksi halaman melalui Inertia, sehingga dashboard internal tidak memerlukan REST API atau project frontend terpisah.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Tech Stack
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Bagian | Teknologi |
+|---|---|
+| Backend | PHP 8.3+, Laravel 13 |
+| Server-driven SPA | Inertia.js 3 |
+| Frontend | Vue 3 |
+| Styling | Tailwind CSS 4 |
+| Build tool | Vite 8 |
+| State management | Pinia |
+| Chart | ApexCharts |
+| Icon | Lucide Vue Next |
+| Database lokal default | SQLite |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Prasyarat
 
-## Learning Laravel
+Pastikan perangkat sudah memiliki:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- Git
+- PHP `>= 8.3`
+- Composer 2
+- Node.js `^20.19.0` atau `>= 22.12.0`
+- npm
+- ekstensi PHP PDO SQLite jika menggunakan database default
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Periksa instalasi:
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git --version
+php --version
+composer --version
+node --version
+npm --version
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+## Instalasi dari Clone
 
-## Contributing
+### 1. Clone repository
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+git clone https://github.com/Riqqi15/DASHBOARD-RISK-ANALYSIS-AND-MANAGEMENT-SYSTEM-BE-KAI.git rams_be
+cd rams_be
+```
 
-## Code of Conduct
+### 2. Pasang dependency backend
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+composer install
+```
 
-## Security Vulnerabilities
+### 3. Siapkan environment
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Command berikut dapat digunakan di PowerShell, Command Prompt, Git Bash, Linux, dan macOS:
 
-## License
+```bash
+php -r "file_exists('.env') || copy('.env.example', '.env');"
+php artisan key:generate
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Konfigurasi default di `.env.example` menggunakan SQLite.
+
+### 4. Siapkan database SQLite
+
+```bash
+php -r "file_exists('database/database.sqlite') || touch('database/database.sqlite');"
+php artisan migrate
+```
+
+### 5. Pasang dependency frontend
+
+Gunakan `npm ci` agar versi dependency mengikuti `package-lock.json`:
+
+```bash
+npm ci
+```
+
+### 6. Jalankan project
+
+```bash
+composer run dev
+```
+
+Command tersebut menjalankan Laravel development server, queue listener, log viewer, dan Vite secara bersamaan.
+
+Buka:
+
+```text
+http://127.0.0.1:8000
+```
+
+Root aplikasi akan mengarahkan pengguna ke `/login`.
+
+## Menjalankan Server Secara Terpisah
+
+Jika `composer run dev` tidak dapat digunakan, jalankan dua terminal dari folder project.
+
+Terminal 1 — Laravel:
+
+```bash
+php artisan serve
+```
+
+Terminal 2 — Vite:
+
+```bash
+npm run dev
+```
+
+Queue worker dapat dijalankan pada terminal tambahan ketika fitur queue sudah digunakan:
+
+```bash
+php artisan queue:listen --tries=1
+```
+
+## Menggunakan MySQL atau MariaDB
+
+SQLite adalah pilihan default untuk setup lokal yang cepat. Untuk menggunakan MySQL/MariaDB:
+
+1. Buat database, misalnya `rams`.
+2. Ubah konfigurasi database di `.env`:
+
+```dotenv
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=rams
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+3. Jalankan migration:
+
+```bash
+php artisan migrate
+```
+
+Sesuaikan username dan password dengan instalasi database lokal.
+
+## Build Production
+
+Bangun aset frontend:
+
+```bash
+npm run build
+```
+
+Untuk deployment production, pastikan:
+
+- `APP_ENV=production`
+- `APP_DEBUG=false`
+- `APP_KEY` sudah terisi
+- konfigurasi database dan permission storage sudah benar
+- web server mengarah ke folder `public`
+
+Optimalkan cache Laravel setelah konfigurasi production siap:
+
+```bash
+php artisan optimize
+```
+
+## Command yang Sering Digunakan
+
+| Command | Fungsi |
+|---|---|
+| `composer run dev` | Menjalankan Laravel, queue, log, dan Vite |
+| `php artisan serve` | Menjalankan Laravel development server |
+| `npm run dev` | Menjalankan Vite development server |
+| `npm run build` | Membuat aset frontend production |
+| `php artisan migrate` | Menjalankan migration database |
+| `php artisan route:list` | Melihat seluruh route Laravel |
+| `php artisan optimize:clear` | Membersihkan cache konfigurasi, route, dan view |
+
+## Struktur Project
+
+```text
+rams_be/
+├── app/
+│   ├── Http/Controllers/       # Controller Laravel
+│   └── Models/                 # Model Eloquent
+├── database/
+│   └── migrations/             # Struktur database
+├── resources/
+│   ├── css/app.css             # Tailwind CSS dan token tema
+│   ├── js/
+│   │   ├── app.js              # Bootstrap Inertia + Vue
+│   │   ├── pages/              # Entry point Inertia Page
+│   │   ├── presentation/       # Layout, view, dan komponen UI
+│   │   ├── application/        # Use case dan composable
+│   │   ├── domain/             # Model dan aturan domain frontend
+│   │   └── infrastructure/     # Repository/data dummy sementara
+│   └── views/app.blade.php     # Root template Inertia
+├── routes/web.php              # Route halaman dan aksi internal
+├── composer.json
+├── package.json
+└── vite.config.js
+```
+
+## Alur Laravel–Inertia–Vue
+
+```text
+Browser
+  -> routes/web.php
+  -> middleware/controller Laravel
+  -> Inertia::render('NamaPage', props)
+  -> resources/js/pages/NamaPage.vue
+  -> Vue view/component
+```
+
+Navigasi menggunakan `Link` atau `router` dari `@inertiajs/vue3`. Form nantinya dikirim melalui Inertia ke web route Laravel, kemudian divalidasi dan diproses di sisi server.
+
+## Halaman yang Tersedia
+
+| URL | Halaman |
+|---|---|
+| `/login` | Login |
+| `/dashboard` | Pemilihan aset/subsistem |
+| `/overview` | Executive overview |
+| `/trouble-report` | Laporan gangguan |
+| `/master-asset` | Master aset |
+| `/risk-matrix` | Matriks risiko |
+| `/inventory` | Inventori |
+| `/reorder-stock` | Rekomendasi reorder stock |
+
+> [!NOTE]
+> Kerangka Laravel–Inertia–Vue dan halaman presentasi sudah tersedia. Sebagian data masih menggunakan repository dummy. Controller, autentikasi nyata, policy, model, dan integrasi database RAMS akan ditambahkan secara bertahap.
+
+## Troubleshooting
+
+### `php` atau `composer` tidak dikenali
+
+Pastikan lokasi PHP dan Composer sudah ditambahkan ke `PATH`, lalu tutup dan buka kembali terminal.
+
+### Database SQLite tidak ditemukan
+
+Jalankan:
+
+```bash
+php -r "file_exists('database/database.sqlite') || touch('database/database.sqlite');"
+php artisan migrate
+```
+
+### PowerShell memblokir `npm.ps1`
+
+Gunakan executable `.cmd`:
+
+```powershell
+npm.cmd ci
+npm.cmd run dev
+```
+
+### `No application encryption key has been specified`
+
+Jalankan:
+
+```bash
+php artisan key:generate
+```
+
+### Perubahan `.env` belum terbaca
+
+Jalankan:
+
+```bash
+php artisan optimize:clear
+```
+
+## Keamanan
+
+- Jangan commit file `.env`.
+- Jangan menyimpan password atau credential produksi di repository.
+- Otorisasi role/wilayah harus diterapkan di Laravel, bukan hanya dengan menyembunyikan menu Vue.
+- Laporkan kerentanan keamanan langsung kepada pengelola repository dan jangan membukanya sebagai issue publik.
