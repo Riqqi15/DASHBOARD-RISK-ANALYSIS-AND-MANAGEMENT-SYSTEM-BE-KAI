@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -23,4 +24,10 @@ Route::middleware(['auth', 'active'])->group(function (): void {
     Route::get('/reorder-stock', fn () => Inertia::render('ReorderStock'))->name('reorder-stock');
 
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+});
+
+Route::middleware(['auth', 'active', 'pusat'])->prefix('admin')->name('admin.')->group(function (): void {
+    Route::resource('units', UnitKerjaController::class)
+        ->parameters(['units' => 'unit'])
+        ->except(['show', 'destroy']);
 });

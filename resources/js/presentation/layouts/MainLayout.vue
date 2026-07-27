@@ -4,6 +4,7 @@ import { Link, usePage } from '@inertiajs/vue3'
 import {
   Activity,
   AlertTriangle,
+  Building2,
   ChevronDown,
   Database,
   LayoutDashboard,
@@ -43,7 +44,12 @@ const menuItems = [
   { name: 'reorder-stock', label: 'Reorder Stock', to: '/reorder-stock', icon: RefreshCcw },
 ]
 
-const activeMenu = computed(() => menuItems.find((item) => item.to === currentPath.value) ?? menuItems[0])
+const adminMenuItems = [
+  { name: 'admin-units', label: 'Unit Kerja', to: '/admin/units', icon: Building2 },
+]
+
+const activeMenu = computed(() => [...menuItems, ...adminMenuItems]
+  .find((item) => currentPath.value.startsWith(item.to)) ?? menuItems[0])
 
 const closeSidebar = () => {
   isSidebarOpen.value = false
@@ -100,6 +106,25 @@ const closeSidebar = () => {
             </Link>
           </li>
         </ul>
+
+        <template v-if="isPusat">
+          <p class="mb-2 mt-7 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Administrasi</p>
+          <ul class="space-y-1">
+            <li v-for="item in adminMenuItems" :key="item.name">
+              <Link
+                :href="item.to"
+                class="group flex min-h-11 items-center gap-3 rounded-lg border-l-[3px] px-3 text-sm font-medium transition"
+                :class="currentPath.startsWith(item.to)
+                  ? 'border-orange-500 bg-orange-50 text-[#171650]'
+                  : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950'"
+                @click="closeSidebar"
+              >
+                <component :is="item.icon" :size="19" :stroke-width="1.8" :class="currentPath.startsWith(item.to) ? 'text-orange-600' : 'text-slate-400 group-hover:text-slate-600'" aria-hidden="true" />
+                {{ item.label }}
+              </Link>
+            </li>
+          </ul>
+        </template>
       </nav>
 
       <div class="border-t border-slate-100 p-4">
