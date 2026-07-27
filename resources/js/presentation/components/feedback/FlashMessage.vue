@@ -29,7 +29,8 @@ watch(() => [props.success, props.error], () => {
     </div>
 
     <div
-      v-else
+      v-if="error"
+      :class="success ? 'mt-3' : ''"
       role="alert"
       class="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
     >
