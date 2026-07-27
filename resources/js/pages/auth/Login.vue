@@ -5,7 +5,7 @@ import BaseButton from '@/components/base/BaseButton.vue'
 import kaiLogo from '@/assets/logo-kai.png'
 
 const form = useForm({
-  email: '',
+  username: '',
   password: '',
   remember: false,
 })
@@ -86,22 +86,21 @@ const submit = () => {
 
         <form class="space-y-5" novalidate @submit.prevent="submit">
           <div>
-            <label for="email" class="mb-2 block text-sm font-medium text-slate-800">Alamat email</label>
+            <label for="username" class="mb-2 block text-sm font-medium text-slate-800">Username</label>
             <input
-              id="email"
-              v-model="form.email"
-              type="email"
-              inputmode="email"
+              id="username"
+              v-model="form.username"
+              type="text"
               autocomplete="username"
               required
               autofocus
-              placeholder="nama@kai.id"
-              :aria-invalid="Boolean(form.errors.email)"
-              :aria-describedby="form.errors.email ? 'email-error' : undefined"
+              placeholder="Masukkan username"
+              :aria-invalid="Boolean(form.errors.username)"
+              :aria-describedby="form.errors.username ? 'username-error' : undefined"
               class="h-12 w-full rounded-lg border bg-white px-3.5 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10"
-              :class="form.errors.email ? 'border-red-400' : 'border-slate-300'"
+              :class="form.errors.username ? 'border-red-400' : 'border-slate-300'"
             />
-            <p v-if="form.errors.email" id="email-error" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.email }}</p>
+            <p v-if="form.errors.username" id="username-error" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.username }}</p>
           </div>
 
           <div>
