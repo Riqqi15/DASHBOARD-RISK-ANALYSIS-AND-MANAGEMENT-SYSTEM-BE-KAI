@@ -106,7 +106,7 @@ Artisan command menerima path workbook dan kode unit secara eksplisit, misalnya:
 php artisan rams:import-master-assets "D:\KAI RAMS\Risk Analysis And Management System RAMS Daop 1.xlsm" --unit=DAOP-1
 ```
 
-Importer membaca sheet `Predictive Data Asset` mulai dari baris data ketiga. Baris tanpa system atau subsystem dilewati. Pemetaan field:
+Importer membaca sheet `Predictive Data Asset` mulai dari baris data ketiga. Nilai kelompok aset dan system yang kosong karena sel Excel digabungkan mewarisi nilai terakhir di atasnya. Setelah pewarisan tersebut, baris tanpa kelompok aset, system, atau subsystem dilewati. Pemetaan field:
 
 | Excel | Master Aset |
 | --- | --- |
