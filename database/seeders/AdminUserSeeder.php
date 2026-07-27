@@ -21,7 +21,7 @@ class AdminUserSeeder extends Seeder
             ['username' => $admin['username']],
             [
                 'name' => $admin['name'],
-                'email' => $admin['email'],
+                'email' => $admin['email'] ?: null,
                 'password' => $admin['password'],
                 'role' => UserRole::Pusat,
                 'unit_kerja_id' => null,

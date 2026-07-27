@@ -17,7 +17,7 @@ class AdminUserSeederTest extends TestCase
         config()->set('rams.admin', [
             'name' => 'Admin Pusat',
             'username' => 'admin.pusat',
-            'email' => null,
+            'email' => '',
             'password' => 'admin1234',
         ]);
 
@@ -28,6 +28,7 @@ class AdminUserSeederTest extends TestCase
 
         $this->assertDatabaseCount('users', 1);
         $this->assertSame('pusat', $admin->role->value);
+        $this->assertNull($admin->email);
         $this->assertTrue($admin->is_active);
         $this->assertTrue(Hash::check('admin1234', $admin->password));
     }
