@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\RegionalAccountController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -35,4 +36,5 @@ Route::middleware(['auth', 'active', 'pusat'])->prefix('admin')->name('admin.')-
     Route::patch('accounts/{account}/status', [RegionalAccountController::class, 'status'])->name('accounts.status');
     Route::get('accounts/{account}/password', [RegionalAccountController::class, 'editPassword'])->name('accounts.password.edit');
     Route::put('accounts/{account}/password', [RegionalAccountController::class, 'updatePassword'])->name('accounts.password.update');
+    Route::get('audit-logs', AuditLogController::class)->name('audit-logs.index');
 });
