@@ -1,27 +1,36 @@
-*.log
-.DS_Store
+# Local environment files
 .env
 .env.backup
 .env.production
-.phpactor.json
-.phpunit.result.cache
-/.codex
-/.cursor/
-/.idea
-/.nova
-/.phpunit.cache
-/.vscode
-/.zed
-/auth.json
+
+# Dependencies and build output
 /node_modules
+/vendor
 /public/build
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
+
+# Runtime and cache artifacts
+*.log
+/.phpunit.cache
+/.phpunit.result.cache
 /storage/*.key
 /storage/pail
-/vendor
+
+# Editor and tool settings
+.DS_Store
+Thumbs.db
+/.codex
+/.cursor/
+/.idea
+/.nova
+/.vscode
+/.zed
+/.phpactor.json
+/auth.json
+
+# Laravel helpers and local VM config
 _ide_helper.php
 Homestead.json
 Homestead.yaml
-Thumbs.db
