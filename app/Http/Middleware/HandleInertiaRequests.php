@@ -40,6 +40,31 @@ class HandleInertiaRequests extends Middleware
             'app' => [
                 'name' => config('app.name'),
             ],
+            'auth' => [
+                'user' => function () use ($request): ?array {
+                    $user = $request->user();
+
+                    if (! $user) {
+                        return null;
+                    }
+
+                    $user->loadMissing('unitKerja:id,code,name');
+
+                    return [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'role' => $user->role->value,
+                        'unit_kerja_id' => $user->unit_kerja_id,
+                        'unit_kerja' => $user->unitKerja?->only(['id', 'code', 'name']),
+                        'is_active' => $user->is_active,
+                    ];
+                },
+            ],
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
+            ],
         ];
     }
 }
