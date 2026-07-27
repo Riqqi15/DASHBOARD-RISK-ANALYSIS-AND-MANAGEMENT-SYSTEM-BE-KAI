@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\RegionalAccountController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use Illuminate\Support\Facades\Route;
@@ -30,4 +31,8 @@ Route::middleware(['auth', 'active', 'pusat'])->prefix('admin')->name('admin.')-
     Route::resource('units', UnitKerjaController::class)
         ->parameters(['units' => 'unit'])
         ->except(['show', 'destroy']);
+    Route::resource('accounts', RegionalAccountController::class)->except(['show', 'destroy']);
+    Route::patch('accounts/{account}/status', [RegionalAccountController::class, 'status'])->name('accounts.status');
+    Route::get('accounts/{account}/password', [RegionalAccountController::class, 'editPassword'])->name('accounts.password.edit');
+    Route::put('accounts/{account}/password', [RegionalAccountController::class, 'updatePassword'])->name('accounts.password.update');
 });

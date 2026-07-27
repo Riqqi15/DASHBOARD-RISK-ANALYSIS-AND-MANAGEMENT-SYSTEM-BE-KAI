@@ -5,6 +5,7 @@ import {
   Activity,
   AlertTriangle,
   Building2,
+  UsersRound,
   ChevronDown,
   Database,
   LayoutDashboard,
@@ -46,6 +47,7 @@ const menuItems = [
 
 const adminMenuItems = [
   { name: 'admin-units', label: 'Unit Kerja', to: '/admin/units', icon: Building2 },
+  { name: 'admin-accounts', label: 'Akun Wilayah', to: '/admin/accounts', icon: UsersRound },
 ]
 
 const activeMenu = computed(() => [...menuItems, ...adminMenuItems]
