@@ -94,4 +94,23 @@ class RegionalAccountManagementTest extends TestCase
         $this->actingAs($actor)->patch("/admin/accounts/{$target->id}/status", ['is_active' => false])->assertNotFound();
         $this->assertTrue($target->fresh()->is_active);
     }
+
+    public function test_account_on_an_inactive_unit_can_keep_its_unit_while_updating_profile(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $unit = UnitKerja::factory()->create(['is_active' => false]);
+        $account = User::factory()->unit($unit)->create();
+
+        $this->actingAs($pusat)->put("/admin/accounts/{$account->id}", [
+            'name' => 'Nama Diperbarui',
+            'email' => 'updated@example.test',
+            'unit_kerja_id' => $unit->id,
+        ])->assertRedirect('/admin/accounts');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $account->id,
+            'name' => 'Nama Diperbarui',
+            'unit_kerja_id' => $unit->id,
+        ]);
+    }
 }

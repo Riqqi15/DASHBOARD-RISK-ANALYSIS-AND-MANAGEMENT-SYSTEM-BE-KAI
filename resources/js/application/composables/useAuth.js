@@ -4,6 +4,20 @@ import { ROLES, UserModel } from '@/domain/models/user.model'
 
 const activeArea = ref(null)
 
+const divreNumbers = { I: '1', II: '2', III: '3', IV: '4' }
+
+export function normalizeUnitCode(code) {
+  if (!code) return null
+
+  const daop = code.match(/^DAOP-(\d+)$/)
+  if (daop) return `DAOP${daop[1]}`
+
+  const divre = code.match(/^DIVRE-(I|II|III|IV)$/)
+  if (divre) return `DIVRE${divreNumbers[divre[1]]}`
+
+  return code.replaceAll('-', '')
+}
+
 export function useAuth() {
   const page = usePage()
 
@@ -19,7 +33,7 @@ export function useAuth() {
       username: user.email,
       name: user.name,
       role: user.role === 'pusat' ? ROLES.PUSAT : ROLES.DAOP_DIVRE,
-      unit_kerja_id: user.unit_kerja?.code ?? null,
+      unit_kerja_id: normalizeUnitCode(user.unit_kerja?.code),
     })
   })
 

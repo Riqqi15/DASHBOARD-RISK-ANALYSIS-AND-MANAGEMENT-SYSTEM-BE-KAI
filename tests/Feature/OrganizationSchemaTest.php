@@ -7,7 +7,9 @@ use App\Enums\UserRole;
 use App\Models\UnitKerja;
 use App\Models\User;
 use Database\Seeders\UnitKerjaSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class OrganizationSchemaTest extends TestCase
@@ -32,5 +34,21 @@ class OrganizationSchemaTest extends TestCase
         $this->assertDatabaseCount('unit_kerjas', 13);
         $this->assertDatabaseHas('unit_kerjas', ['code' => 'DAOP-1']);
         $this->assertDatabaseHas('unit_kerjas', ['code' => 'DIVRE-IV']);
+    }
+
+    public function test_database_rejects_an_active_regional_user_without_a_unit(): void
+    {
+        $this->expectException(QueryException::class);
+
+        DB::table('users')->insert([
+            'name' => 'Akun Tanpa Unit',
+            'email' => 'unscoped@example.test',
+            'password' => 'irrelevant-test-hash',
+            'role' => UserRole::Unit->value,
+            'unit_kerja_id' => null,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 }
