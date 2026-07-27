@@ -13,19 +13,20 @@ class AdminUserSeeder extends Seeder
     {
         $admin = config('rams.admin');
 
-        if (! $admin['name'] || ! $admin['email'] || ! $admin['password']) {
-            throw new RuntimeException('Set RAMS_ADMIN_NAME, RAMS_ADMIN_EMAIL, and RAMS_ADMIN_PASSWORD before seeding.');
+        if (! $admin['name'] || ! $admin['username'] || ! $admin['password']) {
+            throw new RuntimeException('Set RAMS_ADMIN_NAME, RAMS_ADMIN_USERNAME, and RAMS_ADMIN_PASSWORD before seeding.');
         }
 
         User::query()->updateOrCreate(
-            ['email' => $admin['email']],
+            ['username' => $admin['username']],
             [
                 'name' => $admin['name'],
+                'email' => $admin['email'],
                 'password' => $admin['password'],
                 'role' => UserRole::Pusat,
                 'unit_kerja_id' => null,
                 'is_active' => true,
-                'email_verified_at' => now(),
+                'email_verified_at' => $admin['email'] ? now() : null,
             ],
         );
     }

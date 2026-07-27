@@ -19,10 +19,17 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email'],
+            'username' => ['required', 'string', 'min:3', 'max:50', 'regex:/\A[a-z0-9._-]+\z/'],
             'password' => ['required', 'string'],
             'remember' => ['sometimes', 'boolean'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'username' => Str::lower(trim($this->string('username')->toString())),
+        ]);
     }
 
     public function authenticate(): void
@@ -30,7 +37,7 @@ class LoginRequest extends FormRequest
         $this->ensureIsNotRateLimited();
 
         $authenticated = Auth::attempt([
-            'email' => $this->string('email')->toString(),
+            'username' => $this->string('username')->toString(),
             'password' => $this->string('password')->toString(),
             'is_active' => true,
         ], $this->boolean('remember'));
@@ -39,7 +46,7 @@ class LoginRequest extends FormRequest
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
-                'email' => __('Email, kata sandi, atau status akun tidak valid.'),
+                'username' => __('Username, kata sandi, atau status akun tidak valid.'),
             ]);
         }
 
@@ -56,7 +63,7 @@ class LoginRequest extends FormRequest
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'email' => __('Terlalu banyak percobaan. Coba lagi dalam :seconds detik.', [
+            'username' => __('Terlalu banyak percobaan. Coba lagi dalam :seconds detik.', [
                 'seconds' => $seconds,
             ]),
         ]);
@@ -64,6 +71,6 @@ class LoginRequest extends FormRequest
 
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        return Str::transliterate($this->string('username')->toString().'|'.$this->ip());
     }
 }

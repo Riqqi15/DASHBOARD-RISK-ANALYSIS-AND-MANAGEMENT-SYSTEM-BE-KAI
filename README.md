@@ -31,8 +31,9 @@ Sebelum menjalankan seeder, isi variabel berikut di `.env`:
 
 ```dotenv
 RAMS_ADMIN_NAME="Admin Pusat"
-RAMS_ADMIN_EMAIL=admin@example.test
-RAMS_ADMIN_PASSWORD=ganti-dengan-password-yang-kuat
+RAMS_ADMIN_USERNAME=admin.pusat
+RAMS_ADMIN_EMAIL=
+RAMS_ADMIN_PASSWORD=admin1234
 ```
 
 Simpan kredensial lokal hanya di `.env`. Git mengabaikan file tersebut.

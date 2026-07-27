@@ -23,7 +23,7 @@ class AuthenticationTest extends TestCase
         $user = User::factory()->pusat()->create(['password' => 'secret-password']);
 
         $this->post('/login', [
-            'email' => $user->email,
+            'username' => strtoupper($user->username),
             'password' => 'secret-password',
         ])->assertRedirect('/dashboard');
 
@@ -40,9 +40,24 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->from('/login')->post('/login', [
-            'email' => $user->email,
+            'username' => $user->username,
             'password' => 'secret-password',
-        ])->assertRedirect('/login')->assertSessionHasErrors('email');
+        ])->assertRedirect('/login')->assertSessionHasErrors('username');
+
+        $this->assertGuest();
+    }
+
+    public function test_email_cannot_be_used_as_a_login_identifier(): void
+    {
+        $user = User::factory()->pusat()->create([
+            'email' => 'admin.pusat@example.test',
+            'password' => 'admin1234',
+        ]);
+
+        $this->post('/login', [
+            'username' => $user->email,
+            'password' => 'admin1234',
+        ])->assertSessionHasErrors('username');
 
         $this->assertGuest();
     }

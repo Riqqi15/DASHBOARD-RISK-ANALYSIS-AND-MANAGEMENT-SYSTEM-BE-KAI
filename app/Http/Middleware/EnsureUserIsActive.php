@@ -18,7 +18,7 @@ class EnsureUserIsActive
             $request->session()->regenerateToken();
 
             return redirect()->route('login')->withErrors([
-                'email' => 'Akun Anda sedang tidak aktif.',
+                'username' => 'Akun Anda sedang tidak aktif.',
             ]);
         }
 
