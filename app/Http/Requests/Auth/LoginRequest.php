@@ -25,6 +25,13 @@ class LoginRequest extends FormRequest
         ];
     }
 
+    public function messages(): array
+    {
+        return [
+            'username.regex' => 'Username, kata sandi, atau status akun tidak valid.',
+        ];
+    }
+
     protected function prepareForValidation(): void
     {
         $this->merge([

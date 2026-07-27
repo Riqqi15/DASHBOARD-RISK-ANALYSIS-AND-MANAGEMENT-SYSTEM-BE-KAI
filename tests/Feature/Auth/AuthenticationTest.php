@@ -57,7 +57,9 @@ class AuthenticationTest extends TestCase
         $this->post('/login', [
             'username' => $user->email,
             'password' => 'admin1234',
-        ])->assertSessionHasErrors('username');
+        ])->assertSessionHasErrors([
+            'username' => 'Username, kata sandi, atau status akun tidak valid.',
+        ]);
 
         $this->assertGuest();
     }
