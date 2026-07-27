@@ -293,7 +293,7 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import MainLayout from '@/presentation/layouts/MainLayout.vue'
+import MainLayout from '@/layouts/MainLayout.vue'
 import { DummyRamsRepository } from '@/infrastructure/repositories/dummy-rams.repository'
 import { useAuth } from '@/application/composables/useAuth'
 import { 

@@ -170,8 +170,8 @@ import { ref, onMounted, computed, watchEffect } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { useAuth } from '@/application/composables/useAuth'
 import { DummyRamsRepository } from '@/infrastructure/repositories/dummy-rams.repository'
-import MainLayout from '@/presentation/layouts/MainLayout.vue'
-import AreaSelectorBanner from '@/presentation/components/dashboard/AreaSelectorBanner.vue'
+import MainLayout from '@/layouts/MainLayout.vue'
+import AreaSelectorBanner from '@/components/dashboard/AreaSelectorBanner.vue'
 import { 
   TrainTrackIcon, SettingsIcon, GitMergeIcon,
   VideoIcon, ActivityIcon, PhoneIcon, BellIcon, RouterIcon
@@ -210,7 +210,7 @@ const goToTroubleReport = (subsystemName) => {
 </script>
 
 <style scoped>
-@reference "../../../assets/main.css";
+@reference "../../../css/app.css";
 .subsystem-btn {
   @apply bg-[#8CB85C] hover:bg-[#7a9d51] text-white text-xs font-semibold py-2 px-3 rounded shadow-sm transition-colors text-center shadow-md border border-[#7a9d51];
   min-height: 48px;

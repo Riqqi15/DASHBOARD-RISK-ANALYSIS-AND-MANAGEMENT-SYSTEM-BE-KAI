@@ -8,35 +8,35 @@ Route::get('/', function () {
 });
 
 Route::get('/login', function () {
-    return Inertia::render('Login');
+    return Inertia::render('auth/Login');
 });
 
 Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
+    return Inertia::render('dashboard/Dashboard');
 });
 
 Route::get('/overview', function () {
-    return Inertia::render('Overview');
+    return Inertia::render('dashboard/Overview');
 });
 
 Route::get('/trouble-report', function () {
-    return Inertia::render('TroubleReport', [
+    return Inertia::render('input-data/TroubleReport', [
         'subsystem' => request()->query('subsystem', 'Subsystem Tidak Diketahui'),
     ]);
 });
 
 Route::get('/master-asset', function () {
-    return Inertia::render('MasterAsset');
+    return Inertia::render('master-data/assets/MasterAsset');
 });
 
 Route::get('/risk-matrix', function () {
-    return Inertia::render('RiskMatrix');
+    return Inertia::render('dashboard/RiskMatrix');
 });
 
 Route::get('/inventory', function () {
-    return Inertia::render('Inventory');
+    return Inertia::render('master-data/inventory/Inventory');
 });
 
 Route::get('/reorder-stock', function () {
-    return Inertia::render('ReorderStock');
+    return Inertia::render('master-data/inventory/ReorderStock');
 });

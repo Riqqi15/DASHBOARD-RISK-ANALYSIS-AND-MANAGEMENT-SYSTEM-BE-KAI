@@ -189,8 +189,14 @@ rams_be/
 │   ├── css/app.css             # Tailwind CSS dan token tema
 │   ├── js/
 │   │   ├── app.js              # Bootstrap Inertia + Vue
-│   │   ├── pages/              # Entry point Inertia Page
-│   │   ├── presentation/       # Layout, view, dan komponen UI
+│   │   ├── pages/              # Halaman Inertia dan UI per domain
+│   │   │   ├── auth/
+│   │   │   ├── dashboard/
+│   │   │   ├── input-data/
+│   │   │   └── master-data/
+│   │   ├── components/         # Komponen UI yang dipakai ulang
+│   │   ├── layouts/            # Layout halaman bersama
+│   │   ├── assets/             # Aset frontend
 │   │   ├── application/        # Use case dan composable
 │   │   ├── domain/             # Model dan aturan domain frontend
 │   │   └── infrastructure/     # Repository/data dummy sementara
@@ -207,25 +213,25 @@ rams_be/
 Browser
   -> routes/web.php
   -> middleware/controller Laravel
-  -> Inertia::render('NamaPage', props)
-  -> resources/js/pages/NamaPage.vue
-  -> Vue view/component
+  -> Inertia::render('domain/NamaPage', props)
+  -> resources/js/pages/domain/NamaPage.vue
+  -> komponen dan layout Vue yang digunakan halaman
 ```
 
 Navigasi menggunakan `Link` atau `router` dari `@inertiajs/vue3`. Form nantinya dikirim melalui Inertia ke web route Laravel, kemudian divalidasi dan diproses di sisi server.
 
 ## Halaman yang Tersedia
 
-| URL | Halaman |
-|---|---|
-| `/login` | Login |
-| `/dashboard` | Pemilihan aset/subsistem |
-| `/overview` | Executive overview |
-| `/trouble-report` | Laporan gangguan |
-| `/master-asset` | Master aset |
-| `/risk-matrix` | Matriks risiko |
-| `/inventory` | Inventori |
-| `/reorder-stock` | Rekomendasi reorder stock |
+| URL | Inertia Page | Halaman |
+|---|---|---|
+| `/login` | `auth/Login` | Login |
+| `/dashboard` | `dashboard/Dashboard` | Pemilihan aset/subsistem |
+| `/overview` | `dashboard/Overview` | Executive overview |
+| `/trouble-report` | `input-data/TroubleReport` | Laporan gangguan |
+| `/master-asset` | `master-data/assets/MasterAsset` | Master aset |
+| `/risk-matrix` | `dashboard/RiskMatrix` | Matriks risiko |
+| `/inventory` | `master-data/inventory/Inventory` | Inventori |
+| `/reorder-stock` | `master-data/inventory/ReorderStock` | Rekomendasi reorder stock |
 
 > [!NOTE]
 > Kerangka Laravel–Inertia–Vue dan halaman presentasi sudah tersedia. Sebagian data masih menggunakan repository dummy. Controller, autentikasi nyata, policy, model, dan integrasi database RAMS akan ditambahkan secara bertahap.

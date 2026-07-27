@@ -127,7 +127,7 @@
 import { computed, ref } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import { useAuth } from '@/application/composables/useAuth'
-import logoKai from '../assets/logo-kai.png'
+import logoKai from '@/assets/logo-kai.png'
 import { 
   LayoutDashboardIcon, 
   DatabaseIcon, 

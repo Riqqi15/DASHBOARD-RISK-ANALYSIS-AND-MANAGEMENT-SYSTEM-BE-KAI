@@ -40,7 +40,7 @@
 <script setup>
 import { ref } from 'vue'
 import { router } from '@inertiajs/vue3'
-import BaseButton from '@/presentation/components/base/BaseButton.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 
 const selectedRole = ref('DAOP1')
 
