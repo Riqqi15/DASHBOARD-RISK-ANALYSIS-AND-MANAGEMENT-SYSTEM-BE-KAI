@@ -36,12 +36,23 @@ class OrganizationSchemaTest extends TestCase
         $this->assertDatabaseHas('unit_kerjas', ['code' => 'DIVRE-IV']);
     }
 
+    public function test_users_have_a_unique_normalized_username(): void
+    {
+        $user = User::factory()->create(['username' => 'Operator.Daop1']);
+
+        $this->assertSame('operator.daop1', $user->fresh()->username);
+
+        $this->expectException(QueryException::class);
+        User::factory()->create(['username' => 'OPERATOR.DAOP1']);
+    }
+
     public function test_database_rejects_an_active_regional_user_without_a_unit(): void
     {
         $this->expectException(QueryException::class);
 
         DB::table('users')->insert([
             'name' => 'Akun Tanpa Unit',
+            'username' => 'akun.tanpa.unit',
             'email' => 'unscoped@example.test',
             'password' => 'irrelevant-test-hash',
             'role' => UserRole::Unit->value,
