@@ -8,9 +8,9 @@
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
-        @inertiaHead
+        <x-inertia::head />
     </head>
     <body>
-        @inertia
+        <x-inertia::app />
     </body>
 </html>

@@ -1,17 +1,23 @@
 {
     "$schema": "https://www.schemastore.org/package.json",
+    "name": "kai-rams",
     "private": true,
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "test:js": "vitest run --passWithNoTests",
+        "test:js:watch": "vitest"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",
+        "@vue/test-utils": "^2.4.11",
         "concurrently": "^9.0.1",
+        "jsdom": "^29.1.1",
         "laravel-vite-plugin": "^3.1",
         "tailwindcss": "^4.0.0",
-        "vite": "^8.0.0"
+        "vite": "^8.0.0",
+        "vitest": "^4.1.10"
     },
     "dependencies": {
         "@inertiajs/vue3": "^3.6.1",

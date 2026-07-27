@@ -23,6 +23,17 @@ This plan implements only the first vertical foundation slice from the approved 
 
 Do not add those modules while executing this plan.
 
+## Execution amendment after frontend integration
+
+Commit `2367e35` added an existing Inertia/Vue prototype after this plan was first written. Preserve its `domain`, `application`, `infrastructure`, and `presentation` directories. The implementation steps below remain authoritative for backend behavior, security, database structure, and tests, with these path adaptations:
+
+- Keep page entry files in `resources/js/pages` and reusable UI in `resources/js/presentation`.
+- Extend `resources/js/presentation/layouts/MainLayout.vue` instead of creating a second authenticated layout.
+- Extend `resources/js/presentation/views/auth/LoginView.vue` instead of creating a duplicate login design.
+- Replace mock authentication with Laravel session authentication during Task 4; do not keep role switching in production UI.
+- Preserve prototype RAMS views and dummy repositories until their corresponding backend module plan replaces each data source.
+- Use the existing KAI logo asset and refine the current interface rather than discarding the pulled frontend.
+
 ## Execution skills
 
 Before implementation, invoke these skills when applicable:
