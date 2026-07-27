@@ -18,7 +18,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-vue-next'
-import FlashMessage from '@/presentation/components/feedback/FlashMessage.vue'
+import FlashMessage from '@/components/feedback/FlashMessage.vue'
 import logoKai from '../assets/logo-kai.png'
 
 const page = usePage()

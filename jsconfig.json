@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "paths": {
+            "@/*": [
+                "./resources/js/*"
+            ]
+        },
+        "allowJs": true,
+        "checkJs": false
+    },
+    "include": [
+        "resources/js/**/*.js",
+        "resources/js/**/*.vue",
+        "vite.config.js"
+    ]
+}

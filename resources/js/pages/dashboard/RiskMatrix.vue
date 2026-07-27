@@ -214,8 +214,8 @@
 
 <script setup>
 import { ref } from 'vue'
-import MainLayout from '@/presentation/layouts/MainLayout.vue'
-import BaseButton from '@/presentation/components/base/BaseButton.vue'
+import MainLayout from '@/layouts/MainLayout.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 import { 
   AlertTriangleIcon, PlusIcon, GridIcon, PieChartIcon, 
   ListIcon, SearchIcon

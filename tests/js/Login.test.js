@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import Login from '@/presentation/views/auth/LoginView.vue'
+import Login from '@/pages/auth/Login.vue'
 
 const state = vi.hoisted(() => ({ errors: {}, post: vi.fn(), reset: vi.fn() }))
 

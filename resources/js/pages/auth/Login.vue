@@ -1,8 +1,8 @@
 <script setup>
 import { Head, useForm } from '@inertiajs/vue3'
 import { LockKeyhole, ShieldCheck, TrainFront } from 'lucide-vue-next'
-import BaseButton from '@/presentation/components/base/BaseButton.vue'
-import kaiLogo from '@/presentation/assets/logo-kai.png'
+import BaseButton from '@/components/base/BaseButton.vue'
+import kaiLogo from '@/assets/logo-kai.png'
 
 const form = useForm({
   email: '',

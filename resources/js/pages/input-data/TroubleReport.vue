@@ -205,10 +205,10 @@ import { ref, onMounted, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { useAuth } from '@/application/composables/useAuth'
 import { DummyRamsRepository } from '@/infrastructure/repositories/dummy-rams.repository'
-import MainLayout from '@/presentation/layouts/MainLayout.vue'
-import BaseButton from '@/presentation/components/base/BaseButton.vue'
+import MainLayout from '@/layouts/MainLayout.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 import { ActivityIcon, AlertTriangleIcon, UploadIcon, PlusIcon, SettingsIcon } from 'lucide-vue-next'
-import TroubleReportModal from './TroubleReportModal.vue'
+import TroubleReportModal from '@/components/trouble-report/TroubleReportModal.vue'
 
 const props = defineProps({
   subsystem: {

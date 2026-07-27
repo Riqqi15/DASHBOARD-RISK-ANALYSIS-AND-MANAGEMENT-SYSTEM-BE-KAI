@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import FlashMessage from '@/presentation/components/feedback/FlashMessage.vue'
+import FlashMessage from '@/components/feedback/FlashMessage.vue'
 
 describe('FlashMessage', () => {
   it('uses accessible roles for success and error feedback', () => {

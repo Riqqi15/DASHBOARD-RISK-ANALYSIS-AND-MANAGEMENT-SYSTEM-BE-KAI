@@ -1,6 +1,6 @@
 <script setup>
 import { Link, useForm } from '@inertiajs/vue3'
-import BaseButton from '@/presentation/components/base/BaseButton.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 
 const props = defineProps({ account: { type: Object, default: null }, units: { type: Array, required: true }, submitLabel: { type: String, required: true } })
 const form = useForm({ name: props.account?.name ?? '', email: props.account?.email ?? '', unit_kerja_id: props.account?.unit_kerja_id ?? '', password: '', password_confirmation: '' })

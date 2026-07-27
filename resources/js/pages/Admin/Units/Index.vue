@@ -2,7 +2,7 @@
 import { reactive } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import { Building2, Pencil, Plus, Search, X } from 'lucide-vue-next'
-import MainLayout from '@/presentation/layouts/MainLayout.vue'
+import MainLayout from '@/layouts/MainLayout.vue'
 
 const props = defineProps({
   units: { type: Object, required: true },

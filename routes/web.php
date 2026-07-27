@@ -15,15 +15,15 @@ Route::middleware('guest')->group(function (): void {
 Route::middleware(['auth', 'active'])->group(function (): void {
     Route::redirect('/', '/dashboard');
 
-    Route::get('/dashboard', fn () => Inertia::render('Dashboard'))->name('dashboard');
-    Route::get('/overview', fn () => Inertia::render('Overview'))->name('overview');
-    Route::get('/trouble-report', fn () => Inertia::render('TroubleReport', [
+    Route::get('/dashboard', fn () => Inertia::render('dashboard/Dashboard'))->name('dashboard');
+    Route::get('/overview', fn () => Inertia::render('dashboard/Overview'))->name('overview');
+    Route::get('/trouble-report', fn () => Inertia::render('input-data/TroubleReport', [
         'subsystem' => request()->query('subsystem', 'Subsystem Tidak Diketahui'),
     ]))->name('trouble-report');
-    Route::get('/master-asset', fn () => Inertia::render('MasterAsset'))->name('master-asset');
-    Route::get('/risk-matrix', fn () => Inertia::render('RiskMatrix'))->name('risk-matrix');
-    Route::get('/inventory', fn () => Inertia::render('Inventory'))->name('inventory');
-    Route::get('/reorder-stock', fn () => Inertia::render('ReorderStock'))->name('reorder-stock');
+    Route::get('/master-asset', fn () => Inertia::render('master-data/assets/MasterAsset'))->name('master-asset');
+    Route::get('/risk-matrix', fn () => Inertia::render('dashboard/RiskMatrix'))->name('risk-matrix');
+    Route::get('/inventory', fn () => Inertia::render('master-data/inventory/Inventory'))->name('inventory');
+    Route::get('/reorder-stock', fn () => Inertia::render('master-data/inventory/ReorderStock'))->name('reorder-stock');
 
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 });

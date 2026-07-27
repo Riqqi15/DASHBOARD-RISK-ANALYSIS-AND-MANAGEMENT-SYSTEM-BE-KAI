@@ -12,7 +12,7 @@ class InertiaShellTest extends TestCase
         $this->get('/login')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Login')
+                ->component('auth/Login')
                 ->where('app.name', 'KAI RAMS'));
     }
 }

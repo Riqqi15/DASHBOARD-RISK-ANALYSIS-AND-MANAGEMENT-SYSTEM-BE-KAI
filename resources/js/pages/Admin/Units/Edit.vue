@@ -1,7 +1,7 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3'
 import { Building2, ChevronRight } from 'lucide-vue-next'
-import MainLayout from '@/presentation/layouts/MainLayout.vue'
+import MainLayout from '@/layouts/MainLayout.vue'
 import UnitForm from './Partials/UnitForm.vue'
 
 defineProps({

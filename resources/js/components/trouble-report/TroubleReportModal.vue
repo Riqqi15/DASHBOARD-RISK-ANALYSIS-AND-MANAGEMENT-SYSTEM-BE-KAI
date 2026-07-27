@@ -171,7 +171,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { XIcon } from 'lucide-vue-next'
-import BaseButton from '@/presentation/components/base/BaseButton.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 
 const props = defineProps({
   isOpen: {

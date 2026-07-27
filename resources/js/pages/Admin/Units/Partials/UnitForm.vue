@@ -1,7 +1,7 @@
 <script setup>
 import { Link, useForm } from '@inertiajs/vue3'
 import { Save } from 'lucide-vue-next'
-import BaseButton from '@/presentation/components/base/BaseButton.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 
 const props = defineProps({
   unit: { type: Object, default: null },

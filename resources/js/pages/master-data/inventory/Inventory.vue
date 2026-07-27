@@ -148,8 +148,8 @@
 
 <script setup>
 import { ref } from 'vue'
-import MainLayout from '@/presentation/layouts/MainLayout.vue'
-import BaseButton from '@/presentation/components/base/BaseButton.vue'
+import MainLayout from '@/layouts/MainLayout.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 import { 
   BoxIcon, TrendingUpIcon, LayersIcon, AlertCircleIcon, ClockIcon, TruckIcon,
   DatabaseIcon, SearchIcon, FilterIcon, ArrowUpIcon

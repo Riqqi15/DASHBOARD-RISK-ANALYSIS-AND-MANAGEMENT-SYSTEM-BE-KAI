@@ -15,7 +15,7 @@ class AuthenticationTest extends TestCase
     {
         $this->get('/login')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->component('Login'));
+            ->assertInertia(fn (Assert $page) => $page->component('auth/Login'));
     }
 
     public function test_active_user_can_log_in_and_log_out(): void

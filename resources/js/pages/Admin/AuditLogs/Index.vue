@@ -2,7 +2,7 @@
 import { reactive } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import { FileClock, Filter } from 'lucide-vue-next'
-import MainLayout from '@/presentation/layouts/MainLayout.vue'
+import MainLayout from '@/layouts/MainLayout.vue'
 
 const props = defineProps({ logs: { type: Object, required: true }, units: { type: Array, required: true }, actionOptions: { type: Array, required: true }, filters: { type: Object, required: true } })
 const filters = reactive({ ...props.filters })

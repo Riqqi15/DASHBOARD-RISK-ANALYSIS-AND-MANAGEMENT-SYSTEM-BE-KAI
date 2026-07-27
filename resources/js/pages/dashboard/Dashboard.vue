@@ -170,8 +170,8 @@ import { ref, onMounted, computed, watchEffect } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { useAuth } from '@/application/composables/useAuth'
 import { DummyRamsRepository } from '@/infrastructure/repositories/dummy-rams.repository'
-import MainLayout from '@/presentation/layouts/MainLayout.vue'
-import AreaSelectorBanner from '@/presentation/components/dashboard/AreaSelectorBanner.vue'
+import MainLayout from '@/layouts/MainLayout.vue'
+import AreaSelectorBanner from '@/components/dashboard/AreaSelectorBanner.vue'
 import { 
   TrainTrackIcon, SettingsIcon, GitMergeIcon,
   VideoIcon, ActivityIcon, PhoneIcon, BellIcon, RouterIcon
@@ -210,9 +210,27 @@ const goToTroubleReport = (subsystemName) => {
 </script>
 
 <style scoped>
-@reference "../../../assets/main.css";
 .subsystem-btn {
-  @apply bg-[#8CB85C] hover:bg-[#7a9d51] text-white text-xs font-semibold py-2 px-3 rounded shadow-sm transition-colors text-center shadow-md border border-[#7a9d51];
+  padding: 0.5rem 0.75rem;
   min-height: 48px;
+  border: 1px solid #7a9d51;
+  border-radius: 0.25rem;
+  background-color: #8cb85c;
+  color: #fff;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 10%),
+    0 2px 4px -2px rgb(0 0 0 / 10%);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1rem;
+  text-align: center;
+  transition:
+    color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.subsystem-btn:hover {
+  background-color: #7a9d51;
 }
 </style>
