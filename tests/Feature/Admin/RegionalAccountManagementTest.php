@@ -19,14 +19,16 @@ class RegionalAccountManagementTest extends TestCase
 
         $this->actingAs($pusat)->post('/admin/accounts', [
             'name' => 'Operator Daop 1',
-            'email' => 'operator.daop1@example.test',
+            'username' => 'DAOP1.Operator',
+            'email' => null,
             'unit_kerja_id' => $unit->id,
             'password' => 'long-secret-password',
             'password_confirmation' => 'long-secret-password',
         ])->assertRedirect('/admin/accounts');
 
         $this->assertDatabaseHas('users', [
-            'email' => 'operator.daop1@example.test',
+            'username' => 'daop1.operator',
+            'email' => null,
             'role' => 'unit',
             'unit_kerja_id' => $unit->id,
             'is_active' => true,
@@ -54,7 +56,7 @@ class RegionalAccountManagementTest extends TestCase
         $this->assertStringNotContainsString('replacement-password', $this->app['db']->table('audit_logs')->pluck('new_values')->implode(' '));
     }
 
-    public function test_inactive_unit_duplicate_email_and_missing_unit_fail_validation(): void
+    public function test_inactive_unit_duplicate_username_and_missing_unit_fail_validation(): void
     {
         $pusat = User::factory()->pusat()->create();
         $inactiveUnit = UnitKerja::factory()->create(['is_active' => false]);
@@ -62,16 +64,17 @@ class RegionalAccountManagementTest extends TestCase
 
         $payload = [
             'name' => 'Operator',
-            'email' => $existing->email,
+            'username' => strtoupper($existing->username),
+            'email' => null,
             'unit_kerja_id' => $inactiveUnit->id,
             'password' => 'long-secret-password',
             'password_confirmation' => 'long-secret-password',
         ];
 
         $this->actingAs($pusat)->post('/admin/accounts', $payload)
-            ->assertSessionHasErrors(['email', 'unit_kerja_id']);
+            ->assertSessionHasErrors(['username', 'unit_kerja_id']);
 
-        $payload['email'] = 'unique@example.test';
+        $payload['username'] = 'unique.operator';
         $payload['unit_kerja_id'] = 999999;
         $this->actingAs($pusat)->post('/admin/accounts', $payload)
             ->assertSessionHasErrors('unit_kerja_id');
@@ -103,6 +106,7 @@ class RegionalAccountManagementTest extends TestCase
 
         $this->actingAs($pusat)->put("/admin/accounts/{$account->id}", [
             'name' => 'Nama Diperbarui',
+            'username' => 'operator.updated',
             'email' => 'updated@example.test',
             'unit_kerja_id' => $unit->id,
         ])->assertRedirect('/admin/accounts');
@@ -110,6 +114,7 @@ class RegionalAccountManagementTest extends TestCase
         $this->assertDatabaseHas('users', [
             'id' => $account->id,
             'name' => 'Nama Diperbarui',
+            'username' => 'operator.updated',
             'unit_kerja_id' => $unit->id,
         ]);
     }

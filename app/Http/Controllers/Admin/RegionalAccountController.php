@@ -26,7 +26,7 @@ class RegionalAccountController extends Controller
         $accounts = User::query()
             ->where('role', UserRole::Unit)
             ->with('unitKerja:id,code,name')
-            ->when($search, fn ($query, $value) => $query->where(fn ($nested) => $nested->where('name', 'like', "%{$value}%")->orWhere('email', 'like', "%{$value}%")))
+            ->when($search, fn ($query, $value) => $query->where(fn ($nested) => $nested->where('name', 'like', "%{$value}%")->orWhere('username', 'like', "%{$value}%")))
             ->when($request->filled('unit_kerja_id'), fn ($query) => $query->where('unit_kerja_id', $request->integer('unit_kerja_id')))
             ->when($request->filled('status'), fn ($query) => $query->where('is_active', $request->boolean('status')))
             ->orderBy('name')->paginate(15)->withQueryString();
@@ -115,11 +115,11 @@ class RegionalAccountController extends Controller
 
     private function accountPayload(User $account): array
     {
-        return $account->only(['id', 'name', 'email', 'unit_kerja_id', 'is_active']);
+        return $account->only(['id', 'name', 'username', 'email', 'unit_kerja_id', 'is_active']);
     }
 
     private function auditValues(User $account): array
     {
-        return $account->only(['name', 'email', 'unit_kerja_id', 'is_active']);
+        return $account->only(['name', 'username', 'email', 'unit_kerja_id', 'is_active']);
     }
 }
