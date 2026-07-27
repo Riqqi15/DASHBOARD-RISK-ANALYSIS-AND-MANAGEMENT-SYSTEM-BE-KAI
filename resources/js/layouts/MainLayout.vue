@@ -180,7 +180,7 @@ const closeSidebar = () => {
               <div v-if="isUserMenuOpen" class="absolute right-0 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10" role="menu">
                 <div class="border-b border-slate-100 px-4 py-3">
                   <p class="truncate text-sm font-semibold text-slate-900">{{ user.name }}</p>
-                  <p class="mt-1 truncate text-xs text-slate-500">{{ user.email }}</p>
+                  <p class="mt-1 truncate text-xs text-slate-500">@{{ user.username }}</p>
                 </div>
                 <Link href="/logout" method="post" as="button" class="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50" role="menuitem">
                   <LogOut :size="17" aria-hidden="true" />

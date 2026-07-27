@@ -14,7 +14,7 @@ class AuditLogController extends Controller
     public function __invoke(Request $request): Response
     {
         $logs = AuditLog::query()
-            ->with(['actor:id,name,email', 'unitKerja:id,code,name'])
+            ->with(['actor:id,name,username,email', 'unitKerja:id,code,name'])
             ->when($request->filled('action'), fn ($query) => $query->where('action', $request->string('action')->toString()))
             ->when($request->filled('unit_kerja_id'), fn ($query) => $query->where('unit_kerja_id', $request->integer('unit_kerja_id')))
             ->when($request->date('date_from'), fn ($query, $date) => $query->whereDate('created_at', '>=', $date))

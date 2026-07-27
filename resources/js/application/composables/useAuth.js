@@ -30,7 +30,7 @@ export function useAuth() {
 
     return new UserModel({
       id: user.id,
-      username: user.email,
+      username: user.username,
       name: user.name,
       role: user.role === 'pusat' ? ROLES.PUSAT : ROLES.DAOP_DIVRE,
       unit_kerja_id: normalizeUnitCode(user.unit_kerja?.code),

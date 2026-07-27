@@ -19,6 +19,7 @@ class SharedInertiaDataTest extends TestCase
         $this->actingAs($user)->get('/dashboard')
             ->assertInertia(fn (Assert $page) => $page
                 ->where('auth.user.id', $user->id)
+                ->where('auth.user.username', $user->username)
                 ->where('auth.user.role', 'pusat')
                 ->where('auth.user.unit_kerja_id', null)
                 ->where('auth.user.unit_kerja', null)
