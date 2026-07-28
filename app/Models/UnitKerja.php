@@ -21,6 +21,11 @@ class UnitKerja extends Model
         return $this->hasMany(User::class);
     }
 
+    public function assets(): HasMany
+    {
+        return $this->hasMany(Asset::class);
+    }
+
     protected function casts(): array
     {
         return [
