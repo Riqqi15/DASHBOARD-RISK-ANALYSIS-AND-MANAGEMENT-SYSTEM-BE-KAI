@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\RegionalAccountController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\MasterAssetController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -20,7 +21,17 @@ Route::middleware(['auth', 'active'])->group(function (): void {
     Route::get('/trouble-report', fn () => Inertia::render('input-data/TroubleReport', [
         'subsystem' => request()->query('subsystem', 'Subsystem Tidak Diketahui'),
     ]))->name('trouble-report');
-    Route::get('/master-asset', fn () => Inertia::render('master-data/assets/MasterAsset'))->name('master-asset');
+    Route::resource('master-asset', MasterAssetController::class)
+        ->parameters(['master-asset' => 'asset'])
+        ->except(['show'])
+        ->names([
+            'index' => 'master-assets.index',
+            'create' => 'master-assets.create',
+            'store' => 'master-assets.store',
+            'edit' => 'master-assets.edit',
+            'update' => 'master-assets.update',
+            'destroy' => 'master-assets.destroy',
+        ]);
     Route::get('/risk-matrix', fn () => Inertia::render('dashboard/RiskMatrix'))->name('risk-matrix');
     Route::get('/inventory', fn () => Inertia::render('master-data/inventory/Inventory'))->name('inventory');
     Route::get('/reorder-stock', fn () => Inertia::render('master-data/inventory/ReorderStock'))->name('reorder-stock');
