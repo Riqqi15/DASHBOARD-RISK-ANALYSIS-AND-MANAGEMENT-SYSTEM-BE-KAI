@@ -1,0 +1,92 @@
+<script setup>
+import { nextTick, onMounted, ref } from 'vue'
+import { X } from 'lucide-vue-next'
+
+const props = defineProps({
+  title: { type: String, required: true },
+  levelLabel: { type: String, required: true },
+  description: { type: String, required: true },
+  form: { type: Object, required: true },
+})
+
+defineEmits(['close', 'submit'])
+
+const nameInput = ref(null)
+onMounted(async () => {
+  await nextTick()
+  nameInput.value?.focus()
+})
+</script>
+
+<template>
+  <Teleport to="body">
+    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[1px]" @click.self="!form.processing && $emit('close')">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="category-dialog-title"
+        aria-describedby="category-dialog-description"
+        class="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20"
+        @keydown.esc.stop="!form.processing && $emit('close')"
+      >
+        <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+          <div>
+            <h2 id="category-dialog-title" class="text-lg font-semibold text-slate-950">{{ title }}</h2>
+            <p id="category-dialog-description" class="mt-1 text-sm leading-6 text-slate-600">{{ description }}</p>
+          </div>
+          <button type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 outline-none hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[#171650]" aria-label="Tutup dialog" :disabled="form.processing" @click="$emit('close')">
+            <X :size="19" aria-hidden="true" />
+          </button>
+        </div>
+
+        <form class="space-y-5 p-6" @submit.prevent="$emit('submit')">
+          <div v-if="form.errors.asset_group_id || form.errors.asset_system_id" role="alert" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm leading-6 text-red-700">
+            {{ form.errors.asset_group_id || form.errors.asset_system_id }}
+            Pilih {{ form.errors.asset_system_id ? 'system' : 'kategori' }} aktif lalu coba lagi.
+          </div>
+          <div>
+            <label for="category-name" class="mb-2 block text-sm font-medium text-slate-800">Nama {{ levelLabel }}</label>
+            <input
+              id="category-name"
+              ref="nameInput"
+              v-model="form.name"
+              autofocus
+              required
+              maxlength="255"
+              :disabled="form.processing"
+              :aria-invalid="Boolean(form.errors.name || form.errors.normalized_name)"
+              :aria-describedby="form.errors.name || form.errors.normalized_name ? 'category-name-error' : undefined"
+              class="h-11 w-full rounded-lg border border-slate-300 px-3.5 text-sm outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10 disabled:bg-slate-100"
+            />
+            <p v-if="form.errors.name || form.errors.normalized_name" id="category-name-error" role="alert" class="mt-2 text-sm text-red-600">{{ form.errors.name || form.errors.normalized_name }}</p>
+          </div>
+
+          <div>
+            <label for="category-sort-order" class="mb-2 block text-sm font-medium text-slate-800">Urutan tampilan</label>
+            <input
+              id="category-sort-order"
+              v-model.number="form.sort_order"
+              type="number"
+              min="0"
+              max="65535"
+              required
+              :disabled="form.processing"
+              :aria-invalid="Boolean(form.errors.sort_order)"
+              :aria-describedby="form.errors.sort_order ? 'category-sort-error' : 'category-sort-help'"
+              class="h-11 w-full rounded-lg border border-slate-300 px-3.5 text-sm outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10 disabled:bg-slate-100"
+            />
+            <p id="category-sort-help" class="mt-2 text-xs leading-5 text-slate-500">Angka kecil ditampilkan lebih dahulu.</p>
+            <p v-if="form.errors.sort_order" id="category-sort-error" role="alert" class="mt-2 text-sm text-red-600">{{ form.errors.sort_order }}</p>
+          </div>
+
+          <div class="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+            <button type="button" class="h-11 rounded-lg border border-slate-300 px-5 text-sm font-medium text-slate-700 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#171650] disabled:opacity-60" :disabled="form.processing" @click="$emit('close')">Batal</button>
+            <button type="submit" class="h-11 rounded-lg bg-[#F15A24] px-5 text-sm font-semibold text-white outline-none hover:bg-orange-700 focus-visible:ring-2 focus-visible:ring-[#171650] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60" :disabled="form.processing">
+              {{ form.processing ? 'Menyimpan…' : 'Simpan perubahan' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </Teleport>
+</template>

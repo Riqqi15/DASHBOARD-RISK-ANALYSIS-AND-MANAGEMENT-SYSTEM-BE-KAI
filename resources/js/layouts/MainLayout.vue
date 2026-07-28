@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Network,
   Package,
   RefreshCcw,
   Search,
@@ -47,6 +48,7 @@ const menuItems = [
 ]
 
 const adminMenuItems = [
+  { name: 'admin-asset-categories', label: 'Kategori Aset', to: '/admin/asset-categories', icon: Network },
   { name: 'admin-units', label: 'Unit Kerja', to: '/admin/units', icon: Building2 },
   { name: 'admin-accounts', label: 'Akun Wilayah', to: '/admin/accounts', icon: UsersRound },
   { name: 'admin-audit', label: 'Audit Log', to: '/admin/audit-logs', icon: ScrollText },
