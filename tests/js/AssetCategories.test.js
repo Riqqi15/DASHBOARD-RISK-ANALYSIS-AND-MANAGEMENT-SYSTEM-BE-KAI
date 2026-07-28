@@ -1,7 +1,11 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 import AssetCategories from '@/pages/Admin/AssetCategories/Index.vue'
 import MainLayout from '@/layouts/MainLayout.vue'
+import CategoryPanel from '@/pages/Admin/AssetCategories/Partials/CategoryPanel.vue'
+import DeactivateCategoryDialog from '@/pages/Admin/AssetCategories/Partials/DeactivateCategoryDialog.vue'
+import DeleteCategoryDialog from '@/pages/Admin/AssetCategories/Partials/DeleteCategoryDialog.vue'
 
 const inertia = vi.hoisted(() => ({
   get: vi.fn(),
@@ -302,5 +306,118 @@ describe('AssetCategories', () => {
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Kategori induk sudah tidak tersedia')
     expect(wrapper.get('[role="alert"]').text()).toContain('Pilih kategori aktif')
+  })
+
+  it('keeps drill-down and search read-only when category management is unavailable', async () => {
+    const wrapper = mountPage({ capabilities: { manage: false } })
+
+    expect(wrapper.find('[aria-label="Tambah kategori"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label^="Ubah nama"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label^="Aktifkan"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label^="Nonaktifkan"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label^="Hapus"]').exists()).toBe(false)
+
+    await wrapper.get('[aria-label="Pilih kategori Telekomunikasi"]').trigger('click')
+    expect(wrapper.text()).toContain('Radio Kereta')
+    expect(wrapper.get('[aria-label="Cari system"]').exists()).toBe(true)
+
+    wrapper.findAllComponents(CategoryPanel)[0].vm.$emit('add')
+    wrapper.findAllComponents(CategoryPanel)[0].vm.$emit('edit', groups[0])
+    wrapper.findAllComponents(CategoryPanel)[0].vm.$emit('toggle', groups[0])
+    wrapper.findAllComponents(CategoryPanel)[0].vm.$emit('delete', groups[0])
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(inertia.post).not.toHaveBeenCalled()
+    expect(inertia.put).not.toHaveBeenCalled()
+    expect(inertia.patch).not.toHaveBeenCalled()
+    expect(inertia.delete).not.toHaveBeenCalled()
+  })
+
+  it('removes an open mutation dialog if management capability is revoked', async () => {
+    const wrapper = mountPage()
+    await wrapper.get('[aria-label="Tambah kategori"]').trigger('click')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+
+    await wrapper.setProps({ capabilities: { manage: false } })
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(inertia.post).not.toHaveBeenCalled()
+    await wrapper.setProps({ capabilities: { manage: true } })
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+  })
+
+  it('explains how to restore child creation when the selected parent is inactive', () => {
+    const inactiveGroupData = structuredClone(groups)
+    inactiveGroupData[0].is_active = false
+    const inactiveGroup = mountPage({ groups: inactiveGroupData })
+
+    expect(inactiveGroup.get('[aria-label="Tambah system"]').attributes('disabled')).toBeDefined()
+    expect(inactiveGroup.text()).toContain('Kategori ini nonaktif')
+    expect(inactiveGroup.text()).toContain('Aktifkan kategori untuk menambah system')
+
+    const inactiveSystemData = structuredClone(groups)
+    inactiveSystemData[0].systems[0].is_active = false
+    const inactiveSystem = mountPage({ groups: inactiveSystemData })
+
+    expect(inactiveSystem.get('[aria-label="Tambah subsystem"]').attributes('disabled')).toBeDefined()
+    expect(inactiveSystem.text()).toContain('System ini nonaktif')
+    expect(inactiveSystem.text()).toContain('Aktifkan system untuk menambah subsystem')
+  })
+
+  it('focuses the status dialog and closes it when the focused dialog receives Escape', async () => {
+    const wrapper = mount(DeactivateCategoryDialog, {
+      attachTo: document.body,
+      props: { category: groups[0], activate: false, processing: false },
+      global: { stubs: { Teleport: true } },
+    })
+    await nextTick()
+
+    expect(document.activeElement).toBe(wrapper.get('[role="dialog"]').element)
+    document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await nextTick()
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('focuses the delete dialog and closes it when the focused dialog receives Escape', async () => {
+    const wrapper = mount(DeleteCategoryDialog, {
+      attachTo: document.body,
+      props: { category: groups[0], form: { processing: false, errors: {} } },
+      global: { stubs: { Teleport: true } },
+    })
+    await nextTick()
+
+    expect(document.activeElement).toBe(wrapper.get('[role="dialog"]').element)
+    document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await nextTick()
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('keeps status and delete dialogs locked while a request is processing', async () => {
+    const status = mount(DeactivateCategoryDialog, {
+      attachTo: document.body,
+      props: { category: groups[0], activate: false, processing: true },
+      global: { stubs: { Teleport: true } },
+    })
+    await nextTick()
+    expect(status.findAll('button').every((button) => button.attributes('disabled') !== undefined)).toBe(true)
+    document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await nextTick()
+    expect(status.emitted('close')).toBeUndefined()
+    status.unmount()
+
+    const deletion = mount(DeleteCategoryDialog, {
+      attachTo: document.body,
+      props: { category: groups[0], form: { processing: true, errors: {} } },
+      global: { stubs: { Teleport: true } },
+    })
+    await nextTick()
+    expect(deletion.findAll('button').every((button) => button.attributes('disabled') !== undefined)).toBe(true)
+    document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await nextTick()
+    expect(deletion.emitted('close')).toBeUndefined()
+    deletion.unmount()
   })
 })

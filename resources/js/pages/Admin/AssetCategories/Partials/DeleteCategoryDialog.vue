@@ -1,4 +1,5 @@
 <script setup>
+import { nextTick, onMounted, ref } from 'vue'
 import { AlertTriangle, X } from 'lucide-vue-next'
 
 defineProps({
@@ -7,12 +8,18 @@ defineProps({
 })
 
 defineEmits(['close', 'confirm'])
+
+const dialogRoot = ref(null)
+onMounted(async () => {
+  await nextTick()
+  dialogRoot.value?.focus()
+})
 </script>
 
 <template>
   <Teleport to="body">
     <div class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[1px]" @click.self="!form.processing && $emit('close')">
-      <section role="dialog" aria-modal="true" aria-labelledby="delete-category-title" aria-describedby="delete-category-description" class="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-950/20" @keydown.esc.stop="!form.processing && $emit('close')">
+      <section ref="dialogRoot" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="delete-category-title" aria-describedby="delete-category-description" class="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 outline-none shadow-2xl shadow-slate-950/20" @keydown.esc.stop="!form.processing && $emit('close')">
         <div class="flex items-start justify-between gap-4">
           <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-600"><AlertTriangle :size="21" aria-hidden="true" /></div>
           <button type="button" class="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 outline-none hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[#171650]" aria-label="Tutup dialog" :disabled="form.processing" @click="$emit('close')"><X :size="19" aria-hidden="true" /></button>

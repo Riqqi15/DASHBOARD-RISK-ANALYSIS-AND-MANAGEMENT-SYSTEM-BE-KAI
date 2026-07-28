@@ -14,6 +14,9 @@ const props = defineProps({
   parentPrompt: { type: String, default: '' },
   emptyTitle: { type: String, required: true },
   emptyDescription: { type: String, required: true },
+  canManage: { type: Boolean, default: false },
+  disabledTitle: { type: String, default: '' },
+  disabledDescription: { type: String, default: '' },
 })
 
 defineEmits(['select', 'add', 'edit', 'toggle', 'delete'])
@@ -42,9 +45,11 @@ const dependencyLabel = (item) => {
       <div class="flex items-center justify-between gap-3">
         <h2 class="text-sm font-semibold text-[#171650]">{{ title }}</h2>
         <button
+          v-if="canManage"
           type="button"
           class="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-orange-700 outline-none transition hover:bg-orange-50 focus-visible:ring-2 focus-visible:ring-[#171650] focus-visible:ring-offset-2 motion-reduce:transition-none disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-transparent"
           :aria-label="addLabel"
+          :aria-describedby="addDisabled && disabledTitle ? `category-${level}-disabled-reason` : undefined"
           :disabled="addDisabled"
           @click="$emit('add')"
         >
@@ -64,6 +69,10 @@ const dependencyLabel = (item) => {
           placeholder="Cari nama…"
         />
       </label>
+      <div v-if="canManage && addDisabled && parentSelected && disabledTitle" :id="`category-${level}-disabled-reason`" class="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2.5">
+        <p class="text-xs font-semibold text-orange-900">{{ disabledTitle }}</p>
+        <p class="mt-1 text-xs leading-5 text-orange-800">{{ disabledDescription }}</p>
+      </div>
     </header>
 
     <div v-if="!parentSelected" class="flex flex-1 items-center justify-center px-6 text-center">
@@ -96,7 +105,7 @@ const dependencyLabel = (item) => {
           </span>
           <ChevronRight :size="17" class="shrink-0 text-slate-400" aria-hidden="true" />
         </button>
-        <div class="flex items-center gap-1 border-t border-slate-200/80 px-2 py-1.5">
+        <div v-if="canManage" class="flex items-center gap-1 border-t border-slate-200/80 px-2 py-1.5">
           <button type="button" class="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-medium text-slate-600 outline-none hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[#171650]" :aria-label="`Ubah nama ${item.name}`" @click="$emit('edit', item)">
             <Pencil :size="15" aria-hidden="true" /> Ubah nama
           </button>

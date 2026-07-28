@@ -32,6 +32,17 @@ const selectedGroup = computed(() => props.groups.find((group) => group.id === a
 const systems = computed(() => selectedGroup.value?.systems ?? [])
 const selectedSystem = computed(() => systems.value.find((system) => system.id === activeSystemId.value) ?? null)
 const subsystems = computed(() => selectedSystem.value?.subsystems ?? [])
+const canManage = computed(() => props.capabilities.manage === true)
+
+watch(canManage, (value) => {
+  if (value) return
+  categoryDialog.value = null
+  categoryForm.value = null
+  statusDialog.value = null
+  statusForm.value = null
+  deleteDialog.value = null
+  deleteForm.value = null
+})
 
 const visitSelection = () => router.get('/admin/asset-categories', {
   group: activeGroupId.value,
@@ -58,6 +69,7 @@ const levelDetails = {
 }
 
 const openCreate = (level) => {
+  if (!canManage.value) return
   const data = { name: '', sort_order: 0 }
   if (level === 'system') data.asset_group_id = activeGroupId.value
   if (level === 'subsystem') data.asset_system_id = activeSystemId.value
@@ -66,6 +78,7 @@ const openCreate = (level) => {
 }
 
 const openEdit = (level, category) => {
+  if (!canManage.value) return
   categoryForm.value = useForm({ name: category.name, sort_order: category.sort_order })
   categoryDialog.value = { mode: 'edit', level, category }
 }
@@ -75,6 +88,7 @@ const closeCategoryDialog = () => {
 }
 
 const submitCategory = () => {
+  if (!canManage.value) return
   const details = levelDetails[categoryDialog.value.level]
   const method = categoryDialog.value.mode === 'edit' ? 'put' : 'post'
   const endpoint = categoryDialog.value.mode === 'edit' ? `${details.endpoint}/${categoryDialog.value.category.id}` : details.endpoint
@@ -85,11 +99,13 @@ const submitCategory = () => {
 }
 
 const openStatus = (level, category) => {
+  if (!canManage.value) return
   statusForm.value = useForm({ is_active: !category.is_active })
   statusDialog.value = { level, category, activate: !category.is_active }
 }
 
 const submitStatus = () => {
+  if (!canManage.value) return
   const endpoint = `${levelDetails[statusDialog.value.level].endpoint}/${statusDialog.value.category.id}/status`
   statusForm.value.patch(endpoint, {
     preserveScroll: true,
@@ -98,11 +114,13 @@ const submitStatus = () => {
 }
 
 const openDelete = (level, category) => {
+  if (!canManage.value) return
   deleteForm.value = useForm({})
   deleteDialog.value = { level, category }
 }
 
 const submitDelete = () => {
+  if (!canManage.value) return
   const endpoint = `${levelDetails[deleteDialog.value.level].endpoint}/${deleteDialog.value.category.id}`
   deleteForm.value.delete(endpoint, {
     preserveScroll: true,
@@ -161,6 +179,7 @@ const submitDelete = () => {
             add-label="Tambah kategori"
             empty-title="Belum ada kategori aset"
             empty-description="Tambahkan kategori pertama untuk memulai susunan aset global."
+            :can-manage="canManage"
             @select="selectGroup"
             @add="openCreate('group')"
             @edit="openEdit('group', $event)"
@@ -181,6 +200,9 @@ const submitDelete = () => {
             parent-prompt="Pilih kategori terlebih dahulu"
             empty-title="Belum ada system"
             empty-description="Tambahkan system pertama di bawah kategori ini."
+            :can-manage="canManage"
+            disabled-title="Kategori ini nonaktif"
+            disabled-description="Aktifkan kategori untuk menambah system."
             @select="selectSystem"
             @add="openCreate('system')"
             @edit="openEdit('system', $event)"
@@ -200,6 +222,9 @@ const submitDelete = () => {
             parent-prompt="Pilih system terlebih dahulu"
             empty-title="Belum ada subsystem"
             empty-description="Tambahkan subsystem pertama di bawah system ini."
+            :can-manage="canManage"
+            disabled-title="System ini nonaktif"
+            disabled-description="Aktifkan system untuk menambah subsystem."
             @add="openCreate('subsystem')"
             @edit="openEdit('subsystem', $event)"
             @toggle="openStatus('subsystem', $event)"
@@ -210,7 +235,7 @@ const submitDelete = () => {
     </div>
 
     <CategoryDialog
-      v-if="categoryDialog && categoryForm"
+      v-if="canManage && categoryDialog && categoryForm"
       :title="`${categoryDialog.mode === 'edit' ? 'Ubah' : 'Tambah'} ${levelDetails[categoryDialog.level].label}`"
       :level-label="levelDetails[categoryDialog.level].label"
       :description="categoryDialog.mode === 'edit' ? 'Perbarui nama dan urutan tanpa mengubah data yang sudah terhubung.' : categoryDialog.level === 'group' ? 'Kategori baru tersedia untuk seluruh wilayah.' : `Tambahkan di bawah ${categoryDialog.level === 'system' ? selectedGroup?.name : selectedSystem?.name}.`"
@@ -219,7 +244,7 @@ const submitDelete = () => {
       @submit="submitCategory"
     />
     <DeactivateCategoryDialog
-      v-if="statusDialog && statusForm"
+      v-if="canManage && statusDialog && statusForm"
       :category="statusDialog.category"
       :activate="statusDialog.activate"
       :processing="statusForm.processing"
@@ -227,7 +252,7 @@ const submitDelete = () => {
       @confirm="submitStatus"
     />
     <DeleteCategoryDialog
-      v-if="deleteDialog && deleteForm"
+      v-if="canManage && deleteDialog && deleteForm"
       :category="deleteDialog.category"
       :form="deleteForm"
       @close="deleteDialog = null"
