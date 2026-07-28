@@ -43,6 +43,10 @@ class MasterAssetController extends Controller
             ->orderBy('subsystem')
             ->orderBy('nama_aset')
             ->paginate(15)
+            ->through(fn (Asset $asset): array => [
+                ...$this->assetPayload($asset),
+                'unit_kerja' => $asset->unitKerja->only(['id', 'code', 'name']),
+            ])
             ->withQueryString();
 
         return Inertia::render('master-data/assets/MasterAsset', [

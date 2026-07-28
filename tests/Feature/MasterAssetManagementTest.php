@@ -22,6 +22,7 @@ class MasterAssetManagementTest extends TestCase
         Asset::factory()->for($ownUnit)->create([
             'nama_aset' => 'Track Circuit Gambir',
             'jumlah_unit' => 12,
+            'tanggal_pemasangan' => '2012-01-01',
             'status' => AssetStatus::Aktif,
         ]);
         Asset::factory()->for($ownUnit)->create(['nama_aset' => 'Axle Counter']);
@@ -33,6 +34,7 @@ class MasterAssetManagementTest extends TestCase
                 ->component('master-data/assets/MasterAsset')
                 ->has('assets.data', 1)
                 ->where('assets.data.0.nama_aset', 'Track Circuit Gambir')
+                ->where('assets.data.0.tanggal_pemasangan', '2012-01-01')
                 ->where('stats.total_assets', 1)
                 ->where('stats.total_units', 12)
                 ->where('filters.search', 'Gambir')

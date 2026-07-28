@@ -87,6 +87,19 @@ docker compose --profile test up -d --wait
 
 File Excel hanya berfungsi sebagai sumber import awal. MySQL tetap menjadi sumber data aplikasi dan pengujian.
 
+## Import Master Aset dari Excel
+
+Pastikan migration sudah dijalankan dan kode unit kerja tujuan tersedia. Command membaca sheet `Predictive Data Asset`; file Excel tetap berada di luar repository dan tidak diubah oleh proses import.
+
+```powershell
+php artisan migrate
+php artisan rams:import-master-assets "D:\lokasi\workbook.xlsm" --unit=DAOP-1
+```
+
+Kode unit mengikuti referensi aplikasi, misalnya `DAOP-1`, `DAOP-4`, `DAOP-8`, `DIVRE-III`, atau `DIVRE-IV`. Import pertama mengambil `nama_aset` dari kolom `Subsystem`. Import ulang memperbarui data sumber seperti jumlah dan tanggal pemasangan tanpa menimpa nama, lokasi, atau status yang sudah disunting pengguna.
+
+Command menampilkan jumlah data yang dibuat, diperbarui, dan dilewati. Seluruh import memakai transaksi database: bila sheet, header, atau tanggal tidak valid, tidak ada perubahan parsial yang disimpan. Password proteksi sheet Excel tidak perlu dimasukkan karena proses hanya membaca nilai workbook.
+
 ## Menjalankan pengujian
 
 ```powershell
