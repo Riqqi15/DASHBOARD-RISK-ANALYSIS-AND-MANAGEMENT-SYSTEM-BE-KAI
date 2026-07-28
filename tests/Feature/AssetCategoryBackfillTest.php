@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use RuntimeException;
 use Tests\TestCase;
+use Throwable;
 
 class AssetCategoryBackfillTest extends TestCase
 {
@@ -261,6 +262,71 @@ class AssetCategoryBackfillTest extends TestCase
             'Sheet X',
             7,
         );
+    }
+
+    public function test_unaliased_inactive_group_conflict_is_contextual_and_atomic(): void
+    {
+        AssetGroup::factory()->create([
+            'name' => 'Inactive Group',
+            'is_active' => false,
+        ]);
+        $asset = $this->legacyAsset([
+            'aset_prasarana_sintel' => ' INACTIVE  GROUP ',
+            'system' => 'New System',
+            'subsystem' => 'New Subsystem',
+        ]);
+        $countsBefore = $this->categoryCounts();
+
+        try {
+            app(AssetCategoryBackfill::class)->run();
+            $this->fail('Expected the inactive category to abort the backfill.');
+        } catch (Throwable $exception) {
+            $this->assertSame(RuntimeException::class, $exception::class);
+            $this->assertStringContainsString('legacy-database', $exception->getMessage());
+            $this->assertStringContainsString('assets', $exception->getMessage());
+            $this->assertStringContainsString("row {$asset->id}", $exception->getMessage());
+            $this->assertStringContainsString('inactive group', $exception->getMessage());
+        }
+
+        $this->assertSame($countsBefore, $this->categoryCounts());
+        $this->assertNull($asset->fresh()->asset_subsystem_id);
+        $this->assertDatabaseCount('asset_category_source_aliases', 0);
+    }
+
+    public function test_unaliased_soft_deleted_nested_category_conflict_is_contextual_and_atomic(): void
+    {
+        $group = AssetGroup::factory()->create(['name' => 'Existing Group']);
+        $deletedSystem = AssetSystem::factory()->for($group)->create(['name' => 'Deleted System']);
+        $deletedSystem->delete();
+        $asset = $this->legacyAsset([
+            'aset_prasarana_sintel' => 'Existing Group',
+            'system' => " DELETED\tSYSTEM ",
+            'subsystem' => 'New Subsystem',
+        ]);
+        $countsBefore = [
+            'groups' => AssetGroup::withTrashed()->count(),
+            'systems' => AssetSystem::withTrashed()->count(),
+            'subsystems' => AssetSubsystem::withTrashed()->count(),
+        ];
+
+        try {
+            app(AssetCategoryBackfill::class)->run();
+            $this->fail('Expected the soft-deleted category to abort the backfill.');
+        } catch (Throwable $exception) {
+            $this->assertSame(RuntimeException::class, $exception::class);
+            $this->assertStringContainsString('legacy-database', $exception->getMessage());
+            $this->assertStringContainsString('assets', $exception->getMessage());
+            $this->assertStringContainsString("row {$asset->id}", $exception->getMessage());
+            $this->assertStringContainsString('existing group|deleted system', $exception->getMessage());
+        }
+
+        $this->assertSame($countsBefore, [
+            'groups' => AssetGroup::withTrashed()->count(),
+            'systems' => AssetSystem::withTrashed()->count(),
+            'subsystems' => AssetSubsystem::withTrashed()->count(),
+        ]);
+        $this->assertNull($asset->fresh()->asset_subsystem_id);
+        $this->assertDatabaseCount('asset_category_source_aliases', 0);
     }
 
     public function test_command_reports_failure_for_a_corrupt_alias(): void

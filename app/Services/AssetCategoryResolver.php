@@ -7,6 +7,7 @@ use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -106,7 +107,7 @@ class AssetCategoryResolver
         if ($alias) {
             $group = AssetGroup::query()->whereKey($alias->category_id)->first();
             if (! $group) {
-                throw $this->aliasConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
+                throw $this->resolverConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
             }
 
             $this->refreshAlias($alias, $group, $sourcePath, $workbookName, $sheetName);
@@ -114,9 +115,16 @@ class AssetCategoryResolver
             return $group;
         }
 
-        $group = AssetGroup::query()->firstOrCreate(
-            ['normalized_name' => $normalizedName, 'is_active' => true],
-            ['name' => $name],
+        /** @var AssetGroup $group */
+        $group = $this->findOrCreateCategory(
+            AssetGroup::class,
+            [],
+            $name,
+            $normalizedName,
+            $normalizedPath,
+            $workbookName,
+            $sheetName,
+            $sourceRow,
         );
 
         return $this->storeGroupAlias(
@@ -143,7 +151,7 @@ class AssetCategoryResolver
         if ($alias) {
             $system = AssetSystem::query()->whereKey($alias->category_id)->first();
             if (! $system || $system->asset_group_id !== $group->id) {
-                throw $this->aliasConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
+                throw $this->resolverConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
             }
 
             $this->refreshAlias($alias, $system, $sourcePath, $workbookName, $sheetName);
@@ -151,13 +159,16 @@ class AssetCategoryResolver
             return $system;
         }
 
-        $system = AssetSystem::query()->firstOrCreate(
-            [
-                'asset_group_id' => $group->id,
-                'normalized_name' => $normalizedName,
-                'is_active' => true,
-            ],
-            ['name' => $name],
+        /** @var AssetSystem $system */
+        $system = $this->findOrCreateCategory(
+            AssetSystem::class,
+            ['asset_group_id' => $group->id],
+            $name,
+            $normalizedName,
+            $normalizedPath,
+            $workbookName,
+            $sheetName,
+            $sourceRow,
         );
 
         return $this->storeSystemAlias(
@@ -185,7 +196,7 @@ class AssetCategoryResolver
         if ($alias) {
             $subsystem = AssetSubsystem::query()->whereKey($alias->category_id)->first();
             if (! $subsystem || $subsystem->asset_system_id !== $system->id) {
-                throw $this->aliasConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
+                throw $this->resolverConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
             }
 
             $this->refreshAlias($alias, $subsystem, $sourcePath, $workbookName, $sheetName);
@@ -193,13 +204,16 @@ class AssetCategoryResolver
             return $subsystem;
         }
 
-        $subsystem = AssetSubsystem::query()->firstOrCreate(
-            [
-                'asset_system_id' => $system->id,
-                'normalized_name' => $normalizedName,
-                'is_active' => true,
-            ],
-            ['name' => $name],
+        /** @var AssetSubsystem $subsystem */
+        $subsystem = $this->findOrCreateCategory(
+            AssetSubsystem::class,
+            ['asset_system_id' => $system->id],
+            $name,
+            $normalizedName,
+            $normalizedPath,
+            $workbookName,
+            $sheetName,
+            $sourceRow,
         );
 
         return $this->storeSubsystemAlias(
@@ -234,7 +248,7 @@ class AssetCategoryResolver
         $resolved = AssetGroup::query()->whereKey($alias->category_id)->first();
 
         if (! $resolved || $resolved->id !== $group->id) {
-            throw $this->aliasConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
+            throw $this->resolverConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
         }
 
         $this->refreshAlias($alias, $resolved, $sourcePath, $workbookName, $sheetName);
@@ -255,7 +269,7 @@ class AssetCategoryResolver
         $resolved = AssetSystem::query()->whereKey($alias->category_id)->first();
 
         if (! $resolved || $resolved->id !== $system->id || $resolved->asset_group_id !== $group->id) {
-            throw $this->aliasConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
+            throw $this->resolverConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
         }
 
         $this->refreshAlias($alias, $resolved, $sourcePath, $workbookName, $sheetName);
@@ -276,7 +290,7 @@ class AssetCategoryResolver
         $resolved = AssetSubsystem::query()->whereKey($alias->category_id)->first();
 
         if (! $resolved || $resolved->id !== $subsystem->id || $resolved->asset_system_id !== $system->id) {
-            throw $this->aliasConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
+            throw $this->resolverConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
         }
 
         $this->refreshAlias($alias, $resolved, $sourcePath, $workbookName, $sheetName);
@@ -326,7 +340,80 @@ class AssetCategoryResolver
         ])->save();
     }
 
-    private function aliasConflict(
+    /**
+     * @template TCategory of Model
+     *
+     * @param  class-string<TCategory>  $modelClass
+     * @param  array<string, int>  $scope
+     * @return TCategory
+     */
+    private function findOrCreateCategory(
+        string $modelClass,
+        array $scope,
+        string $name,
+        string $normalizedName,
+        string $normalizedPath,
+        string $workbookName,
+        string $sheetName,
+        ?int $sourceRow,
+    ): Model {
+        $identity = [...$scope, 'normalized_name' => $normalizedName];
+
+        $active = $modelClass::query()
+            ->where($identity)
+            ->where('is_active', true)
+            ->lockForUpdate()
+            ->first();
+
+        if ($active) {
+            return $active;
+        }
+
+        $existing = $modelClass::withTrashed()
+            ->where($identity)
+            ->lockForUpdate()
+            ->first();
+
+        if ($existing) {
+            if ($existing->deleted_at === null && $existing->is_active) {
+                return $existing;
+            }
+
+            throw $this->resolverConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
+        }
+
+        try {
+            return $modelClass::query()->create([
+                ...$scope,
+                'name' => $name,
+                'normalized_name' => $normalizedName,
+                'is_active' => true,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            $active = $modelClass::query()
+                ->where($identity)
+                ->where('is_active', true)
+                ->lockForUpdate()
+                ->first();
+
+            if ($active) {
+                return $active;
+            }
+
+            $existing = $modelClass::withTrashed()
+                ->where($identity)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing && $existing->deleted_at === null && $existing->is_active) {
+                return $existing;
+            }
+
+            throw $this->resolverConflict($workbookName, $sheetName, $sourceRow, $normalizedPath);
+        }
+    }
+
+    private function resolverConflict(
         string $workbookName,
         string $sheetName,
         ?int $sourceRow,
@@ -335,7 +422,7 @@ class AssetCategoryResolver
         $row = $sourceRow === null ? '' : ", row {$sourceRow}";
 
         return new RuntimeException(
-            "Asset category alias conflict in workbook {$workbookName}, sheet {$sheetName}{$row}, normalized path {$normalizedPath}.",
+            "Asset category resolution conflict in workbook {$workbookName}, sheet {$sheetName}{$row}, normalized path {$normalizedPath}.",
         );
     }
 }
