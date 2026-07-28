@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Admin\UnitSubsystemOpeningController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\MasterAssetController;
+use App\Http\Controllers\StockMovementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -39,6 +40,8 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         ]);
     Route::get('/risk-matrix', fn () => Inertia::render('dashboard/RiskMatrix'))->name('risk-matrix');
     Route::get('/inventory', fn () => Inertia::render('master-data/inventory/Inventory'))->name('inventory');
+    Route::post('/inventory/movements', [StockMovementController::class, 'store'])->name('stock-movements.store');
+    Route::post('/inventory/movements/{movement}/corrections', [StockMovementController::class, 'correct'])->name('stock-movements.correct');
     Route::get('/reorder-stock', fn () => Inertia::render('master-data/inventory/ReorderStock'))->name('reorder-stock');
 
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
