@@ -144,7 +144,7 @@ class AssetCategoryImportTest extends TestCase
         $second = app(MasterAssetWorkbookImporter::class)->import($path, $unit);
 
         $this->assertSame(0, $second['created']);
-        $this->assertSame(2, $second['updated']);
+        $this->assertSame(0, $second['updated']);
         $this->assertSame(0, $second['openings_created']);
         $this->assertSame(0, $second['openings_updated']);
         $this->assertDatabaseCount('asset_groups', 1);
@@ -153,6 +153,38 @@ class AssetCategoryImportTest extends TestCase
         $this->assertDatabaseCount('assets', 2);
         $this->assertDatabaseCount('unit_subsystem_openings', 2);
         $this->assertSame(2, AuditLog::query()->where('action', 'unit_subsystem_opening.imported')->count());
+    }
+
+    public function test_unchanged_reimport_has_zero_updates_and_no_duplicate_asset_or_opening_audits_in_result_and_command(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $path = $this->workbook([
+            ['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909],
+        ]);
+
+        app(MasterAssetWorkbookImporter::class)->import($path, $unit);
+        $unchanged = app(MasterAssetWorkbookImporter::class)->import($path, $unit);
+
+        $this->assertSame([
+            'created' => 0,
+            'updated' => 0,
+            'skipped' => 0,
+            'openings_created' => 0,
+            'openings_updated' => 0,
+        ], $unchanged);
+        $this->artisan('rams:import-master-assets', ['workbook' => $path, '--unit' => 'DAOP-1'])
+            ->expectsOutputToContain('Dibuat: 0')
+            ->expectsOutputToContain('Diperbarui: 0')
+            ->expectsOutputToContain('Dilewati: 0')
+            ->expectsOutputToContain('Pembukaan dibuat: 0')
+            ->expectsOutputToContain('Pembukaan diperbarui: 0')
+            ->assertSuccessful();
+
+        $this->assertDatabaseCount('assets', 1);
+        $this->assertDatabaseCount('unit_subsystem_openings', 1);
+        $this->assertSame(1, AuditLog::query()->where('action', 'asset.import_created')->count());
+        $this->assertSame(0, AuditLog::query()->where('action', 'asset.import_updated')->count());
+        $this->assertSame(1, AuditLog::query()->where('action', 'unit_subsystem_opening.imported')->count());
     }
 
     public function test_missing_sparepart_header_aborts_before_any_workbook_write(): void
@@ -197,6 +229,68 @@ class AssetCategoryImportTest extends TestCase
         $this->assertDatabaseCount('audit_logs', 0);
     }
 
+    public function test_invalid_quantities_report_workbook_sheet_row_and_header_and_roll_back(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $cases = [
+            ['text', 'TOTAL', ['not-a-number', 1, 1]],
+            ['formula error', 'Sparepart IN', [1, '#DIV/0!', 1]],
+            ['fractional', 'Sparepart OUT', [1, 1, 1.5]],
+            ['negative', 'Sparepart IN', [1, -1, 1]],
+            ['overflow', 'TOTAL', [4294967296, 1, 1]],
+            ['infinity text', 'Sparepart IN', [1, 'INF', 1]],
+            ['nan text', 'Sparepart OUT', [1, 1, 'NAN']],
+        ];
+
+        foreach ($cases as [$label, $header, [$total, $sparepartIn, $sparepartOut]]) {
+            $path = $this->workbook([
+                ['Kelompok', 'System', 'Subsystem', $total, $sparepartIn, $sparepartOut, 40909],
+            ]);
+            $caught = null;
+
+            try {
+                app(MasterAssetWorkbookImporter::class)->import($path, $unit);
+            } catch (RuntimeException $exception) {
+                $caught = $exception;
+            }
+
+            $this->assertNotNull($caught, "Expected {$label} quantity to abort the import.");
+            $this->assertStringContainsString(basename($path), $caught->getMessage());
+            $this->assertStringContainsString('Predictive Data Asset', $caught->getMessage());
+            $this->assertStringContainsString('row 3', $caught->getMessage());
+            $this->assertStringContainsString($header, $caught->getMessage());
+            $this->assertWorkbookImportTablesEmpty();
+        }
+    }
+
+    public function test_blank_dash_and_en_dash_quantities_are_zero_and_unsigned_boundary_is_exact(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $zeroPath = $this->workbook([
+            ['Kelompok', 'System', 'Kosong', '', null, '–', 40909],
+            ['', '', 'Dash', '-', '–', '-', 40909],
+        ]);
+
+        app(MasterAssetWorkbookImporter::class)->import($zeroPath, $unit);
+
+        $this->assertSame([0, 0], Asset::query()->orderBy('id')->pluck('jumlah_unit')->all());
+        $this->assertSame([0, 0], UnitSubsystemOpening::query()->orderBy('id')->pluck('sparepart_in')->all());
+        $this->assertSame([0, 0], UnitSubsystemOpening::query()->orderBy('id')->pluck('sparepart_out')->all());
+
+        $boundaryPath = $this->workbook([
+            ['Kelompok Lain', 'System Lain', 'Batas', 4294967295, 4294967295, 4294967295, 40909],
+        ]);
+        app(MasterAssetWorkbookImporter::class)->import($boundaryPath, $unit);
+
+        $boundaryAsset = Asset::query()->where('subsystem', 'Batas')->sole();
+        $boundaryOpening = UnitSubsystemOpening::query()
+            ->where('asset_subsystem_id', $boundaryAsset->asset_subsystem_id)
+            ->sole();
+        $this->assertSame(4294967295, $boundaryAsset->jumlah_unit);
+        $this->assertSame(4294967295, $boundaryOpening->sparepart_in);
+        $this->assertSame(4294967295, $boundaryOpening->sparepart_out);
+    }
+
     public function test_legacy_asset_key_is_migrated_and_user_fields_and_category_rename_survive_reimport(): void
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
@@ -217,7 +311,10 @@ class AssetCategoryImportTest extends TestCase
 
         app(MasterAssetWorkbookImporter::class)->import($path, $unit);
 
-        $stableKey = hash('sha256', "DAOP-1|Predictive Data Asset|{$subsystem->id}");
+        $stableKey = hash(
+            'sha256',
+            "rams:master-asset:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$subsystem->id}",
+        );
         $this->assertDatabaseCount('assets', 1);
         $asset->refresh();
         $this->assertSame($stableKey, $asset->source_key);
@@ -233,6 +330,147 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame($subsystem->id, $asset->fresh()->asset_subsystem_id);
         $this->assertSame('Track Circuit Hasil Rename Admin', $subsystem->fresh()->name);
         $this->assertSame('Nama suntingan operator', $asset->fresh()->nama_aset);
+    }
+
+    public function test_v2_source_keys_survive_unit_code_rename_without_duplicates_or_lost_edits(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $path = $this->workbook([
+            ['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909],
+        ]);
+
+        app(MasterAssetWorkbookImporter::class)->import($path, $unit);
+        $asset = Asset::query()->sole();
+        $opening = UnitSubsystemOpening::query()->sole();
+        $subsystemId = $asset->asset_subsystem_id;
+        $expectedAssetKey = hash(
+            'sha256',
+            "rams:master-asset:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$subsystemId}",
+        );
+        $expectedOpeningKey = hash(
+            'sha256',
+            "rams:unit-subsystem-opening:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$subsystemId}",
+        );
+        $asset->update(['nama_aset' => 'Nama operator', 'lokasi' => 'Gambir', 'status' => 'dalam_perbaikan']);
+
+        $unit->update(['code' => 'DAOP-RENAME']);
+        $this->rewriteImportValues($path, total: 8, sparepartIn: 4, sparepartOut: 2);
+        $result = app(MasterAssetWorkbookImporter::class)->import($path, $unit->fresh());
+
+        $this->assertSame(0, $result['created']);
+        $this->assertSame(1, $result['updated']);
+        $this->assertSame(1, $result['openings_updated']);
+        $this->assertDatabaseCount('assets', 1);
+        $this->assertDatabaseCount('unit_subsystem_openings', 1);
+        $asset->refresh();
+        $opening->refresh();
+        $this->assertSame($expectedAssetKey, $asset->source_key);
+        $this->assertSame($expectedOpeningKey, $opening->source_key);
+        $this->assertSame('Nama operator', $asset->nama_aset);
+        $this->assertSame('Gambir', $asset->lokasi);
+        $this->assertSame('dalam_perbaikan', $asset->status->value);
+        $this->assertSame(8, $asset->jumlah_unit);
+        $this->assertSame(4, $opening->sparepart_in);
+        $this->assertSame(2, $opening->sparepart_out);
+    }
+
+    public function test_unique_prior_code_key_falls_back_by_unit_and_subsystem_after_code_changed_without_merging_manual_asset(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-OLD']);
+        $group = AssetGroup::factory()->create(['name' => 'Kelompok']);
+        $system = AssetSystem::factory()->for($group)->create(['name' => 'System']);
+        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Subsystem']);
+        $priorCodeKey = hash('sha256', "DAOP-OLD|Predictive Data Asset|{$subsystem->id}");
+        $importedAsset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
+            'source_key' => $priorCodeKey,
+            'nama_aset' => 'Imported candidate',
+        ]);
+        $manualAsset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
+            'source_key' => null,
+            'nama_aset' => 'Manual asset',
+        ]);
+        $priorOpening = UnitSubsystemOpening::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
+            'source_key' => hash('sha256', "DAOP-OLD|Predictive Data Asset|{$subsystem->id}|opening"),
+        ]);
+        $unit->update(['code' => 'DAOP-NEW']);
+        $path = $this->workbook([
+            ['Kelompok', 'System', 'Subsystem', 9, 1, 0, 40909],
+        ]);
+
+        app(MasterAssetWorkbookImporter::class)->import($path, $unit->fresh());
+
+        $expectedV2Key = hash(
+            'sha256',
+            "rams:master-asset:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$subsystem->id}",
+        );
+        $this->assertDatabaseCount('assets', 2);
+        $this->assertSame($expectedV2Key, $importedAsset->fresh()->source_key);
+        $this->assertSame(9, $importedAsset->fresh()->jumlah_unit);
+        $this->assertNull($manualAsset->fresh()->source_key);
+        $this->assertSame('Manual asset', $manualAsset->fresh()->nama_aset);
+        $this->assertDatabaseCount('unit_subsystem_openings', 1);
+        $this->assertSame(
+            hash(
+                'sha256',
+                "rams:unit-subsystem-opening:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$subsystem->id}",
+            ),
+            $priorOpening->fresh()->source_key,
+        );
+    }
+
+    public function test_live_and_trashed_import_candidates_abort_before_soft_delete_skip_and_roll_back(): void
+    {
+        [$path, $first, $second] = $this->conflictingImportCandidates();
+        $second->delete();
+
+        $this->assertAssetCandidateConflict($path, $first->unitKerja);
+
+        $this->assertDatabaseCount('asset_category_source_aliases', 0);
+        $this->assertDatabaseCount('unit_subsystem_openings', 0);
+        $this->assertDatabaseCount('audit_logs', 0);
+        $this->assertSame(2, Asset::withTrashed()->count());
+        $this->assertFalse($first->fresh()->trashed());
+        $this->assertTrue($second->fresh()->trashed());
+    }
+
+    public function test_two_trashed_import_candidates_abort_instead_of_skipping_and_roll_back(): void
+    {
+        [$path, $first, $second] = $this->conflictingImportCandidates();
+        $first->delete();
+        $second->delete();
+
+        $this->assertAssetCandidateConflict($path, $first->unitKerja);
+
+        $this->assertDatabaseCount('asset_category_source_aliases', 0);
+        $this->assertDatabaseCount('unit_subsystem_openings', 0);
+        $this->assertDatabaseCount('audit_logs', 0);
+        $this->assertSame(2, Asset::withTrashed()->count());
+        $this->assertTrue($first->fresh()->trashed());
+        $this->assertTrue($second->fresh()->trashed());
+    }
+
+    public function test_exact_duplicate_canonical_rows_abort_with_both_rows_and_roll_back_workbook(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $path = $this->workbook([
+            ['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909],
+            ['Kelompok', 'System', 'Subsystem', 9, 8, 7, 40909],
+        ]);
+
+        $this->assertDuplicateCanonicalRows($path, $unit);
+        $this->assertWorkbookImportTablesEmpty();
+    }
+
+    public function test_whitespace_and_case_alias_equivalent_duplicate_rows_abort_and_roll_back_workbook(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $path = $this->workbook([
+            ['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909],
+            ['  KELOMPOK ', ' SYSTEM  ', '  SUBSYSTEM ', 9, 8, 7, 40909],
+        ]);
+
+        $this->assertDuplicateCanonicalRows($path, $unit);
+        $this->assertWorkbookImportTablesEmpty();
     }
 
     public function test_soft_deleted_category_conflict_rolls_back_every_write_from_the_workbook(): void
@@ -363,8 +601,74 @@ class AssetCategoryImportTest extends TestCase
         $this->fail('Expected the database to reject the query.');
     }
 
+    /** @return array{string, Asset, Asset} */
+    private function conflictingImportCandidates(): array
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $group = AssetGroup::factory()->create(['name' => 'Kelompok']);
+        $system = AssetSystem::factory()->for($group)->create(['name' => 'System']);
+        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Subsystem']);
+        $first = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
+            'source_key' => hash('sha256', 'first-import-candidate'),
+        ]);
+        $second = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
+            'source_key' => hash('sha256', 'second-import-candidate'),
+        ]);
+        $path = $this->workbook([
+            ['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909],
+        ]);
+
+        return [$path, $first, $second];
+    }
+
+    private function assertAssetCandidateConflict(string $path, UnitKerja $unit): void
+    {
+        $caught = null;
+
+        try {
+            app(MasterAssetWorkbookImporter::class)->import($path, $unit);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertNotNull($caught, 'Expected conflicting imported asset candidates to abort the workbook.');
+        $this->assertStringContainsString(basename($path), $caught->getMessage());
+        $this->assertStringContainsString('Predictive Data Asset', $caught->getMessage());
+        $this->assertStringContainsString('row 3', $caught->getMessage());
+        $this->assertStringContainsString('Kelompok|System|Subsystem', $caught->getMessage());
+    }
+
+    private function assertDuplicateCanonicalRows(string $path, UnitKerja $unit): void
+    {
+        $caught = null;
+
+        try {
+            app(MasterAssetWorkbookImporter::class)->import($path, $unit);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertNotNull($caught, 'Expected duplicate canonical workbook rows to abort the import.');
+        $this->assertStringContainsString(basename($path), $caught->getMessage());
+        $this->assertStringContainsString('Predictive Data Asset', $caught->getMessage());
+        $this->assertStringContainsString('row 3', $caught->getMessage());
+        $this->assertStringContainsString('row 4', $caught->getMessage());
+        $this->assertStringContainsString('Kelompok|System|Subsystem', $caught->getMessage());
+    }
+
+    private function assertWorkbookImportTablesEmpty(): void
+    {
+        $this->assertDatabaseCount('asset_groups', 0);
+        $this->assertDatabaseCount('asset_systems', 0);
+        $this->assertDatabaseCount('asset_subsystems', 0);
+        $this->assertDatabaseCount('asset_category_source_aliases', 0);
+        $this->assertDatabaseCount('assets', 0);
+        $this->assertDatabaseCount('unit_subsystem_openings', 0);
+        $this->assertDatabaseCount('audit_logs', 0);
+    }
+
     /**
-     * @param  list<array{string, string, string, int|string, int|string, int|string, mixed}>  $rows
+     * @param  list<array{string, string, string, int|float|string|null, int|float|string|null, int|float|string|null, mixed}>  $rows
      */
     private function workbook(array $rows, bool $includeSparepartOut = true): string
     {
@@ -399,6 +703,17 @@ class AssetCategoryImportTest extends TestCase
     {
         $spreadsheet = IOFactory::load($path);
         $sheet = $spreadsheet->getSheetByName('Predictive Data Asset');
+        $sheet->setCellValue('E3', $sparepartIn);
+        $sheet->setCellValue('F3', $sparepartOut);
+        (new Xlsx($spreadsheet))->save($path);
+        $spreadsheet->disconnectWorksheets();
+    }
+
+    private function rewriteImportValues(string $path, int $total, int $sparepartIn, int $sparepartOut): void
+    {
+        $spreadsheet = IOFactory::load($path);
+        $sheet = $spreadsheet->getSheetByName('Predictive Data Asset');
+        $sheet->setCellValue('D3', $total);
         $sheet->setCellValue('E3', $sparepartIn);
         $sheet->setCellValue('F3', $sparepartOut);
         (new Xlsx($spreadsheet))->save($path);

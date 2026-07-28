@@ -115,6 +115,7 @@ class MasterAssetWorkbookImporter
         $currentGroup = '';
         $currentSystem = '';
         $legacyCurrentSystem = '';
+        $resolvedRowsBySubsystem = [];
 
         for ($row = 3; $row <= $sheet->getHighestDataRow(); $row++) {
             $group = $this->cellText($sheet, $columns['group'], $row);
@@ -149,7 +150,24 @@ class MasterAssetWorkbookImporter
                 $row,
             );
 
-            $sourceKey = hash('sha256', implode('|', [
+            $subsystemId = $categories['subsystem']->id;
+            if (isset($resolvedRowsBySubsystem[$subsystemId])) {
+                $firstRow = $resolvedRowsBySubsystem[$subsystemId];
+                $path = implode('|', [
+                    $categories['group']->name,
+                    $categories['system']->name,
+                    $categories['subsystem']->name,
+                ]);
+
+                throw new RuntimeException(
+                    "Duplikat subsistem kanonis pada workbook {$workbookName}, sheet ".self::SHEET
+                        .", row {$firstRow} dan row {$row}, path {$path}.",
+                );
+            }
+            $resolvedRowsBySubsystem[$subsystemId] = $row;
+
+            $sourceKey = $this->assetSourceKey($unit, $categories['subsystem']);
+            $previousStableSourceKey = hash('sha256', implode('|', [
                 $unit->code,
                 self::SHEET,
                 $categories['subsystem']->id,
@@ -166,15 +184,43 @@ class MasterAssetWorkbookImporter
                 'aset_prasarana_sintel' => $currentGroup,
                 'system' => $currentSystem,
                 'subsystem' => $subsystem,
-                'jumlah_unit' => $this->quantity($sheet->getCell([$columns['total'], $row])->getCalculatedValue()),
+                'jumlah_unit' => $this->quantity(
+                    $sheet->getCell([$columns['total'], $row])->getCalculatedValue(),
+                    $workbookName,
+                    $row,
+                    'TOTAL',
+                ),
                 'tanggal_pemasangan' => $this->date($sheet->getCell([$columns['installed_at'], $row])->getCalculatedValue()),
                 'source_key' => $sourceKey,
             ];
 
             $matchingAssets = Asset::withTrashed()
-                ->whereIn('source_key', [$sourceKey, $legacySourceKey])
+                ->where(function ($candidates) use (
+                    $sourceKey,
+                    $previousStableSourceKey,
+                    $legacySourceKey,
+                    $unit,
+                    $categories,
+                ): void {
+                    $candidates
+                        ->whereIn('source_key', [$sourceKey, $previousStableSourceKey, $legacySourceKey])
+                        ->orWhere(function ($fallback) use ($unit, $categories): void {
+                            $fallback
+                                ->where('unit_kerja_id', $unit->id)
+                                ->where('asset_subsystem_id', $categories['subsystem']->id)
+                                ->whereNotNull('source_key');
+                        });
+                })
                 ->lockForUpdate()
                 ->get();
+
+            if ($matchingAssets->count() > 1) {
+                throw new RuntimeException(
+                    "Konflik kandidat aset impor pada workbook {$workbookName}, sheet ".self::SHEET
+                        .", row {$row}, path {$currentGroup}|{$currentSystem}|{$subsystem}: "
+                        .$matchingAssets->count().' kandidat ditemukan.',
+                );
+            }
 
             if ($matchingAssets->contains(fn (Asset $candidate): bool => $candidate->trashed())) {
                 $result['skipped']++;
@@ -182,20 +228,22 @@ class MasterAssetWorkbookImporter
                 continue;
             }
 
-            if ($matchingAssets->count() > 1) {
-                throw new RuntimeException(
-                    "Konflik asset source key pada workbook {$workbookName}, sheet ".self::SHEET.", row {$row}.",
-                );
-            }
-
             /** @var Asset|null $asset */
             $asset = $matchingAssets->first();
 
             if ($asset) {
                 $before = $this->auditValues($asset);
-                $asset->update($sourceValues);
-                $this->auditLogger->record('asset.import_updated', $asset, $before, $this->auditValues($asset->refresh()));
-                $result['updated']++;
+                $asset->fill($sourceValues);
+                if ($asset->isDirty()) {
+                    $asset->save();
+                    $this->auditLogger->record(
+                        'asset.import_updated',
+                        $asset,
+                        $before,
+                        $this->auditValues($asset->refresh()),
+                    );
+                    $result['updated']++;
+                }
             } else {
                 $asset = Asset::query()->create([
                     ...$sourceValues,
@@ -207,7 +255,15 @@ class MasterAssetWorkbookImporter
                 $result['created']++;
             }
 
-            $this->importOpening($sheet, $columns, $row, $unit, $categories['subsystem'], $result);
+            $this->importOpening(
+                $sheet,
+                $columns,
+                $row,
+                $unit,
+                $categories['subsystem'],
+                $workbookName,
+                $result,
+            );
         }
 
         return $result;
@@ -245,20 +301,26 @@ class MasterAssetWorkbookImporter
         int $row,
         UnitKerja $unit,
         AssetSubsystem $subsystem,
+        string $workbookName,
         array &$result,
     ): void {
-        $sourceKey = hash('sha256', implode('|', [
-            $unit->code,
-            self::SHEET,
-            $subsystem->id,
-            'opening',
-        ]));
+        $sourceKey = $this->openingSourceKey($unit, $subsystem);
         $values = [
             'unit_kerja_id' => $unit->id,
             'asset_subsystem_id' => $subsystem->id,
             'source_key' => $sourceKey,
-            'sparepart_in' => $this->quantity($sheet->getCell([$columns['sparepart_in'], $row])->getCalculatedValue()),
-            'sparepart_out' => $this->quantity($sheet->getCell([$columns['sparepart_out'], $row])->getCalculatedValue()),
+            'sparepart_in' => $this->quantity(
+                $sheet->getCell([$columns['sparepart_in'], $row])->getCalculatedValue(),
+                $workbookName,
+                $row,
+                'Sparepart IN',
+            ),
+            'sparepart_out' => $this->quantity(
+                $sheet->getCell([$columns['sparepart_out'], $row])->getCalculatedValue(),
+                $workbookName,
+                $row,
+                'Sparepart OUT',
+            ),
         ];
 
         $opening = UnitSubsystemOpening::query()
@@ -308,6 +370,28 @@ class MasterAssetWorkbookImporter
         ]);
     }
 
+    private function assetSourceKey(UnitKerja $unit, AssetSubsystem $subsystem): string
+    {
+        return hash(
+            'sha256',
+            'rams:master-asset:v2'
+                .'|unit_id='.$unit->id
+                .'|sheet='.self::SHEET
+                .'|asset_subsystem_id='.$subsystem->id,
+        );
+    }
+
+    private function openingSourceKey(UnitKerja $unit, AssetSubsystem $subsystem): string
+    {
+        return hash(
+            'sha256',
+            'rams:unit-subsystem-opening:v2'
+                .'|unit_id='.$unit->id
+                .'|sheet='.self::SHEET
+                .'|asset_subsystem_id='.$subsystem->id,
+        );
+    }
+
     private function cellText(Worksheet $sheet, int $column, int $row): string
     {
         return $this->text($sheet->getCell([$column, $row])->getCalculatedValue());
@@ -325,22 +409,53 @@ class MasterAssetWorkbookImporter
         return preg_replace('/\s+/u', ' ', $trimmed) ?? $trimmed;
     }
 
-    private function quantity(mixed $value): int
+    private function quantity(mixed $value, string $workbookName, int $row, string $header): int
     {
-        if (! is_numeric($value)) {
+        if ($value === null) {
             return 0;
         }
 
-        $quantity = (float) $value;
-        if ($quantity < 0) {
-            throw new RuntimeException('Jumlah tidak boleh negatif.');
+        if (is_string($value)) {
+            $value = preg_replace('/^\s+|\s+$/u', '', $value) ?? trim($value);
+            if (in_array($value, ['', '-', '–'], true)) {
+                return 0;
+            }
         }
 
-        if (floor($quantity) !== $quantity || $quantity > 4294967295) {
-            throw new RuntimeException('Jumlah harus berupa bilangan bulat unsigned integer.');
+        if (! is_numeric($value)) {
+            throw $this->invalidQuantity($workbookName, $row, $header, 'harus berupa bilangan bulat');
+        }
+
+        $quantity = (float) $value;
+        if (! is_finite($quantity)) {
+            throw $this->invalidQuantity($workbookName, $row, $header, 'harus berupa bilangan terbatas');
+        }
+
+        if ($quantity < 0) {
+            throw $this->invalidQuantity($workbookName, $row, $header, 'tidak boleh negatif');
+        }
+
+        if (floor($quantity) !== $quantity) {
+            throw $this->invalidQuantity($workbookName, $row, $header, 'tidak boleh memiliki pecahan');
+        }
+
+        if ($quantity > 4294967295) {
+            throw $this->invalidQuantity($workbookName, $row, $header, 'melebihi batas unsigned integer');
         }
 
         return (int) $quantity;
+    }
+
+    private function invalidQuantity(
+        string $workbookName,
+        int $row,
+        string $header,
+        string $reason,
+    ): RuntimeException {
+        return new RuntimeException(
+            "Nilai kuantitas tidak valid pada workbook {$workbookName}, sheet ".self::SHEET
+                .", row {$row}, kolom {$header}: {$reason}.",
+        );
     }
 
     private function date(mixed $value): ?string
