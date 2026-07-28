@@ -92,7 +92,7 @@ class MasterAssetManagementTest extends TestCase
                 ->where('hierarchy.0.sparepart_out', 2));
     }
 
-    public function test_index_hierarchy_and_legacy_summary_use_the_full_filtered_result_before_pagination(): void
+    public function test_index_hierarchy_uses_the_full_filtered_result_before_pagination(): void
     {
         $selectedUnit = UnitKerja::factory()->create();
         $otherUnit = UnitKerja::factory()->create();
@@ -127,16 +127,6 @@ class MasterAssetManagementTest extends TestCase
             'jumlah_unit' => 50,
             'status' => AssetStatus::Aktif,
         ]);
-        foreach ([9, 11] as $total) {
-            Asset::factory()->for($selectedUnit)->create([
-                'asset_subsystem_id' => null,
-                'nama_aset' => "Legacy {$total}",
-                'system' => 'ZZ',
-                'subsystem' => 'ZZ',
-                'jumlah_unit' => $total,
-                'status' => AssetStatus::Aktif,
-            ]);
-        }
         Asset::factory()->for($selectedUnit)->for($filteredOutSubsystem, 'assetSubsystem')->create([
             'status' => AssetStatus::Nonaktif,
             'jumlah_unit' => 70,
@@ -145,12 +135,6 @@ class MasterAssetManagementTest extends TestCase
             'status' => AssetStatus::Aktif,
             'jumlah_unit' => 100,
         ]);
-        Asset::factory()->for($otherUnit)->create([
-            'asset_subsystem_id' => null,
-            'status' => AssetStatus::Aktif,
-            'jumlah_unit' => 100,
-        ]);
-
         $this->actingAs($pusat)
             ->get("/master-asset?unit_kerja_id={$selectedUnit->id}&status=aktif")
             ->assertInertia(fn (Assert $page) => $page
@@ -166,12 +150,7 @@ class MasterAssetManagementTest extends TestCase
                         && $byId->get($secondSubsystem->id)['total'] === 50
                         && ! $byId->has($filteredOutSubsystem->id);
                 })
-                ->where('legacySummary', [
-                    'asset_count' => 2,
-                    'total' => 20,
-                    'sparepart_in' => 0,
-                    'sparepart_out' => 0,
-                ]));
+                ->where('legacySummary', null));
     }
 
     public function test_index_hierarchy_total_matches_search_and_status_within_the_same_subsystem(): void
@@ -341,7 +320,7 @@ class MasterAssetManagementTest extends TestCase
                 ->where('asset.category.subsystem.id', $subsystem->id));
     }
 
-    public function test_category_renames_drive_payload_and_search_while_legacy_null_assets_use_snapshot_fallback(): void
+    public function test_category_renames_drive_payload_and_search_without_overwriting_snapshots(): void
     {
         $unit = UnitKerja::factory()->create();
         $user = User::factory()->unit($unit)->create();
@@ -351,13 +330,6 @@ class MasterAssetManagementTest extends TestCase
             'aset_prasarana_sintel' => 'Old Group',
             'system' => 'Old System',
             'subsystem' => 'Old Subsystem',
-        ]);
-        Asset::factory()->for($unit)->create([
-            'asset_subsystem_id' => null,
-            'nama_aset' => 'Legacy Asset',
-            'aset_prasarana_sintel' => 'Legacy Group Search',
-            'system' => 'Legacy System Search',
-            'subsystem' => 'Legacy Subsystem Search',
         ]);
         $group->update(['name' => 'Renamed Group']);
         $system->update(['name' => 'Renamed System']);
@@ -372,12 +344,6 @@ class MasterAssetManagementTest extends TestCase
                     ->where('assets.data.0.category.system.name', 'Renamed System')
                     ->where('assets.data.0.category.subsystem.name', 'Renamed Subsystem'));
         }
-
-        $this->actingAs($user)->get('/master-asset?search=Legacy%20Group%20Search')
-            ->assertInertia(fn (Assert $page) => $page
-                ->has('assets.data', 1)
-                ->where('assets.data.0.nama_aset', 'Legacy Asset')
-                ->where('assets.data.0.category', null));
 
         $this->assertDatabaseHas('assets', [
             'id' => $asset->id,
@@ -515,7 +481,7 @@ class MasterAssetManagementTest extends TestCase
                 ->missing('categories.0.systems.0.subsystems.0._sort_order'));
     }
 
-    public function test_unique_subsystems_stat_combines_linked_and_normalized_legacy_values_with_filters_and_unit_scope(): void
+    public function test_unique_subsystems_stat_uses_linked_categories_with_filters_and_unit_scope(): void
     {
         $unit = UnitKerja::factory()->create();
         $otherUnit = UnitKerja::factory()->create();
@@ -526,34 +492,26 @@ class MasterAssetManagementTest extends TestCase
             'nama_aset' => fn () => 'Signal linked '.fake()->unique()->numberBetween(1, 1000),
         ]);
         Asset::factory()->for($unit)->for($secondSubsystem, 'assetSubsystem')->create([
+            'nama_aset' => 'Signal linked second category',
+            'status' => AssetStatus::Aktif,
+        ]);
+        Asset::factory()->for($unit)->for($secondSubsystem, 'assetSubsystem')->create([
             'nama_aset' => 'Signal linked inactive',
             'status' => AssetStatus::DalamPerbaikan,
         ]);
-        foreach ([' Track Circuit ', 'track circuit', 'Axle Counter', '   '] as $legacySubsystem) {
-            Asset::factory()->for($unit)->create([
-                'asset_subsystem_id' => null,
-                'nama_aset' => 'Signal legacy '.$legacySubsystem,
-                'subsystem' => $legacySubsystem,
-                'status' => AssetStatus::Aktif,
-            ]);
-        }
-        Asset::factory()->for($unit)->create([
-            'asset_subsystem_id' => null,
-            'nama_aset' => 'Unmatched legacy asset',
-            'subsystem' => 'Unmatched Legacy',
+        Asset::factory()->for($unit)->for($firstSubsystem, 'assetSubsystem')->create([
+            'nama_aset' => 'Unmatched linked asset',
             'status' => AssetStatus::Aktif,
         ]);
-        Asset::factory()->for($otherUnit)->create([
-            'asset_subsystem_id' => null,
+        Asset::factory()->for($otherUnit)->for($firstSubsystem, 'assetSubsystem')->create([
             'nama_aset' => 'Signal from another unit',
-            'subsystem' => 'Foreign Legacy Subsystem',
             'status' => AssetStatus::Aktif,
         ]);
 
         $this->actingAs($user)->get('/master-asset?search=Signal&status=aktif')
             ->assertInertia(fn (Assert $page) => $page
-                ->where('stats.total_assets', 6)
-                ->where('stats.unique_subsystems', 3));
+                ->where('stats.total_assets', 3)
+                ->where('stats.unique_subsystems', 2));
     }
 
     public function test_store_and_update_lock_and_revalidate_category_paths_in_parent_to_child_order(): void

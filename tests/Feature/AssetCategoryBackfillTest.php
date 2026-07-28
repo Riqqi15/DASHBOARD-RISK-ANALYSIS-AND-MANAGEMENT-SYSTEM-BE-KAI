@@ -10,7 +10,6 @@ use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
 use App\Services\AssetCategoryBackfill;
 use App\Services\AssetCategoryResolver;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
@@ -22,11 +21,26 @@ use Throwable;
 
 class AssetCategoryBackfillTest extends TestCase
 {
-    use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->assertSame('mysql', config('database.default'));
+        $this->assertSame(3307, (int) config('database.connections.mysql.port'));
+        $this->assertSame('rams_testing', config('database.connections.mysql.database'));
+
+        Artisan::call('migrate:fresh', ['--force' => true]);
+
+        $migration = require database_path(
+            'migrations/2026_07_28_000003_make_asset_subsystem_id_required.php',
+        );
+        $migration->down();
+    }
 
     protected function tearDown(): void
     {
         Carbon::setTestNow();
+        Artisan::call('migrate:fresh', ['--force' => true]);
 
         parent::tearDown();
     }

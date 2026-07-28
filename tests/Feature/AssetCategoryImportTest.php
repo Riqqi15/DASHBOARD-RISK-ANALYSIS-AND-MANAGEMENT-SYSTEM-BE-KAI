@@ -298,13 +298,15 @@ class AssetCategoryImportTest extends TestCase
         $system = AssetSystem::factory()->for($group)->create(['name' => 'Interlocking Elektrik']);
         $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Track Circuit']);
         $legacyKey = hash('sha256', 'DAOP-1|Predictive Data Asset|Interlocking   Elektrik|Track   Circuit');
-        $asset = Asset::factory()->for($unit)->create([
-            'asset_subsystem_id' => null,
-            'source_key' => $legacyKey,
-            'nama_aset' => 'Nama suntingan operator',
-            'lokasi' => 'Stasiun Gambir',
-            'status' => 'dalam_perbaikan',
-        ]);
+        $asset = Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create([
+                'source_key' => $legacyKey,
+                'nama_aset' => 'Nama suntingan operator',
+                'lokasi' => 'Stasiun Gambir',
+                'status' => 'dalam_perbaikan',
+            ]);
         $path = $this->workbook([
             ['Kelompok Sinyal', 'Interlocking   Elektrik', 'Track   Circuit', 22, 4, 1, 40909],
         ]);

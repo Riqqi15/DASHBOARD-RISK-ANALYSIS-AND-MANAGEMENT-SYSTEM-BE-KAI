@@ -183,15 +183,16 @@ class AssetCategorySchemaTest extends TestCase
         $this->assertDatabaseCount('asset_category_source_aliases', 2);
     }
 
-    public function test_legacy_assets_may_remain_without_a_category_relation(): void
+    public function test_asset_category_relation_is_required_after_the_final_migration(): void
     {
-        $asset = Asset::factory()->create(['asset_subsystem_id' => null]);
+        $column = collect(Schema::getColumns('assets'))
+            ->firstWhere('name', 'asset_subsystem_id');
 
-        $this->assertNull($asset->fresh()->asset_subsystem_id);
-        $this->assertNull($asset->fresh()->assetSubsystem);
-        $this->assertNotEmpty($asset->aset_prasarana_sintel);
-        $this->assertNotEmpty($asset->system);
-        $this->assertNotEmpty($asset->subsystem);
+        $this->assertFalse($column['nullable']);
+        $this->assertMysqlError(
+            1048,
+            fn () => Asset::factory()->create(['asset_subsystem_id' => null]),
+        );
     }
 
     public function test_database_restricts_deleting_categories_that_are_in_use(): void
