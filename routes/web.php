@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Controllers\Admin\AssetCategoryController;
+use App\Http\Controllers\Admin\AssetGroupController;
+use App\Http\Controllers\Admin\AssetSubsystemController;
+use App\Http\Controllers\Admin\AssetSystemController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\RegionalAccountController;
 use App\Http\Controllers\Admin\UnitKerjaController;
@@ -40,6 +44,13 @@ Route::middleware(['auth', 'active'])->group(function (): void {
 });
 
 Route::middleware(['auth', 'active', 'pusat'])->prefix('admin')->name('admin.')->group(function (): void {
+    Route::get('asset-categories', AssetCategoryController::class)->name('asset-categories.index');
+    Route::patch('asset-groups/{asset_group}/status', [AssetGroupController::class, 'status'])->name('asset-groups.status');
+    Route::resource('asset-groups', AssetGroupController::class)->only(['store', 'update', 'destroy']);
+    Route::patch('asset-systems/{asset_system}/status', [AssetSystemController::class, 'status'])->name('asset-systems.status');
+    Route::resource('asset-systems', AssetSystemController::class)->only(['store', 'update', 'destroy']);
+    Route::patch('asset-subsystems/{asset_subsystem}/status', [AssetSubsystemController::class, 'status'])->name('asset-subsystems.status');
+    Route::resource('asset-subsystems', AssetSubsystemController::class)->only(['store', 'update', 'destroy']);
     Route::resource('units', UnitKerjaController::class)
         ->parameters(['units' => 'unit'])
         ->except(['show', 'destroy']);

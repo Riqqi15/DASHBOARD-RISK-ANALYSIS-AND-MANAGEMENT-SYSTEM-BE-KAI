@@ -1,0 +1,339 @@
+<?php
+
+namespace Tests\Feature\Admin;
+
+use App\Models\Asset;
+use App\Models\AssetCategorySourceAlias;
+use App\Models\AssetGroup;
+use App\Models\AssetSubsystem;
+use App\Models\AssetSystem;
+use App\Models\AuditLog;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Testing\AssertableInertia as Assert;
+use Tests\TestCase;
+
+class AssetCategoryManagementTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_guest_is_redirected_to_login_from_category_management(): void
+    {
+        $this->get('/admin/asset-categories')->assertRedirect('/login');
+    }
+
+    public function test_unit_account_is_forbidden_from_index_and_every_mutation(): void
+    {
+        $user = User::factory()->unit()->create();
+        $group = AssetGroup::factory()->create();
+        $system = AssetSystem::factory()->for($group)->create();
+        $subsystem = AssetSubsystem::factory()->for($system)->create();
+
+        $requests = [
+            fn () => $this->actingAs($user)->get('/admin/asset-categories'),
+            fn () => $this->actingAs($user)->post('/admin/asset-groups', []),
+            fn () => $this->actingAs($user)->put("/admin/asset-groups/{$group->id}", []),
+            fn () => $this->actingAs($user)->patch("/admin/asset-groups/{$group->id}/status", []),
+            fn () => $this->actingAs($user)->delete("/admin/asset-groups/{$group->id}"),
+            fn () => $this->actingAs($user)->post('/admin/asset-systems', []),
+            fn () => $this->actingAs($user)->put("/admin/asset-systems/{$system->id}", []),
+            fn () => $this->actingAs($user)->patch("/admin/asset-systems/{$system->id}/status", []),
+            fn () => $this->actingAs($user)->delete("/admin/asset-systems/{$system->id}"),
+            fn () => $this->actingAs($user)->post('/admin/asset-subsystems', []),
+            fn () => $this->actingAs($user)->put("/admin/asset-subsystems/{$subsystem->id}", []),
+            fn () => $this->actingAs($user)->patch("/admin/asset-subsystems/{$subsystem->id}/status", []),
+            fn () => $this->actingAs($user)->delete("/admin/asset-subsystems/{$subsystem->id}"),
+        ];
+
+        foreach ($requests as $request) {
+            $request()->assertForbidden();
+        }
+    }
+
+    public function test_index_returns_complete_ordered_hierarchy_counts_and_valid_selection(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $second = AssetGroup::factory()->create(['name' => 'Zulu', 'sort_order' => 20, 'is_active' => false]);
+        $first = AssetGroup::factory()->create(['name' => 'Alpha', 'sort_order' => 10]);
+        $firstSystem = AssetSystem::factory()->for($first)->create(['name' => 'First', 'sort_order' => 10, 'is_active' => false]);
+        $secondSystem = AssetSystem::factory()->for($first)->create(['name' => 'Second', 'sort_order' => 20]);
+        $subsystem = AssetSubsystem::factory()->for($firstSystem)->create(['name' => 'Child', 'is_active' => false]);
+        Asset::factory()->for($subsystem)->create();
+        AssetCategorySourceAlias::query()->create($this->aliasAttributes('group', $first->id, 'Alpha'));
+        AssetCategorySourceAlias::query()->create($this->aliasAttributes('system', $firstSystem->id, 'Alpha|First'));
+        $deleted = AssetGroup::factory()->create(['name' => 'Deleted']);
+        $deleted->delete();
+
+        $this->actingAs($pusat)->get("/admin/asset-categories?group={$first->id}&system={$firstSystem->id}")
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/AssetCategories/Index', false)
+                ->has('groups', 2)
+                ->where('groups.0.id', $first->id)
+                ->where('groups.0.is_active', true)
+                ->where('groups.0.systems_count', 2)
+                ->where('groups.0.aliases_count', 1)
+                ->where('groups.0.systems.0.id', $firstSystem->id)
+                ->where('groups.0.systems.0.is_active', false)
+                ->where('groups.0.systems.0.subsystems_count', 1)
+                ->where('groups.0.systems.0.aliases_count', 1)
+                ->where('groups.0.systems.0.subsystems.0.id', $subsystem->id)
+                ->where('groups.0.systems.0.subsystems.0.assets_count', 1)
+                ->where('groups.1.id', $second->id)
+                ->where('selectedGroupId', $first->id)
+                ->where('selectedSystemId', $firstSystem->id)
+                ->where('capabilities.manage', true));
+
+        $this->actingAs($pusat)->get('/admin/asset-categories?group=999999&system=999999')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('selectedGroupId', $first->id)
+                ->where('selectedSystemId', $firstSystem->id));
+
+        $this->actingAs($pusat)->get("/admin/asset-categories?group={$first->id}&system={$secondSystem->id}")
+            ->assertInertia(fn (Assert $page) => $page->where('selectedSystemId', $secondSystem->id));
+    }
+
+    public function test_pusat_creates_all_levels_with_server_normalization_and_scoped_uniqueness(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+
+        $this->actingAs($pusat)->post('/admin/asset-groups', [
+            'name' => "  Peralatan\u{00A0}\tDalam   Sinyal  ",
+            'normalized_name' => 'malicious',
+            'sort_order' => null,
+        ])->assertRedirect('/admin/asset-categories');
+
+        $group = AssetGroup::query()->where('name', 'Peralatan Dalam Sinyal')->firstOrFail();
+        $this->assertSame('peralatan dalam sinyal', $group->normalized_name);
+        $this->assertSame(0, $group->sort_order);
+        $createdAudit = AuditLog::query()->where('action', 'asset_category.created')->where('auditable_id', $group->id)->firstOrFail();
+        $this->assertSame($pusat->id, $createdAudit->actor_id);
+        $this->assertSame([], $createdAudit->old_values);
+        $this->assertSame('group', $createdAudit->new_values['level']);
+        $this->assertSame($group->id, $createdAudit->new_values['id']);
+        $this->assertSame('Peralatan Dalam Sinyal', $createdAudit->new_values['name']);
+
+        $this->actingAs($pusat)->post('/admin/asset-groups', [
+            'name' => ' PERALATAN   DALAM SINYAL ',
+            'normalized_name' => 'unique-lie',
+        ])->assertSessionHasErrors('normalized_name');
+
+        $otherGroup = AssetGroup::factory()->create(['name' => 'Other Group']);
+        $this->actingAs($pusat)->post('/admin/asset-systems', [
+            'asset_group_id' => $group->id,
+            'name' => "  Interlocking\u{2003}Elektrik ",
+            'normalized_name' => 'malicious',
+        ])->assertRedirect("/admin/asset-categories?group={$group->id}");
+        $system = AssetSystem::query()->where('asset_group_id', $group->id)->where('name', 'Interlocking Elektrik')->firstOrFail();
+
+        $this->actingAs($pusat)->post('/admin/asset-systems', [
+            'asset_group_id' => $group->id,
+            'name' => 'INTERLOCKING ELEKTRIK',
+        ])->assertSessionHasErrors('normalized_name');
+        $this->actingAs($pusat)->post('/admin/asset-systems', [
+            'asset_group_id' => $otherGroup->id,
+            'name' => 'INTERLOCKING ELEKTRIK',
+        ])->assertSessionDoesntHaveErrors();
+
+        $otherSystem = AssetSystem::query()->where('asset_group_id', $otherGroup->id)->firstOrFail();
+        $this->actingAs($pusat)->post('/admin/asset-subsystems', [
+            'asset_system_id' => $system->id,
+            'name' => "  Local\n Control   Panel ",
+        ])->assertRedirect("/admin/asset-categories?group={$group->id}&system={$system->id}");
+        $this->assertDatabaseHas('asset_subsystems', [
+            'asset_system_id' => $system->id,
+            'name' => 'Local Control Panel',
+            'normalized_name' => 'local control panel',
+            'sort_order' => 0,
+        ]);
+        $this->actingAs($pusat)->post('/admin/asset-subsystems', [
+            'asset_system_id' => $otherSystem->id,
+            'name' => 'LOCAL CONTROL PANEL',
+        ])->assertSessionDoesntHaveErrors();
+
+        $group->update(['is_active' => false]);
+        $this->actingAs($pusat)->post('/admin/asset-systems', [
+            'asset_group_id' => $group->id,
+            'name' => 'Rejected',
+        ])->assertSessionHasErrors('asset_group_id');
+        $system->update(['is_active' => false]);
+        $this->actingAs($pusat)->post('/admin/asset-subsystems', [
+            'asset_system_id' => $system->id,
+            'name' => 'Rejected',
+        ])->assertSessionHasErrors('asset_system_id');
+    }
+
+    public function test_renames_preserve_ids_relations_assets_aliases_and_audit_old_and_new_values(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $group = AssetGroup::factory()->create(['name' => 'Old Group', 'sort_order' => 1]);
+        $otherGroup = AssetGroup::factory()->create();
+        $system = AssetSystem::factory()->for($group)->create(['name' => 'Old System', 'sort_order' => 2]);
+        $otherSystem = AssetSystem::factory()->for($otherGroup)->create();
+        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Old Subsystem', 'sort_order' => 3]);
+        $asset = Asset::factory()->for($subsystem)->create();
+        foreach ([['group', $group->id], ['system', $system->id], ['subsystem', $subsystem->id]] as [$type, $id]) {
+            AssetCategorySourceAlias::query()->create($this->aliasAttributes($type, $id, "Alias {$type}"));
+        }
+
+        $this->actingAs($pusat)->put("/admin/asset-groups/{$group->id}", ['name' => 'New Group', 'sort_order' => 11]);
+        $this->actingAs($pusat)->put("/admin/asset-systems/{$system->id}", [
+            'name' => 'New System', 'sort_order' => 12, 'asset_group_id' => $otherGroup->id,
+        ]);
+        $this->actingAs($pusat)->put("/admin/asset-subsystems/{$subsystem->id}", [
+            'name' => 'New Subsystem', 'sort_order' => 13, 'asset_system_id' => $otherSystem->id,
+        ]);
+
+        $this->assertSame($group->id, $system->fresh()->asset_group_id);
+        $this->assertSame($system->id, $subsystem->fresh()->asset_system_id);
+        $this->assertSame($subsystem->id, $asset->fresh()->asset_subsystem_id);
+        $this->assertSame(3, AssetCategorySourceAlias::query()->count());
+        $this->assertDatabaseHas('asset_groups', ['id' => $group->id, 'name' => 'New Group', 'sort_order' => 11]);
+        $this->assertDatabaseHas('asset_systems', ['id' => $system->id, 'name' => 'New System', 'sort_order' => 12]);
+        $this->assertDatabaseHas('asset_subsystems', ['id' => $subsystem->id, 'name' => 'New Subsystem', 'sort_order' => 13]);
+
+        foreach ([['group', $group, 'Old Group', 'New Group'], ['system', $system, 'Old System', 'New System'], ['subsystem', $subsystem, 'Old Subsystem', 'New Subsystem']] as [$level, $model, $oldName, $newName]) {
+            $audit = AuditLog::query()->where('action', 'asset_category.updated')->where('auditable_id', $model->id)->firstOrFail();
+            $this->assertSame($pusat->id, $audit->actor_id);
+            $this->assertSame($level, $audit->old_values['level']);
+            $this->assertSame($oldName, $audit->old_values['name']);
+            $this->assertSame($newName, $audit->new_values['name']);
+        }
+    }
+
+    public function test_status_changes_only_activity_and_audits_each_level(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $group = AssetGroup::factory()->create();
+        $system = AssetSystem::factory()->for($group)->create();
+        $subsystem = AssetSubsystem::factory()->for($system)->create();
+
+        foreach ([['asset-groups', 'group', $group], ['asset-systems', 'system', $system], ['asset-subsystems', 'subsystem', $subsystem]] as [$uri, $level, $model]) {
+            $this->actingAs($pusat)->patch("/admin/{$uri}/{$model->id}/status", ['is_active' => false])->assertSessionDoesntHaveErrors();
+            $this->assertFalse($model->fresh()->is_active);
+            $audit = AuditLog::query()->where('action', 'asset_category.status_changed')->where('auditable_type', $model->getMorphClass())->where('auditable_id', $model->id)->firstOrFail();
+            $this->assertSame($level, $audit->old_values['level']);
+            $this->assertTrue($audit->old_values['is_active']);
+            $this->assertFalse($audit->new_values['is_active']);
+        }
+
+        $this->assertSame(1, AssetGroup::query()->whereKey($group->id)->count());
+        $this->assertSame(1, AssetSystem::query()->whereKey($system->id)->count());
+        $this->assertSame(1, AssetSubsystem::query()->whereKey($subsystem->id)->count());
+    }
+
+    public function test_unused_categories_soft_delete_and_are_audited(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $group = AssetGroup::factory()->create();
+        $system = AssetSystem::factory()->create();
+        $subsystem = AssetSubsystem::factory()->create();
+
+        foreach ([['asset-subsystems', $subsystem], ['asset-systems', $system], ['asset-groups', $group]] as [$uri, $model]) {
+            $this->actingAs($pusat)->delete("/admin/{$uri}/{$model->id}")->assertSessionDoesntHaveErrors();
+            $this->assertNotNull($model->fresh()->deleted_at);
+            $audit = AuditLog::query()->where('action', 'asset_category.deleted')->where('auditable_type', $model->getMorphClass())->where('auditable_id', $model->id)->firstOrFail();
+            $this->assertSame($pusat->id, $audit->actor_id);
+            $this->assertSame([], $audit->new_values);
+            $this->actingAs($pusat)->patch("/admin/{$uri}/{$model->id}/status", ['is_active' => true])->assertNotFound();
+            $this->assertNotNull($model->fresh()->deleted_at);
+        }
+    }
+
+    public function test_deletes_are_blocked_by_children_assets_and_aliases_without_delete_audits(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $group = AssetGroup::factory()->create();
+        $system = AssetSystem::factory()->for($group)->create();
+        $subsystem = AssetSubsystem::factory()->for($system)->create();
+        Asset::factory()->for($subsystem)->create();
+
+        foreach ([['asset-groups', $group, 'sistem'], ['asset-systems', $system, 'subsistem'], ['asset-subsystems', $subsystem, 'aset']] as [$uri, $model, $blocker]) {
+            $response = $this->actingAs($pusat)->from('/admin/asset-categories')->delete("/admin/{$uri}/{$model->id}");
+            $response->assertRedirect('/admin/asset-categories')->assertSessionHasErrors('category');
+            $message = mb_strtolower($response->getSession()->get('errors')->first('category'));
+            $this->assertStringContainsString($blocker, $message);
+            $this->assertStringContainsString('nonaktifkan', $message);
+            $this->assertNull($model->fresh()->deleted_at);
+        }
+
+        foreach ([['asset-groups', 'group', AssetGroup::factory()->create()], ['asset-systems', 'system', AssetSystem::factory()->create()], ['asset-subsystems', 'subsystem', AssetSubsystem::factory()->create()]] as [$uri, $type, $model]) {
+            AssetCategorySourceAlias::query()->create($this->aliasAttributes($type, $model->id, "Only {$type}"));
+            $response = $this->actingAs($pusat)->delete("/admin/{$uri}/{$model->id}");
+            $response->assertSessionHasErrors('category');
+            $message = mb_strtolower($response->getSession()->get('errors')->first('category'));
+            $this->assertStringContainsString('alias', $message);
+            $this->assertStringContainsString('nonaktifkan', $message);
+            $this->assertNull($model->fresh()->deleted_at);
+        }
+
+        $this->assertSame(0, AuditLog::query()->where('action', 'asset_category.deleted')->count());
+    }
+
+    public function test_soft_deleted_dependents_still_block_deletion(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $group = AssetGroup::factory()->create();
+        $system = AssetSystem::factory()->for($group)->create();
+        $system->delete();
+        $this->actingAs($pusat)->delete("/admin/asset-groups/{$group->id}")->assertSessionHasErrors('category');
+
+        $liveSystem = AssetSystem::factory()->create();
+        $subsystem = AssetSubsystem::factory()->for($liveSystem)->create();
+        $subsystem->delete();
+        $this->actingAs($pusat)->delete("/admin/asset-systems/{$liveSystem->id}")->assertSessionHasErrors('category');
+
+        $liveSubsystem = AssetSubsystem::factory()->create();
+        $asset = Asset::factory()->for($liveSubsystem)->create();
+        $asset->delete();
+        $this->actingAs($pusat)->delete("/admin/asset-subsystems/{$liveSubsystem->id}")->assertSessionHasErrors('category');
+    }
+
+    public function test_duplicate_update_returns_validation_errors_instead_of_a_database_exception(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        AssetGroup::factory()->create(['name' => 'Duplicate']);
+        $target = AssetGroup::factory()->create(['name' => 'Target']);
+
+        $this->actingAs($pusat)->put("/admin/asset-groups/{$target->id}", [
+            'name' => " DUPLICATE\t",
+            'normalized_name' => 'safe-looking-value',
+        ])->assertSessionHasErrors('normalized_name');
+
+        $this->assertSame('Target', $target->fresh()->name);
+    }
+
+    public function test_policies_allow_only_pusat_for_every_category_ability(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $unit = User::factory()->unit()->create();
+        $models = [AssetGroup::factory()->create(), AssetSystem::factory()->create(), AssetSubsystem::factory()->create()];
+
+        foreach ($models as $model) {
+            foreach (['view', 'update', 'delete', 'status'] as $ability) {
+                $this->assertTrue(Gate::forUser($pusat)->allows($ability, $model));
+                $this->assertFalse(Gate::forUser($unit)->allows($ability, $model));
+            }
+            foreach (['viewAny', 'create'] as $ability) {
+                $this->assertTrue(Gate::forUser($pusat)->allows($ability, $model::class));
+                $this->assertFalse(Gate::forUser($unit)->allows($ability, $model::class));
+            }
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function aliasAttributes(string $type, int $id, string $path): array
+    {
+        return [
+            'category_type' => $type,
+            'category_id' => $id,
+            'source_path' => $path,
+            'normalized_source_path' => mb_strtolower($path),
+            'workbook_name' => 'test.xlsx',
+            'sheet_name' => 'Sheet1',
+            'first_imported_at' => now(),
+            'last_imported_at' => now(),
+        ];
+    }
+}
