@@ -91,31 +91,306 @@ class SparePartImportTest extends TestCase
         ]);
     }
 
-    public function test_actual_reorder_names_resolve_to_the_single_canonical_subsystem(): void
+    public function test_typo_under_a_system_with_one_child_is_not_silently_remapped(): void
     {
-        $subsystem = $this->categoryPath(
-            '1. PERALATAN DALAM SINYAL ELEKTRIK',
-            'INTERLOCKING ELEKTRIK',
-            'INTERLOCKING ELEKTRIK',
-        );
+        $this->categoryPath('Kelompok', 'System', 'Equipment');
         $path = $this->workbook([
-            ['Peralatan Dalam Sinyal Elektrik', 'Interlocking Electric', 'Interlocking Electric', 'Modul Interlocking', 5, 5, 3, 1, 10, 5, 15, null],
-            ['', 'Panel Pelayanan', 'Panel Pelayanan LCP', 'Meja Pelayanan LCP', null, null, null, null, null, null, null, null],
+            ['Kelompok', 'System', 'Subsystem Typo', 'Detail', 5, 5, 3, 1, 10, 5, 15, null],
+        ]);
+
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+            ->expectsOutputToContain('row 2, header Equipment')
+            ->assertFailed();
+
+        $this->assertDatabaseCount('spare_parts', 0);
+    }
+
+    public function test_explicit_bootstrap_mode_creates_missing_reorder_hierarchy_and_aliases(): void
+    {
+        $path = $this->workbook([
+            ['Peralatan Luar Sinyal Elektrik', 'Pengaman Perlintasan Sebidang', 'Palang Pintu', 'Motor Palang', 1, 1, 1, 1, 2, 3, 5, 'High'],
+        ]);
+
+        $this->artisan('rams:import-spare-parts', [
+            'workbook' => $path,
+            '--bootstrap-categories' => true,
+        ])->assertSuccessful();
+
+        $part = SparePart::query()->sole();
+        $this->assertSame('Palang Pintu', $part->assetSubsystem->name);
+        $this->assertSame('Pengaman Perlintasan Sebidang', $part->assetSubsystem->assetSystem->name);
+        $this->assertSame('Peralatan Luar Sinyal Elektrik', $part->assetSubsystem->assetSystem->assetGroup->name);
+        $this->assertSame(3, AssetCategorySourceAlias::query()->count());
+    }
+
+    public function test_default_mode_rejects_the_missing_reorder_hierarchy(): void
+    {
+        $path = $this->workbook([
+            ['Peralatan Luar Sinyal Elektrik', 'Pengaman Perlintasan Sebidang', 'Palang Pintu', 'Motor Palang', 1, 1, 1, 1, 2, 3, 5, 'High'],
+        ]);
+
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+            ->expectsOutputToContain('row 2, header Equipment')
+            ->assertFailed();
+
+        $this->assertDatabaseCount('asset_groups', 0);
+        $this->assertDatabaseCount('spare_parts', 0);
+    }
+
+    public function test_inactive_alias_fails_with_context_instead_of_importing(): void
+    {
+        $subsystem = $this->categoryPath('Global Group', 'Global System', 'Global Subsystem');
+        $this->sourceAliases($subsystem, 'Excel Group', 'Excel System', 'Excel Subsystem');
+        $subsystem->update(['is_active' => false]);
+        $path = $this->workbook([
+            ['Excel Group', 'Excel System', 'Excel Subsystem', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High'],
+        ]);
+
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+            ->expectsOutputToContain('row 2, header Equipment: alias kategori tidak aktif')
+            ->assertFailed();
+
+        $this->assertDatabaseCount('spare_parts', 0);
+    }
+
+    public function test_broken_alias_fails_with_context_instead_of_falling_back(): void
+    {
+        $this->categoryPath('Excel Group', 'Excel System', 'Excel Subsystem');
+        AssetCategorySourceAlias::query()->create([
+            'category_type' => 'subsystem',
+            'category_id' => 999999,
+            'source_path' => 'Excel Group|Excel System|Excel Subsystem',
+            'normalized_source_path' => 'excel group|excel system|excel subsystem',
+            'workbook_name' => 'old.xlsx',
+            'sheet_name' => 'Predictive Data Asset',
+            'first_imported_at' => now(),
+            'last_imported_at' => now(),
+        ]);
+        $path = $this->workbook([
+            ['Excel Group', 'Excel System', 'Excel Subsystem', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High'],
+        ]);
+
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+            ->expectsOutputToContain('row 2, header Equipment: alias kategori rusak')
+            ->assertFailed();
+
+        $this->assertDatabaseCount('spare_parts', 0);
+    }
+
+    public function test_alias_with_soft_deleted_parent_fails_as_a_contextual_broken_alias(): void
+    {
+        $subsystem = $this->categoryPath('Global Group', 'Global System', 'Global Subsystem');
+        $this->sourceAliases($subsystem, 'Excel Group', 'Excel System', 'Excel Subsystem');
+        $subsystem->assetSystem->delete();
+        $path = $this->workbook([
+            ['Excel Group', 'Excel System', 'Excel Subsystem', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High'],
+        ]);
+
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+            ->expectsOutputToContain('row 2, header Equipment: alias kategori rusak')
+            ->assertFailed();
+
+        $this->assertDatabaseCount('spare_parts', 0);
+    }
+
+    public function test_inactive_name_path_is_not_used_by_default_or_bootstrap_resolution(): void
+    {
+        $subsystem = $this->categoryPath('Kelompok', 'System', 'Equipment');
+        $subsystem->update(['is_active' => false]);
+        $path = $this->workbook([
+            ['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High'],
+        ]);
+
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+            ->expectsOutputToContain('row 2, header Equipment')
+            ->assertFailed();
+
+        $this->assertDatabaseCount('spare_parts', 0);
+    }
+
+    public function test_name_fallback_persists_aliases_so_reimport_survives_category_rename(): void
+    {
+        $subsystem = $this->categoryPath('1. Kelompok Excel', 'System Excel', 'Subsystem Excel');
+        $path = $this->workbook([
+            ['Kelompok Excel', 'System Excel', 'Subsystem Excel', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High'],
         ]);
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])->assertSuccessful();
+        $this->assertSame(3, AssetCategorySourceAlias::query()->count());
 
-        $this->assertSame(2, SparePart::query()->count());
-        $this->assertSame([$subsystem->id], SparePart::query()->distinct()->pluck('asset_subsystem_id')->all());
-        $this->assertDatabaseHas('spare_parts', [
-            'equipment' => 'Panel Pelayanan LCP',
-            'detail_equipment' => 'Meja Pelayanan LCP',
+        $subsystem->assetSystem->assetGroup->update(['name' => 'Renamed Group']);
+        $subsystem->assetSystem->update(['name' => 'Renamed System']);
+        $subsystem->update(['name' => 'Renamed Subsystem']);
+
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+            ->expectsOutputToContain('Tidak berubah: 1')
+            ->assertSuccessful();
+
+        $this->assertDatabaseCount('spare_parts', 1);
+        $this->assertTrue(SparePart::query()->sole()->assetSubsystem->is($subsystem));
+    }
+
+    public function test_numeric_formulas_are_evaluated_only_in_numeric_columns(): void
+    {
+        $this->categoryPath('Kelompok', 'System', 'Equipment');
+        $path = $this->workbook([
+            ['Kelompok', 'System', 'Equipment', 'Detail', null, null, null, null, null, null, null, null],
         ]);
+        $this->rewriteCell($path, 'E2', '=2+2');
+        $this->rewriteCell($path, 'I2', '=5+3');
+        $this->rewriteCell($path, 'K2', '=I2+J2');
+
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])->assertSuccessful();
+
+        $part = SparePart::query()->sole();
+        $this->assertSame('4.00', $part->max_yearly_failure);
+        $this->assertSame(8, $part->safety_stock);
+        $this->assertSame(8, $part->reorder_point);
+    }
+
+    public function test_formula_in_text_column_is_rejected_with_context(): void
+    {
+        $this->categoryPath('Kelompok', 'System', 'Equipment');
+        $path = $this->workbook([
+            ['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High'],
+        ]);
+        $this->rewriteCell($path, 'D2', '="Formula Detail"');
+
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+            ->expectsOutputToContain('row 2, header Detail Equipment: formula tidak diizinkan')
+            ->assertFailed();
+
+        $this->assertDatabaseCount('spare_parts', 0);
+    }
+
+    public function test_formula_error_in_numeric_column_is_rejected_with_context(): void
+    {
+        $this->categoryPath('Kelompok', 'System', 'Equipment');
+        $path = $this->workbook([
+            ['Kelompok', 'System', 'Equipment', 'Detail', null, 1, 1, 1, 2, 3, 5, 'High'],
+        ]);
+        $this->rewriteCell($path, 'E2', '=1/0');
+
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+            ->expectsOutputToContain('row 2, header Max yearly Failure: formula')
+            ->assertFailed();
+
+        $this->assertDatabaseCount('spare_parts', 0);
+    }
+
+    public function test_decimal_precision_and_database_bounds_are_validated_with_context(): void
+    {
+        $this->categoryPath('Kelompok', 'System', 'Equipment');
+        foreach ([1.234, 100000000] as $invalid) {
+            $path = $this->workbook([
+                ['Kelompok', 'System', 'Equipment', 'Detail '.$invalid, $invalid, 1, 1, 1, 2, 3, 5, 'High'],
+            ]);
+
+            $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+                ->expectsOutputToContain('row 2, header Max yearly Failure')
+                ->assertFailed();
+        }
+
+        $this->assertDatabaseCount('spare_parts', 0);
+    }
+
+    public function test_unsigned_quantity_bounds_are_validated_with_context(): void
+    {
+        $this->categoryPath('Kelompok', 'System', 'Equipment');
+        $path = $this->workbook([
+            ['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 4294967296, 3, 5, 'High'],
+        ]);
+
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+            ->expectsOutputToContain('row 2, header Safety Stock')
+            ->assertFailed();
+
+        $this->assertDatabaseCount('spare_parts', 0);
+    }
+
+    public function test_text_field_lengths_are_validated_before_database_write(): void
+    {
+        $this->categoryPath('Kelompok', 'System', 'Equipment');
+        $path = $this->workbook([
+            ['Kelompok', 'System', str_repeat('E', 256), 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High'],
+        ]);
+
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+            ->expectsOutputToContain('row 2, header Equipment: maksimal 255 karakter')
+            ->assertFailed();
+
+        $this->assertDatabaseCount('spare_parts', 0);
+    }
+
+    public function test_all_imported_text_columns_honor_schema_lengths(): void
+    {
+        $cases = [
+            [1, 'System'],
+            [2, 'Sub-System'],
+            [3, 'Equipment'],
+            [4, 'Detail Equipment'],
+            [12, 'Severity Equipment'],
+        ];
+
+        foreach ($cases as [$column, $header]) {
+            $this->categoryPath('Kelompok '.$column, 'System '.$column, 'Equipment '.$column);
+            $row = ['Kelompok '.$column, 'System '.$column, 'Equipment '.$column, 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High'];
+            $row[$column - 1] = str_repeat('X', 256);
+            $path = $this->workbook([$row]);
+
+            $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+                ->expectsOutputToContain("row 2, header {$header}: maksimal 255 karakter")
+                ->assertFailed();
+        }
+
+        $this->assertDatabaseCount('spare_parts', 0);
+    }
+
+    public function test_actual_thirteen_reorder_paths_bootstrap_once_then_import_strictly(): void
+    {
+        $inside = AssetGroup::factory()->create(['name' => '1. PERALATAN DALAM SINYAL ELEKTRIK']);
+        $insideSystem = AssetSystem::factory()->for($inside)->create(['name' => 'INTERLOCKING ELEKTRIK']);
+        AssetSubsystem::factory()->for($insideSystem)->create(['name' => 'INTERLOCKING ELEKTRIK']);
+        $outside = AssetGroup::factory()->create(['name' => '2. PERALATAN LUAR SINYAL ELEKTRIK']);
+        $outsideSystem = AssetSystem::factory()->for($outside)->create(['name' => 'PERAGA SINYAL ELEKTRIK']);
+        AssetSubsystem::factory()->for($outsideSystem)->create(['name' => 'PERAGA SINYAL ELEKTRIK UTAMA']);
+
+        $paths = [
+            ['Peralatan Dalam Sinyal Elektrik', 'Interlocking Electric', 'Interlocking Electric'],
+            ['Peralatan Dalam Sinyal Elektrik', 'Panel Pelayanan', 'Panel Pelayanan LCP'],
+            ['Peralatan Dalam Sinyal Elektrik', 'Panel Pelayanan', 'Panel Pelayanan VDU'],
+            ['Peralatan Dalam Sinyal Elektrik', 'Peralatan Blok', 'Peralatan Blok'],
+            ['Peralatan Dalam Sinyal Elektrik', 'Terminal Peralatan', 'Data Logger'],
+            ['Peralatan Dalam Sinyal Elektrik', 'Terminal Peralatan', 'Technician Terminal'],
+            ['Peralatan Luar Sinyal Elektrik', 'Peraga Sinyal Elektrik Utama', 'Sinyal Masuk'],
+            ['Peralatan Luar Sinyal Elektrik', 'Peraga Sinyal Elektrik Utama', 'Sinyal Keluar / Berangkat 2 Aspek'],
+            ['Peralatan Luar Sinyal Elektrik', 'Peraga Sinyal Elektrik Utama', 'Sinyal Berangkat/ Keluar 3 Aspek'],
+            ['Peralatan Luar Sinyal Elektrik', 'Peraga Sinyal Elektrik Utama', 'Sinyal Blok 2 Aspek'],
+            ['Peralatan Luar Sinyal Elektrik', 'Peraga Sinyal Elektrik Utama', 'Sinyal Blok 3 Aspek'],
+            ['Peralatan Luar Sinyal Elektrik', 'Peraga Sinyal Elektrik Utama', 'Sinyal Langsir'],
+            ['Peralatan Luar Sinyal Elektrik', 'Peraga Sinyal Elektrik Utama', 'Sinyal Darurat'],
+        ];
+        $rows = array_map(
+            fn (array $path, int $index): array => [...$path, 'Detail '.$index, 1, 1, 1, 1, 2, 3, 5, 'High'],
+            $paths,
+            array_keys($paths),
+        );
+        $path = $this->workbook($rows);
+
+        $this->artisan('rams:import-spare-parts', [
+            'workbook' => $path,
+            '--bootstrap-categories' => true,
+        ])->expectsOutputToContain('Dibuat: 13')->assertSuccessful();
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
+            ->expectsOutputToContain('Tidak berubah: 13')
+            ->assertSuccessful();
+
+        $this->assertDatabaseCount('spare_parts', 13);
     }
 
     public function test_import_updates_source_fields_but_preserves_admin_managed_fields(): void
     {
-        $this->categoryPath('Kelompok', 'System', 'Subsystem');
+        $this->categoryPath('Kelompok', 'System', 'Equipment');
         $path = $this->workbook([
             ['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'Medium'],
         ]);
@@ -138,7 +413,7 @@ class SparePartImportTest extends TestCase
 
     public function test_soft_deleted_sparepart_is_skipped_without_being_restored(): void
     {
-        $this->categoryPath('Kelompok', 'System', 'Subsystem');
+        $this->categoryPath('Kelompok', 'System', 'Equipment');
         $path = $this->workbook([
             ['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'Medium'],
         ]);
@@ -172,7 +447,7 @@ class SparePartImportTest extends TestCase
 
     public function test_unmatched_subsystem_reports_the_source_row_and_rolls_back_all_rows(): void
     {
-        $this->categoryPath('Kelompok', 'System', 'Subsystem');
+        $this->categoryPath('Kelompok', 'System', 'Equipment');
         $path = $this->workbook([
             ['Kelompok', 'System', 'Equipment', 'Valid Detail', 1, 1, 1, 1, 2, 3, 5, 'Medium'],
             ['Kelompok Hilang', 'System Hilang', 'Equipment Hilang', 'Invalid Detail', 1, 1, 1, 1, 2, 3, 5, 'Medium'],
@@ -180,7 +455,7 @@ class SparePartImportTest extends TestCase
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
             ->expectsOutputToContain(
-                'Workbook '.basename($path).', sheet Reorder Stock, row 3, header Sub-System',
+                'Workbook '.basename($path).', sheet Reorder Stock, row 3, header Equipment',
             )
             ->assertFailed();
 
@@ -189,7 +464,7 @@ class SparePartImportTest extends TestCase
 
     public function test_duplicate_source_rows_fail_atomically_with_precise_context(): void
     {
-        $this->categoryPath('Kelompok', 'System', 'Subsystem');
+        $this->categoryPath('Kelompok', 'System', 'Equipment');
         $row = ['Kelompok', 'System', 'Equipment', 'Duplicate Detail', 1, 1, 1, 1, 2, 3, 5, 'Medium'];
         $path = $this->workbook([$row, $row]);
 

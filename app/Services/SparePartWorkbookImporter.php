@@ -7,11 +7,12 @@ use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
 use App\Models\SparePart;
-use Illuminate\Support\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use RuntimeException;
+use Throwable;
 
 class SparePartWorkbookImporter
 {
@@ -38,7 +39,7 @@ class SparePartWorkbookImporter
     /**
      * @return array{created: int, updated: int, unchanged: int, skipped: int}
      */
-    public function import(string $workbookPath): array
+    public function import(string $workbookPath, bool $bootstrapCategories = false): array
     {
         if (! is_file($workbookPath)) {
             throw new RuntimeException("File workbook tidak ditemukan: {$workbookPath}");
@@ -47,6 +48,7 @@ class SparePartWorkbookImporter
         $workbookName = basename($workbookPath);
         $reader = IOFactory::createReaderForFile($workbookPath);
         $reader->setReadDataOnly(true);
+        $reader->setLoadSheetsOnly([self::SHEET]);
         $spreadsheet = $reader->load($workbookPath);
 
         try {
@@ -59,7 +61,10 @@ class SparePartWorkbookImporter
 
             $this->assertHeaders($sheet, $workbookName);
 
-            return DB::transaction(fn (): array => $this->importRows($sheet, $workbookName));
+            return DB::transaction(
+                fn (): array => $this->importRows($sheet, $workbookName, $bootstrapCategories),
+                3,
+            );
         } finally {
             $spreadsheet->disconnectWorksheets();
             unset($spreadsheet);
@@ -84,7 +89,7 @@ class SparePartWorkbookImporter
     /**
      * @return array{created: int, updated: int, unchanged: int, skipped: int}
      */
-    private function importRows(Worksheet $sheet, string $workbookName): array
+    private function importRows(Worksheet $sheet, string $workbookName, bool $bootstrapCategories): array
     {
         $result = ['created' => 0, 'updated' => 0, 'unchanged' => 0, 'skipped' => 0];
         $currentGroup = '';
@@ -94,10 +99,10 @@ class SparePartWorkbookImporter
         $sourceRows = [];
 
         for ($row = 2; $row <= $sheet->getHighestDataRow(); $row++) {
-            $group = $this->cellText($sheet, 1, $row);
-            $system = $this->cellText($sheet, 2, $row);
-            $equipment = $this->cellText($sheet, 3, $row);
-            $detailEquipment = $this->cellText($sheet, 4, $row);
+            $group = $this->cellText($sheet, 1, $row, $workbookName, self::HEADERS[0]);
+            $system = $this->cellText($sheet, 2, $row, $workbookName, self::HEADERS[1]);
+            $equipment = $this->cellText($sheet, 3, $row, $workbookName, self::HEADERS[2]);
+            $detailEquipment = $this->cellText($sheet, 4, $row, $workbookName, self::HEADERS[3]);
 
             $currentGroup = $group !== '' ? $group : $currentGroup;
             $currentSystem = $system !== '' ? $system : $currentSystem;
@@ -106,6 +111,11 @@ class SparePartWorkbookImporter
             if ($detailEquipment === '') {
                 continue;
             }
+
+            $currentGroup = $this->boundedText($currentGroup, 255, $workbookName, $row, 'System');
+            $currentSystem = $this->boundedText($currentSystem, 255, $workbookName, $row, 'Sub-System');
+            $currentEquipment = $this->boundedText($currentEquipment, 255, $workbookName, $row, 'Equipment');
+            $detailEquipment = $this->boundedText($detailEquipment, 255, $workbookName, $row, 'Detail Equipment');
 
             foreach ([
                 'System' => $currentGroup,
@@ -134,6 +144,7 @@ class SparePartWorkbookImporter
                 $currentEquipment,
                 $workbookName,
                 $row,
+                $bootstrapCategories,
             );
             $sourceValues = [
                 'asset_subsystem_id' => $subsystem->id,
@@ -146,7 +157,13 @@ class SparePartWorkbookImporter
                 'safety_stock' => $this->nullableQuantity($sheet, 9, $row, $workbookName, self::HEADERS[8]),
                 'lead_time_demand' => $this->nullableQuantity($sheet, 10, $row, $workbookName, self::HEADERS[9]),
                 'reorder_point' => $this->nullableQuantity($sheet, 11, $row, $workbookName, self::HEADERS[10]),
-                'severity' => $this->nullableText($sheet->getCell([12, $row])->getCalculatedValue()),
+                'severity' => $this->nullableBoundedText(
+                    $this->cellValue($sheet, 12, $row, $workbookName, self::HEADERS[11], false),
+                    255,
+                    $workbookName,
+                    $row,
+                    self::HEADERS[11],
+                ),
             ];
 
             /** @var SparePart|null $part */
@@ -173,14 +190,37 @@ class SparePartWorkbookImporter
                 continue;
             }
 
-            SparePart::query()->create([
-                ...$sourceValues,
-                'source_key' => $sourceKey,
-                'code' => 'SP-'.strtoupper(substr($sourceKey, 0, 10)),
-                'unit_of_measure' => 'unit',
-                'is_active' => true,
-            ]);
-            $result['created']++;
+            try {
+                SparePart::query()->create([
+                    ...$sourceValues,
+                    'source_key' => $sourceKey,
+                    'code' => 'SP-'.strtoupper(substr($sourceKey, 0, 10)),
+                    'unit_of_measure' => 'unit',
+                    'is_active' => true,
+                ]);
+                $result['created']++;
+            } catch (UniqueConstraintViolationException $exception) {
+                $concurrent = SparePart::withTrashed()
+                    ->where('source_key', $sourceKey)
+                    ->lockForUpdate()
+                    ->first();
+                if (! $concurrent) {
+                    throw $exception;
+                }
+                if ($concurrent->trashed()) {
+                    $result['skipped']++;
+
+                    continue;
+                }
+
+                $concurrent->fill($sourceValues);
+                if ($concurrent->isDirty()) {
+                    $concurrent->save();
+                    $result['updated']++;
+                } else {
+                    $result['unchanged']++;
+                }
+            }
         }
 
         return $result;
@@ -192,76 +232,276 @@ class SparePartWorkbookImporter
         string $subsystemName,
         string $workbookName,
         int $row,
+        bool $bootstrapCategories,
     ): AssetSubsystem {
-        $normalizedPath = implode('|', array_map($this->categoryResolver->normalize(...), [
-            $groupName,
-            $systemName,
-            $subsystemName,
-        ]));
+        $paths = $this->categoryPaths($groupName, $systemName, $subsystemName);
         $alias = AssetCategorySourceAlias::query()
             ->where('category_type', 'subsystem')
-            ->where('normalized_source_path', $normalizedPath)
+            ->where('normalized_source_path', $paths['subsystem']['normalized'])
+            ->lockForUpdate()
             ->first();
 
         if ($alias) {
-            $subsystem = AssetSubsystem::query()->whereKey($alias->category_id)->first();
-            if ($subsystem) {
-                return $subsystem;
+            $subsystem = AssetSubsystem::query()
+                ->with('assetSystem.assetGroup')
+                ->whereKey($alias->category_id)
+                ->first();
+            if (! $subsystem || ! $subsystem->assetSystem || ! $subsystem->assetSystem->assetGroup) {
+                throw $this->rowError($workbookName, $row, 'Equipment', 'alias kategori rusak.');
             }
+            if (! $subsystem->is_active
+                || ! $subsystem->assetSystem->is_active
+                || ! $subsystem->assetSystem->assetGroup->is_active) {
+                throw $this->rowError($workbookName, $row, 'Equipment', 'alias kategori tidak aktif.');
+            }
+
+            $this->persistCategoryAliases($subsystem, $paths, $workbookName, $row);
+
+            return $subsystem;
         }
 
+        $subsystem = $this->resolveActiveNamePath($groupName, $systemName, $subsystemName);
+        if ($subsystem) {
+            $this->persistCategoryAliases($subsystem, $paths, $workbookName, $row);
+
+            return $subsystem;
+        }
+
+        if (! $bootstrapCategories) {
+            throw $this->unmatchedCategoryError(
+                $workbookName,
+                $row,
+                $groupName,
+                $systemName,
+                $subsystemName,
+            );
+        }
+
+        $this->bootstrapParentAliases(
+            $groupName,
+            $systemName,
+            $paths,
+            $workbookName,
+            $row,
+        );
+        $resolved = $this->categoryResolver->resolve(
+            $groupName,
+            $systemName,
+            $subsystemName,
+            $workbookName,
+            self::SHEET,
+            $row,
+        );
+        $subsystem = $resolved['subsystem']->load('assetSystem.assetGroup');
+        if (! $subsystem->is_active
+            || ! $subsystem->assetSystem->is_active
+            || ! $subsystem->assetSystem->assetGroup->is_active) {
+            throw $this->rowError($workbookName, $row, 'Equipment', 'kategori hasil bootstrap tidak aktif.');
+        }
+
+        return $subsystem;
+    }
+
+    private function resolveActiveNamePath(
+        string $groupName,
+        string $systemName,
+        string $subsystemName,
+    ): ?AssetSubsystem {
         $groups = AssetGroup::query()
-            ->with('systems.subsystems')
+            ->where('is_active', true)
+            ->with(['systems' => fn ($query) => $query->where('is_active', true)
+                ->with(['subsystems' => fn ($subsystems) => $subsystems->where('is_active', true)])])
             ->get()
             ->filter(fn (AssetGroup $group): bool => $this->categoryNameMatches($group->name, $groupName));
 
         if ($groups->count() !== 1) {
-            throw $this->rowError(
-                $workbookName,
-                $row,
-                'Sub-System',
-                "hierarchy {$groupName}|{$systemName}|{$subsystemName} tidak cocok dengan kategori global.",
-            );
+            return null;
         }
 
         /** @var AssetGroup $group */
         $group = $groups->first();
-        /** @var Collection<int, AssetSystem> $systems */
-        $systems = $group->systems;
-        $matchingSystems = $systems->filter(
+        $systems = $group->systems->filter(
             fn (AssetSystem $system): bool => $this->categoryNameMatches($system->name, $systemName),
         );
-
-        if ($matchingSystems->count() === 1) {
-            /** @var AssetSystem $system */
-            $system = $matchingSystems->first();
-            $matchingSubsystems = $system->subsystems->filter(
-                fn (AssetSubsystem $subsystem): bool => $this->categoryNameMatches($subsystem->name, $subsystemName),
-            );
-            if ($matchingSubsystems->count() === 1) {
-                return $matchingSubsystems->first();
-            }
-            if ($system->subsystems->count() === 1) {
-                return $system->subsystems->first();
-            }
+        if ($systems->count() !== 1) {
+            return null;
         }
 
-        $subsystems = $systems->flatMap->subsystems;
-        $matchingSubsystems = $subsystems->filter(fn (AssetSubsystem $subsystem): bool => $this->categoryNameMatches($subsystem->name, $systemName)
-            || $this->categoryNameMatches($subsystem->name, $subsystemName));
+        /** @var AssetSystem $system */
+        $system = $systems->first();
+        $subsystems = $system->subsystems->filter(
+            fn (AssetSubsystem $subsystem): bool => $this->categoryNameMatches($subsystem->name, $subsystemName),
+        );
 
-        if ($matchingSubsystems->count() === 1) {
-            return $matchingSubsystems->first();
+        return $subsystems->count() === 1 ? $subsystems->first() : null;
+    }
+
+    /**
+     * @param  array{
+     *     group: array{source: string, normalized: string},
+     *     system: array{source: string, normalized: string},
+     *     subsystem: array{source: string, normalized: string}
+     * }  $paths
+     */
+    private function bootstrapParentAliases(
+        string $groupName,
+        string $systemName,
+        array $paths,
+        string $workbookName,
+        int $row,
+    ): void {
+        $groups = AssetGroup::query()
+            ->where('is_active', true)
+            ->get()
+            ->filter(fn (AssetGroup $group): bool => $this->categoryNameMatches($group->name, $groupName));
+        if ($groups->count() > 1) {
+            throw $this->rowError($workbookName, $row, 'System', 'kategori global ambigu.');
         }
-        if ($subsystems->count() === 1) {
-            return $subsystems->first();
+        if ($groups->count() !== 1) {
+            return;
         }
 
-        throw $this->rowError(
+        /** @var AssetGroup $group */
+        $group = $groups->first();
+        $this->persistAlias('group', $group->id, $paths['group'], $workbookName, $row);
+
+        $systems = $group->systems()
+            ->where('is_active', true)
+            ->get()
+            ->filter(fn (AssetSystem $system): bool => $this->categoryNameMatches($system->name, $systemName));
+        if ($systems->count() > 1) {
+            throw $this->rowError($workbookName, $row, 'Sub-System', 'kategori global ambigu.');
+        }
+        if ($systems->count() === 1) {
+            $this->persistAlias('system', $systems->first()->id, $paths['system'], $workbookName, $row);
+        }
+    }
+
+    /**
+     * @return array{
+     *     group: array{source: string, normalized: string},
+     *     system: array{source: string, normalized: string},
+     *     subsystem: array{source: string, normalized: string}
+     * }
+     */
+    private function categoryPaths(string $groupName, string $systemName, string $subsystemName): array
+    {
+        $groupPath = $groupName;
+        $systemPath = "{$groupPath}|{$systemName}";
+        $subsystemPath = "{$systemPath}|{$subsystemName}";
+
+        return [
+            'group' => ['source' => $groupPath, 'normalized' => $this->normalizedPath($groupName)],
+            'system' => ['source' => $systemPath, 'normalized' => $this->normalizedPath($groupName, $systemName)],
+            'subsystem' => [
+                'source' => $subsystemPath,
+                'normalized' => $this->normalizedPath($groupName, $systemName, $subsystemName),
+            ],
+        ];
+    }
+
+    /**
+     * @param  array{
+     *     group: array{source: string, normalized: string},
+     *     system: array{source: string, normalized: string},
+     *     subsystem: array{source: string, normalized: string}
+     * }  $paths
+     */
+    private function persistCategoryAliases(
+        AssetSubsystem $subsystem,
+        array $paths,
+        string $workbookName,
+        int $row,
+    ): void {
+        $this->persistAlias(
+            'group',
+            $subsystem->assetSystem->assetGroup->id,
+            $paths['group'],
             $workbookName,
             $row,
-            'Sub-System',
-            "hierarchy {$groupName}|{$systemName}|{$subsystemName} tidak cocok dengan kategori global.",
+        );
+        $this->persistAlias('system', $subsystem->assetSystem->id, $paths['system'], $workbookName, $row);
+        $this->persistAlias('subsystem', $subsystem->id, $paths['subsystem'], $workbookName, $row);
+    }
+
+    /** @param array{source: string, normalized: string} $path */
+    private function persistAlias(
+        string $type,
+        int $categoryId,
+        array $path,
+        string $workbookName,
+        int $row,
+    ): void {
+        $alias = AssetCategorySourceAlias::query()
+            ->where('category_type', $type)
+            ->where('normalized_source_path', $path['normalized'])
+            ->lockForUpdate()
+            ->first();
+
+        if ($alias && $alias->category_id !== $categoryId) {
+            throw $this->rowError($workbookName, $row, $this->aliasHeader($type), 'alias kategori konflik.');
+        }
+
+        if ($alias) {
+            $alias->update([
+                'source_path' => $path['source'],
+                'workbook_name' => $workbookName,
+                'sheet_name' => self::SHEET,
+                'last_imported_at' => now(),
+            ]);
+
+            return;
+        }
+
+        try {
+            AssetCategorySourceAlias::query()->create([
+                'category_type' => $type,
+                'category_id' => $categoryId,
+                'source_path' => $path['source'],
+                'normalized_source_path' => $path['normalized'],
+                'workbook_name' => $workbookName,
+                'sheet_name' => self::SHEET,
+                'first_imported_at' => now(),
+                'last_imported_at' => now(),
+            ]);
+        } catch (UniqueConstraintViolationException $exception) {
+            $concurrent = AssetCategorySourceAlias::query()
+                ->where('category_type', $type)
+                ->where('normalized_source_path', $path['normalized'])
+                ->first();
+            if (! $concurrent || $concurrent->category_id !== $categoryId) {
+                throw $exception;
+            }
+        }
+    }
+
+    private function normalizedPath(string ...$parts): string
+    {
+        return implode('|', array_map($this->categoryResolver->normalize(...), $parts));
+    }
+
+    private function aliasHeader(string $type): string
+    {
+        return match ($type) {
+            'group' => 'System',
+            'system' => 'Sub-System',
+            default => 'Equipment',
+        };
+    }
+
+    private function unmatchedCategoryError(
+        string $workbookName,
+        int $row,
+        string $groupName,
+        string $systemName,
+        string $subsystemName,
+    ): RuntimeException {
+        return $this->rowError(
+            $workbookName,
+            $row,
+            'Equipment',
+            "hierarchy {$groupName}|{$systemName}|{$subsystemName} tidak cocok dengan kategori global; "
+                .'jalankan ulang dengan --bootstrap-categories hanya untuk bootstrap awal yang disetujui.',
         );
     }
 
@@ -293,15 +533,28 @@ class SparePartWorkbookImporter
         string $workbookName,
         string $header,
     ): ?string {
-        $value = $sheet->getCell([$column, $row])->getCalculatedValue();
+        $value = $this->cellValue($sheet, $column, $row, $workbookName, $header, true);
         if ($this->isBlank($value)) {
             return null;
         }
-        if (! is_numeric($value) || (float) $value < 0) {
-            throw $this->rowError($workbookName, $row, $header, 'harus berupa angka nonnegatif atau kosong.');
+        if (! is_numeric($value)) {
+            throw $this->rowError($workbookName, $row, $header, 'harus berupa angka desimal atau kosong.');
         }
 
-        return number_format((float) $value, 2, '.', '');
+        $number = (float) $value;
+        if (! is_finite($number) || $number < 0 || $number > 99999999.99) {
+            throw $this->rowError(
+                $workbookName,
+                $row,
+                $header,
+                'harus berada dalam rentang 0 sampai 99999999.99.',
+            );
+        }
+        if (abs(($number * 100) - round($number * 100)) > 0.0000001) {
+            throw $this->rowError($workbookName, $row, $header, 'maksimal memiliki 2 angka desimal.');
+        }
+
+        return number_format($number, 2, '.', '');
     }
 
     private function nullableQuantity(
@@ -311,27 +564,89 @@ class SparePartWorkbookImporter
         string $workbookName,
         string $header,
     ): ?int {
-        $value = $sheet->getCell([$column, $row])->getCalculatedValue();
+        $value = $this->cellValue($sheet, $column, $row, $workbookName, $header, true);
         if ($this->isBlank($value)) {
             return null;
         }
-        if (! is_numeric($value) || (float) $value < 0 || floor((float) $value) !== (float) $value) {
-            throw $this->rowError($workbookName, $row, $header, 'harus berupa bilangan bulat nonnegatif atau kosong.');
+        if (! is_numeric($value)) {
+            throw $this->rowError($workbookName, $row, $header, 'harus berupa bilangan bulat atau kosong.');
         }
 
-        return (int) $value;
+        $number = (float) $value;
+        if (! is_finite($number) || $number < 0 || $number > 4294967295 || floor($number) !== $number) {
+            throw $this->rowError(
+                $workbookName,
+                $row,
+                $header,
+                'harus berupa bilangan bulat dalam rentang 0 sampai 4294967295.',
+            );
+        }
+
+        return (int) $number;
     }
 
-    private function nullableText(mixed $value): ?string
-    {
+    private function nullableBoundedText(
+        mixed $value,
+        int $maximum,
+        string $workbookName,
+        int $row,
+        string $header,
+    ): ?string {
         $value = $this->text($value);
 
-        return $value === '' ? null : $value;
+        return $value === '' ? null : $this->boundedText($value, $maximum, $workbookName, $row, $header);
     }
 
-    private function cellText(Worksheet $sheet, int $column, int $row): string
-    {
-        return $this->text($sheet->getCell([$column, $row])->getCalculatedValue());
+    private function boundedText(
+        string $value,
+        int $maximum,
+        string $workbookName,
+        int $row,
+        string $header,
+    ): string {
+        if (mb_strlen($value) > $maximum) {
+            throw $this->rowError($workbookName, $row, $header, "maksimal {$maximum} karakter.");
+        }
+
+        return $value;
+    }
+
+    private function cellText(
+        Worksheet $sheet,
+        int $column,
+        int $row,
+        string $workbookName,
+        string $header,
+    ): string {
+        return $this->text($this->cellValue($sheet, $column, $row, $workbookName, $header, false));
+    }
+
+    private function cellValue(
+        Worksheet $sheet,
+        int $column,
+        int $row,
+        string $workbookName,
+        string $header,
+        bool $allowFormula,
+    ): mixed {
+        $cell = $sheet->getCell([$column, $row]);
+        $rawValue = $cell->getValue();
+        $isFormula = is_string($rawValue) && str_starts_with($rawValue, '=');
+        if ($isFormula && ! $allowFormula) {
+            throw $this->rowError($workbookName, $row, $header, 'formula tidak diizinkan pada kolom teks.');
+        }
+
+        try {
+            $value = $cell->getCalculatedValue();
+        } catch (Throwable $exception) {
+            throw $this->rowError($workbookName, $row, $header, 'formula gagal dievaluasi: '.$exception->getMessage());
+        }
+
+        if ($isFormula && is_string($value) && str_starts_with($value, '#')) {
+            throw $this->rowError($workbookName, $row, $header, "formula menghasilkan error {$value}.");
+        }
+
+        return $value;
     }
 
     private function text(mixed $value): string
