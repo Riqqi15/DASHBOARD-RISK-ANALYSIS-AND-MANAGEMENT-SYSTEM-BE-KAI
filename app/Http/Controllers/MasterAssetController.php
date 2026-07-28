@@ -37,7 +37,15 @@ class MasterAssetController extends Controller
             'total_assets' => (clone $query)->count(),
             'total_units' => (int) (clone $query)->sum('jumlah_unit'),
             'active_assets' => (clone $query)->where('status', AssetStatus::Aktif->value)->count(),
-            'unique_subsystems' => (clone $query)->distinct()->count('asset_subsystem_id'),
+            'unique_subsystems' => (clone $query)
+                ->whereNotNull('asset_subsystem_id')
+                ->distinct()
+                ->count('asset_subsystem_id')
+                + (clone $query)
+                    ->whereNull('asset_subsystem_id')
+                    ->whereRaw("TRIM(`subsystem`) <> ''")
+                    ->distinct()
+                    ->count(DB::raw('TRIM(`subsystem`)')),
         ];
 
         $assets = $query

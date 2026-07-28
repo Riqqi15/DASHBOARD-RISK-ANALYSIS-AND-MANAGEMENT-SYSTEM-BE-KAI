@@ -281,21 +281,45 @@ class MasterAssetManagementTest extends TestCase
         $this->assertFalse($inactive->is_active);
     }
 
-    public function test_unique_subsystems_stat_counts_distinct_foreign_keys(): void
+    public function test_unique_subsystems_stat_combines_linked_and_normalized_legacy_values_with_filters_and_unit_scope(): void
     {
         $unit = UnitKerja::factory()->create();
+        $otherUnit = UnitKerja::factory()->create();
         $user = User::factory()->unit($unit)->create();
         [, , $firstSubsystem] = $this->categoryPath();
         [, , $secondSubsystem] = $this->categoryPath();
         Asset::factory()->for($unit)->for($firstSubsystem, 'assetSubsystem')->count(2)->create([
-            'subsystem' => fn () => fake()->unique()->words(2, true),
+            'nama_aset' => fn () => 'Signal linked '.fake()->unique()->numberBetween(1, 1000),
         ]);
         Asset::factory()->for($unit)->for($secondSubsystem, 'assetSubsystem')->create([
-            'subsystem' => 'duplicate legacy text is irrelevant',
+            'nama_aset' => 'Signal linked inactive',
+            'status' => AssetStatus::DalamPerbaikan,
+        ]);
+        foreach ([' Track Circuit ', 'track circuit', 'Axle Counter', '   '] as $legacySubsystem) {
+            Asset::factory()->for($unit)->create([
+                'asset_subsystem_id' => null,
+                'nama_aset' => 'Signal legacy '.$legacySubsystem,
+                'subsystem' => $legacySubsystem,
+                'status' => AssetStatus::Aktif,
+            ]);
+        }
+        Asset::factory()->for($unit)->create([
+            'asset_subsystem_id' => null,
+            'nama_aset' => 'Unmatched legacy asset',
+            'subsystem' => 'Unmatched Legacy',
+            'status' => AssetStatus::Aktif,
+        ]);
+        Asset::factory()->for($otherUnit)->create([
+            'asset_subsystem_id' => null,
+            'nama_aset' => 'Signal from another unit',
+            'subsystem' => 'Foreign Legacy Subsystem',
+            'status' => AssetStatus::Aktif,
         ]);
 
-        $this->actingAs($user)->get('/master-asset')
-            ->assertInertia(fn (Assert $page) => $page->where('stats.unique_subsystems', 2));
+        $this->actingAs($user)->get('/master-asset?search=Signal&status=aktif')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('stats.total_assets', 6)
+                ->where('stats.unique_subsystems', 3));
     }
 
     public function test_store_and_update_lock_and_revalidate_category_paths_in_parent_to_child_order(): void
