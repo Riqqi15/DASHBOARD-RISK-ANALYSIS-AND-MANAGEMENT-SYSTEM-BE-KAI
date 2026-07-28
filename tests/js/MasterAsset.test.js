@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MasterAsset from '@/pages/master-data/assets/MasterAsset.vue'
 import AssetHierarchyTable from '@/pages/master-data/assets/Partials/AssetHierarchyTable.vue'
+import AssetHierarchyCard from '@/pages/master-data/assets/Partials/AssetHierarchyCard.vue'
 
 const inertia = vi.hoisted(() => ({
   get: vi.fn(),
@@ -104,6 +105,11 @@ describe('MasterAsset', () => {
     expect(desktop.text()).toContain('Aktif')
     expect(desktop.text()).toContain('100')
     expect(desktop.text()).toContain('Axle Counter')
+    expect(desktop.props('showUnit')).toBe(true)
+    expect(desktop.text()).toContain('DAOP-1 — Daerah Operasi 1 Jakarta')
+    const mobile = wrapper.getComponent(AssetHierarchyCard)
+    expect(mobile.props('showUnit')).toBe(true)
+    expect(mobile.text()).toContain('DAOP-1 — Daerah Operasi 1 Jakarta')
   })
 
   it('requests server-side filters', async () => {

@@ -174,6 +174,46 @@ class MasterAssetManagementTest extends TestCase
                 ]));
     }
 
+    public function test_index_hierarchy_total_matches_search_and_status_within_the_same_subsystem(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $user = User::factory()->unit($unit)->create();
+        [, , $subsystem] = $this->categoryPath(
+            group: ['name' => 'Peralatan Sinyal'],
+            system: ['name' => 'Interlocking Elektrik'],
+            subsystem: ['name' => 'Track Circuit'],
+        );
+        Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
+            'nama_aset' => 'Needle Aktif',
+            'jumlah_unit' => 5,
+            'status' => AssetStatus::Aktif,
+        ]);
+        Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
+            'nama_aset' => 'Tidak Cocok',
+            'jumlah_unit' => 7,
+            'status' => AssetStatus::Aktif,
+        ]);
+        Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
+            'nama_aset' => 'Needle Nonaktif',
+            'jumlah_unit' => 11,
+            'status' => AssetStatus::Nonaktif,
+        ]);
+        UnitSubsystemOpening::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
+            'sparepart_in' => 3,
+            'sparepart_out' => 1,
+        ]);
+
+        $this->actingAs($user)->get('/master-asset?search=Needle&status=aktif')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('assets.data', 1)
+                ->where('stats.total_units', 5)
+                ->has('hierarchy', 1)
+                ->where('hierarchy.0.id', $subsystem->id)
+                ->where('hierarchy.0.total', 5)
+                ->where('hierarchy.0.sparepart_in', 3)
+                ->where('hierarchy.0.sparepart_out', 1));
+    }
+
     public function test_unit_creates_an_asset_only_for_its_own_unit(): void
     {
         $unit = UnitKerja::factory()->create();
@@ -419,6 +459,60 @@ class MasterAssetManagementTest extends TestCase
                 ->where('asset.asset_subsystem_id', $subsystem->id));
 
         $this->assertFalse($unrelatedInactive->assetSystem->assetGroup->is_active);
+    }
+
+    public function test_edit_categories_merge_inactive_nodes_at_each_levels_deterministic_sort_position(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $user = User::factory()->unit($unit)->create();
+        $activeGroup = AssetGroup::factory()->create(['name' => 'Active Group', 'sort_order' => 20]);
+        $activeSystem = AssetSystem::factory()->for($activeGroup)->create(['name' => 'Active System', 'sort_order' => 20]);
+        $activeSubsystem = AssetSubsystem::factory()->for($activeSystem)->create(['name' => 'Active Subsystem', 'sort_order' => 20]);
+        $inactiveGroup = AssetGroup::factory()->create(['name' => 'Inactive Group', 'sort_order' => 10, 'is_active' => false]);
+        $inactiveGroupSystem = AssetSystem::factory()->for($inactiveGroup)->create(['sort_order' => 10]);
+        $inactiveGroupSubsystem = AssetSubsystem::factory()->for($inactiveGroupSystem)->create(['sort_order' => 10]);
+        $inactiveSystem = AssetSystem::factory()->for($activeGroup)->create([
+            'name' => 'Inactive System',
+            'sort_order' => 10,
+            'is_active' => false,
+        ]);
+        $inactiveSystemSubsystem = AssetSubsystem::factory()->for($inactiveSystem)->create(['sort_order' => 10]);
+        $inactiveSubsystem = AssetSubsystem::factory()->for($activeSystem)->create([
+            'name' => 'Inactive Subsystem',
+            'sort_order' => 10,
+            'is_active' => false,
+        ]);
+        $groupAsset = Asset::factory()->for($unit)->for($inactiveGroupSubsystem, 'assetSubsystem')->create();
+        $systemAsset = Asset::factory()->for($unit)->for($inactiveSystemSubsystem, 'assetSubsystem')->create();
+        $subsystemAsset = Asset::factory()->for($unit)->for($inactiveSubsystem, 'assetSubsystem')->create();
+
+        $this->actingAs($user)->get("/master-asset/{$groupAsset->id}/edit")
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('categories', fn ($categories): bool => collect($categories)->pluck('id')->all() === [
+                    $inactiveGroup->id,
+                    $activeGroup->id,
+                ])
+                ->missing('categories.0._sort_order'));
+
+        $this->actingAs($user)->get("/master-asset/{$systemAsset->id}/edit")
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('categories', 1)
+                ->where('categories.0.id', $activeGroup->id)
+                ->where('categories.0.systems', fn ($systems): bool => collect($systems)->pluck('id')->all() === [
+                    $inactiveSystem->id,
+                    $activeSystem->id,
+                ])
+                ->missing('categories.0.systems.0._sort_order'));
+
+        $this->actingAs($user)->get("/master-asset/{$subsystemAsset->id}/edit")
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('categories', 1)
+                ->where('categories.0.systems.0.id', $activeSystem->id)
+                ->where('categories.0.systems.0.subsystems', fn ($subsystems): bool => collect($subsystems)->pluck('id')->all() === [
+                    $inactiveSubsystem->id,
+                    $activeSubsystem->id,
+                ])
+                ->missing('categories.0.systems.0.subsystems.0._sort_order'));
     }
 
     public function test_unique_subsystems_stat_combines_linked_and_normalized_legacy_values_with_filters_and_unit_scope(): void

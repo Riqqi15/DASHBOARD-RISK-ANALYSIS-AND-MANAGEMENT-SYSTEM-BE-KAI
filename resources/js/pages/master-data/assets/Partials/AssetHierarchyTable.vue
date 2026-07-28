@@ -8,6 +8,7 @@ const props = defineProps({
   assets: { type: Array, required: true },
   legacySummary: { type: Object, default: null },
   statusOptions: { type: Array, required: true },
+  showUnit: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['delete'])
@@ -22,6 +23,9 @@ const statusClass = (status) => ({
   nonaktif: 'bg-slate-100 text-slate-600 ring-slate-500/15',
   dalam_perbaikan: 'bg-amber-50 text-amber-700 ring-amber-600/15',
 }[status] ?? 'bg-slate-100 text-slate-600 ring-slate-500/15')
+const unitLabel = (asset) => asset.unit_kerja
+  ? `${asset.unit_kerja.code}${asset.unit_kerja.name ? ` — ${asset.unit_kerja.name}` : ''}`
+  : 'Unit tidak tersedia'
 
 const groups = computed(() => {
   const grouped = new Map()
@@ -89,6 +93,13 @@ const toggle = (collection, key) => {
   else collection.add(key)
 }
 const systemKey = (groupId, systemId) => `${groupId}-${systemId}`
+const systemHeaderId = (groupId, systemId) => `asset-system-header-${groupId}-${systemId}`
+const subsystemRowId = (subsystemId) => `asset-subsystem-row-${subsystemId}`
+const systemControlIds = (system) => system.subsystems.map((subsystem) => subsystemRowId(subsystem.id)).join(' ')
+const groupControlIds = (group) => group.systems.flatMap((system) => [
+  systemHeaderId(group.id, system.id),
+  ...system.subsystems.map((subsystem) => subsystemRowId(subsystem.id)),
+]).join(' ')
 </script>
 
 <template>
@@ -102,14 +113,14 @@ const systemKey = (groupId, systemId) => `${groupId}-${systemId}`
         </tr>
       </thead>
 
-      <tbody v-for="group in groups" :id="`asset-group-${group.id}-rows`" :key="group.id" class="group/body">
+      <tbody v-for="group in groups" :key="group.id" class="group/body">
         <tr :data-group-id="group.id" class="bg-[#171650]/[0.04] text-slate-900">
           <td class="border-b border-slate-200 px-5 py-3 font-semibold">
             <button
               type="button"
               class="inline-flex min-h-11 items-center gap-2 rounded-md text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#171650] focus-visible:ring-offset-2"
               :aria-expanded="!collapsedGroups.has(String(group.id))"
-              :aria-controls="`asset-group-${group.id}-rows`"
+              :aria-controls="groupControlIds(group)"
               :aria-label="`${collapsedGroups.has(String(group.id)) ? 'Buka' : 'Tutup'} kelompok ${group.name}`"
               @click="toggle(collapsedGroups, String(group.id))"
             >
@@ -126,16 +137,15 @@ const systemKey = (groupId, systemId) => `${groupId}-${systemId}`
           <td class="border-b border-slate-200 px-5 py-3" />
         </tr>
 
-        <template v-if="!collapsedGroups.has(String(group.id))">
-          <template v-for="system in group.systems" :key="system.id">
-            <tr :data-system-id="system.id" class="bg-slate-50/70 text-slate-800">
+        <template v-for="system in group.systems" :key="system.id">
+            <tr :id="systemHeaderId(group.id, system.id)" v-show="!collapsedGroups.has(String(group.id))" :data-system-id="system.id" class="bg-slate-50/70 text-slate-800">
               <td class="border-b border-slate-100 px-5 py-3" />
               <td class="border-b border-slate-100 px-5 py-3 font-medium">
                 <button
                   type="button"
                   class="inline-flex min-h-11 items-center gap-2 rounded-md text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#171650] focus-visible:ring-offset-2"
                   :aria-expanded="!collapsedSystems.has(systemKey(group.id, system.id))"
-                  :aria-controls="`asset-system-${system.id}-rows`"
+                  :aria-controls="systemControlIds(system)"
                   :aria-label="`${collapsedSystems.has(systemKey(group.id, system.id)) ? 'Buka' : 'Tutup'} system ${system.name}`"
                   @click="toggle(collapsedSystems, systemKey(group.id, system.id))"
                 >
@@ -152,10 +162,11 @@ const systemKey = (groupId, systemId) => `${groupId}-${systemId}`
             </tr>
 
             <tr
-              v-for="(subsystem, subsystemIndex) in collapsedSystems.has(systemKey(group.id, system.id)) ? [] : system.subsystems"
-              :id="subsystemIndex === 0 ? `asset-system-${system.id}-rows` : undefined"
+              v-for="subsystem in system.subsystems"
+              :id="subsystemRowId(subsystem.id)"
               :key="subsystem.id"
               :data-subsystem-id="subsystem.id"
+              v-show="!collapsedGroups.has(String(group.id)) && !collapsedSystems.has(systemKey(group.id, system.id))"
               class="transition hover:bg-orange-50/30 odd:bg-white even:bg-slate-50/30 motion-reduce:transition-none"
             >
               <td class="border-b border-slate-100 px-5 py-4" />
@@ -173,6 +184,7 @@ const systemKey = (groupId, systemId) => `${groupId}-${systemId}`
                         <MapPin :size="12" aria-hidden="true" />
                         {{ asset.lokasi || 'Belum dilengkapi' }}
                       </p>
+                      <p v-if="showUnit" class="mt-1 text-[11px] font-medium text-[#171650]">{{ unitLabel(asset) }}</p>
                     </div>
                   </div>
                   <p v-else class="mt-1 text-xs italic text-slate-400">Detail aset tersedia di halaman lain</p>
@@ -192,7 +204,6 @@ const systemKey = (groupId, systemId) => `${groupId}-${systemId}`
                 </span>
               </td>
             </tr>
-          </template>
         </template>
       </tbody>
     </table>

@@ -586,6 +586,13 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame(13, $all->total);
         $this->assertSame(11, $all->sparepart_in);
         $this->assertSame(3, $all->sparepart_out);
+
+        $queries = [];
+        $filtered = app(AssetHierarchyQuery::class)->forUser($pusat, null, [$laterSubsystem->id]);
+        $this->assertSame([$laterSubsystem->id], $filtered->pluck('id')->all());
+        $this->assertTrue(collect($queries)->contains(
+            fn (string $sql): bool => str_contains($sql, '`asset_subsystems`.`id` in ('),
+        ));
     }
 
     private function assertMysqlError(int $expectedErrorNumber, Closure $operation): void

@@ -9,8 +9,11 @@ use Illuminate\Support\Collection;
 
 class AssetHierarchyQuery
 {
-    /** @return Collection<int, AssetSubsystem> */
-    public function forUser(User $user, ?int $unitId = null): Collection
+    /**
+     * @param  list<int>|null  $subsystemIds
+     * @return Collection<int, AssetSubsystem>
+     */
+    public function forUser(User $user, ?int $unitId = null, ?array $subsystemIds = null): Collection
     {
         $effectiveUnitId = $user->isUnit() ? $user->unit_kerja_id : $unitId;
 
@@ -18,6 +21,10 @@ class AssetHierarchyQuery
             ->select('asset_subsystems.*')
             ->join('asset_systems', 'asset_systems.id', '=', 'asset_subsystems.asset_system_id')
             ->join('asset_groups', 'asset_groups.id', '=', 'asset_systems.asset_group_id')
+            ->when(
+                $subsystemIds !== null,
+                fn (Builder $query): Builder => $query->whereIn('asset_subsystems.id', $subsystemIds),
+            )
             ->with('assetSystem.assetGroup')
             ->withSum(
                 ['assets as total' => fn (Builder $assets): Builder => $assets->when(

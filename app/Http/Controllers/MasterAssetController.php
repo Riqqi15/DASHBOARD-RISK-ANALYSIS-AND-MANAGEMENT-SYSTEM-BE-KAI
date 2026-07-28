@@ -174,17 +174,20 @@ class MasterAssetController extends Controller
             ->selectRaw('COALESCE(SUM(jumlah_unit), 0) AS total')
             ->groupBy('asset_subsystem_id')
             ->get();
-        $subsystemIds = $matched
+        $matchedBySubsystem = $matched
             ->whereNotNull('asset_subsystem_id')
-            ->pluck('asset_subsystem_id')
-            ->map(fn ($id): int => (int) $id)
-            ->values();
+            ->keyBy(fn (Asset $aggregate): int => (int) $aggregate->asset_subsystem_id);
+        $subsystemIds = $matchedBySubsystem->keys()->values();
         $hierarchy = $subsystemIds->isEmpty()
             ? collect()
             : $this->assetHierarchyQuery
-                ->forUser($request->user(), $unitId)
-                ->whereIn('id', $subsystemIds)
-                ->values();
+                ->forUser($request->user(), $unitId, $subsystemIds->all())
+                ->each(function (AssetSubsystem $subsystem) use ($matchedBySubsystem): void {
+                    $subsystem->setAttribute(
+                        'total',
+                        (int) $matchedBySubsystem->get($subsystem->id)->getAttribute('total'),
+                    );
+                });
         $legacy = $matched->first(fn (Asset $aggregate): bool => $aggregate->asset_subsystem_id === null);
 
         return [
@@ -278,18 +281,21 @@ class MasterAssetController extends Controller
             ->map(fn (AssetGroup $group): array => [
                 'id' => $group->id,
                 'name' => $group->name,
+                '_sort_order' => $group->sort_order,
                 'systems' => $group->systems->map(fn (AssetSystem $system): array => [
                     'id' => $system->id,
                     'name' => $system->name,
+                    '_sort_order' => $system->sort_order,
                     'subsystems' => $system->subsystems->map(fn (AssetSubsystem $subsystem): array => [
                         'id' => $subsystem->id,
                         'name' => $subsystem->name,
+                        '_sort_order' => $subsystem->sort_order,
                     ])->values()->all(),
                 ])->values()->all(),
             ])->values()->all();
 
         if (! $currentSubsystem) {
-            return $categories;
+            return $this->orderedCategoryOptions($categories);
         }
 
         $currentSubsystem->loadMissing('assetSystem.assetGroup');
@@ -297,20 +303,23 @@ class MasterAssetController extends Controller
         $currentGroup = $currentSystem?->assetGroup;
 
         if (! $currentSystem || ! $currentGroup) {
-            return $categories;
+            return $this->orderedCategoryOptions($categories);
         }
 
         $currentPath = [
             'id' => $currentGroup->id,
             'name' => $currentGroup->name,
+            '_sort_order' => $currentGroup->sort_order,
             'is_active' => $currentGroup->is_active,
             'systems' => [[
                 'id' => $currentSystem->id,
                 'name' => $currentSystem->name,
+                '_sort_order' => $currentSystem->sort_order,
                 'is_active' => $currentSystem->is_active,
                 'subsystems' => [[
                     'id' => $currentSubsystem->id,
                     'name' => $currentSubsystem->name,
+                    '_sort_order' => $currentSubsystem->sort_order,
                     'is_active' => $currentSubsystem->is_active,
                 ]],
             ]],
@@ -320,7 +329,7 @@ class MasterAssetController extends Controller
         if ($groupIndex === false) {
             $categories[] = $currentPath;
 
-            return $categories;
+            return $this->orderedCategoryOptions($categories);
         }
 
         $systemIndex = array_search(
@@ -332,13 +341,36 @@ class MasterAssetController extends Controller
         if ($systemIndex === false) {
             $categories[$groupIndex]['systems'][] = $currentPath['systems'][0];
 
-            return $categories;
+            return $this->orderedCategoryOptions($categories);
         }
 
         $subsystemIds = array_column($categories[$groupIndex]['systems'][$systemIndex]['subsystems'], 'id');
         if (! in_array($currentSubsystem->id, $subsystemIds, true)) {
             $categories[$groupIndex]['systems'][$systemIndex]['subsystems'][] = $currentPath['systems'][0]['subsystems'][0];
         }
+
+        return $this->orderedCategoryOptions($categories);
+    }
+
+    private function orderedCategoryOptions(array $categories): array
+    {
+        $compare = fn (array $left, array $right): int => ($left['_sort_order'] <=> $right['_sort_order'])
+            ?: strcasecmp($left['name'], $right['name'])
+            ?: ($left['id'] <=> $right['id']);
+        usort($categories, $compare);
+
+        foreach ($categories as &$group) {
+            usort($group['systems'], $compare);
+            foreach ($group['systems'] as &$system) {
+                usort($system['subsystems'], $compare);
+                foreach ($system['subsystems'] as &$subsystem) {
+                    unset($subsystem['_sort_order']);
+                }
+                unset($subsystem, $system['_sort_order']);
+            }
+            unset($system, $group['_sort_order']);
+        }
+        unset($group);
 
         return $categories;
     }

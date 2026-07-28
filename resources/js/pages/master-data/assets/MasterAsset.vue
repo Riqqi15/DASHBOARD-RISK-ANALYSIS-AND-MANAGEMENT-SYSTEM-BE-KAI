@@ -147,10 +147,10 @@ const paginationLabel = (label) => label
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div v-if="assets.data.length">
         <div data-desktop-hierarchy class="hidden md:block">
-          <AssetHierarchyTable :rows="hierarchy" :assets="assets.data" :legacy-summary="legacySummary" :status-options="statusOptions" @delete="assetToDelete = $event" />
+          <AssetHierarchyTable :rows="hierarchy" :assets="assets.data" :legacy-summary="legacySummary" :status-options="statusOptions" :show-unit="can.choose_unit" @delete="assetToDelete = $event" />
         </div>
         <div data-mobile-hierarchy class="bg-slate-50 p-3 md:hidden">
-          <AssetHierarchyCard :rows="hierarchy" :assets="assets.data" :legacy-summary="legacySummary" :status-options="statusOptions" @delete="assetToDelete = $event" />
+          <AssetHierarchyCard :rows="hierarchy" :assets="assets.data" :legacy-summary="legacySummary" :status-options="statusOptions" :show-unit="can.choose_unit" @delete="assetToDelete = $event" />
         </div>
       </div>
 

@@ -8,6 +8,7 @@ const props = defineProps({
   assets: { type: Array, required: true },
   legacySummary: { type: Object, default: null },
   statusOptions: { type: Array, required: true },
+  showUnit: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['delete'])
@@ -19,43 +20,48 @@ const statusClass = (status) => ({
   nonaktif: 'bg-slate-100 text-slate-600 ring-slate-500/15',
   dalam_perbaikan: 'bg-amber-50 text-amber-700 ring-amber-600/15',
 }[status] ?? 'bg-slate-100 text-slate-600 ring-slate-500/15')
+const unitLabel = (asset) => asset.unit_kerja
+  ? `${asset.unit_kerja.code}${asset.unit_kerja.name ? ` — ${asset.unit_kerja.name}` : ''}`
+  : 'Unit tidak tersedia'
 
-const cards = computed(() => props.assets.map((asset) => {
-  const row = props.rows.find((item) => String(item.id) === String(asset.asset_subsystem_id))
+const cards = computed(() => {
+  const scopedCards = props.rows.map((row) => {
   const system = relation(row, 'asset_system', 'assetSystem')
   const group = relation(system, 'asset_group', 'assetGroup')
-  const category = asset.category
-  const names = row && system && group
-    ? [group.name, system.name, row.name]
-    : category
-      ? [category.group.name, category.system.name, category.subsystem.name]
-      : ['Belum diklasifikasikan']
 
-  return {
-    asset,
-    breadcrumb: names.join(' / '),
-    total: row?.total ?? props.legacySummary?.total ?? asset.jumlah_unit ?? 0,
-    sparepart_in: row?.sparepart_in ?? props.legacySummary?.sparepart_in ?? 0,
-    sparepart_out: row?.sparepart_out ?? props.legacySummary?.sparepart_out ?? 0,
+    return {
+      id: row.id,
+      name: row.name,
+      breadcrumb: [group?.name, system?.name, row.name].filter(Boolean).join(' / '),
+      total: row.total ?? 0,
+      sparepart_in: row.sparepart_in ?? 0,
+      sparepart_out: row.sparepart_out ?? 0,
+      assets: props.assets.filter((asset) => String(asset.asset_subsystem_id) === String(row.id)),
+    }
+  })
+
+  if (props.legacySummary) {
+    scopedCards.push({
+      id: 'legacy',
+      name: 'Belum diklasifikasikan',
+      breadcrumb: 'Belum diklasifikasikan',
+      total: props.legacySummary.total ?? 0,
+      sparepart_in: props.legacySummary.sparepart_in ?? 0,
+      sparepart_out: props.legacySummary.sparepart_out ?? 0,
+      assets: props.assets.filter((asset) => asset.asset_subsystem_id == null),
+    })
   }
-}))
+
+  return scopedCards
+})
 </script>
 
 <template>
   <div class="grid gap-4">
-    <article v-for="card in cards" :key="card.asset.id" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <article v-for="card in cards" :key="card.id" :data-subsystem-card="card.id" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div class="border-l-4 border-[#F15A24] p-4">
         <p class="text-xs leading-5 text-slate-500">{{ card.breadcrumb }}</p>
-        <div class="mt-3 flex items-start justify-between gap-3">
-          <div>
-            <h3 class="font-semibold text-slate-950">{{ card.asset.nama_aset }}</h3>
-            <p class="mt-1.5 flex items-center gap-1.5 text-xs" :class="card.asset.lokasi ? 'text-slate-600' : 'italic text-slate-400'">
-              <MapPin :size="13" aria-hidden="true" />
-              {{ card.asset.lokasi || 'Belum dilengkapi' }}
-            </p>
-          </div>
-          <span class="inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset" :class="statusClass(card.asset.status)">{{ statusLabel(card.asset.status) }}</span>
-        </div>
+        <h3 class="mt-2 font-semibold text-slate-950">{{ card.name }}</h3>
 
         <dl class="mt-4 grid grid-cols-3 divide-x divide-slate-200 rounded-lg bg-slate-50 py-3 text-center">
           <div>
@@ -72,16 +78,30 @@ const cards = computed(() => props.assets.map((asset) => {
           </div>
         </dl>
 
-        <div class="mt-3 flex justify-end gap-1 border-t border-slate-100 pt-3">
-          <Link :href="`/master-asset/${card.asset.id}/edit`" class="inline-flex h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-[#2d2a70] outline-none transition hover:bg-blue-50 focus-visible:ring-2 focus-visible:ring-[#171650] motion-reduce:transition-none" :aria-label="`Edit aset ${card.asset.nama_aset}`">
-            <Pencil :size="16" aria-hidden="true" />
-            Edit
-          </Link>
-          <button type="button" class="inline-flex h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-red-600 outline-none transition hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600 motion-reduce:transition-none" :aria-label="`Hapus aset ${card.asset.nama_aset}`" @click="emit('delete', card.asset)">
-            <Trash2 :size="16" aria-hidden="true" />
-            Hapus
-          </button>
+        <div v-if="card.assets.length" class="mt-4 space-y-3">
+          <div v-for="asset in card.assets" :key="asset.id" data-asset-detail class="rounded-lg border border-slate-200 p-3">
+            <div class="flex items-start justify-between gap-3">
+              <p class="text-sm font-semibold text-slate-900">{{ asset.nama_aset }}</p>
+              <span class="inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset" :class="statusClass(asset.status)">{{ statusLabel(asset.status) }}</span>
+            </div>
+            <p class="mt-1.5 flex items-center gap-1.5 text-xs" :class="asset.lokasi ? 'text-slate-600' : 'italic text-slate-400'">
+              <MapPin :size="13" aria-hidden="true" />
+              {{ asset.lokasi || 'Belum dilengkapi' }}
+            </p>
+            <p v-if="showUnit" class="mt-1.5 text-xs font-medium text-[#171650]">{{ unitLabel(asset) }}</p>
+            <div class="mt-2 flex justify-end gap-1 border-t border-slate-100 pt-2">
+              <Link :href="`/master-asset/${asset.id}/edit`" class="inline-flex h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-[#2d2a70] outline-none transition hover:bg-blue-50 focus-visible:ring-2 focus-visible:ring-[#171650] motion-reduce:transition-none" :aria-label="`Edit aset ${asset.nama_aset}`">
+                <Pencil :size="16" aria-hidden="true" />
+                Edit
+              </Link>
+              <button type="button" class="inline-flex h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-red-600 outline-none transition hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600 motion-reduce:transition-none" :aria-label="`Hapus aset ${asset.nama_aset}`" @click="emit('delete', asset)">
+                <Trash2 :size="16" aria-hidden="true" />
+                Hapus
+              </button>
+            </div>
+          </div>
         </div>
+        <p v-else class="mt-4 text-sm italic text-slate-400">Detail aset tersedia di halaman lain</p>
       </div>
     </article>
   </div>

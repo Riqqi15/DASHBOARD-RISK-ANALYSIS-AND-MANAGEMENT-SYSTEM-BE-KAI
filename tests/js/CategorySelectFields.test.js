@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { describe, expect, it } from 'vitest'
 import CategorySelectFields from '@/pages/master-data/assets/Partials/CategorySelectFields.vue'
 
@@ -47,6 +48,37 @@ describe('CategorySelectFields', () => {
     expect(wrapper.emitted('update:modelValue').at(-1)).toEqual([null])
     expect(wrapper.get('select[name="asset_system_id"]').element.value).toBe('')
     expect(wrapper.get('select[name="asset_subsystem_id"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('select[name="asset_group_id"]').element.value).toBe('2')
+  })
+
+  it('clears all three selections when the parent externally sets the model to null', async () => {
+    const wrapper = mount(CategorySelectFields, {
+      props: { categories, modelValue: 101, errors: {} },
+    })
+
+    await wrapper.setProps({ modelValue: null })
+
+    expect(wrapper.get('select[name="asset_group_id"]').element.value).toBe('')
+    expect(wrapper.get('select[name="asset_system_id"]').element.value).toBe('')
+    expect(wrapper.get('select[name="asset_subsystem_id"]').element.value).toBe('')
+  })
+
+  it('keeps the newly selected parent when its internal cascade synchronizes null', async () => {
+    let wrapper
+    wrapper = mount(CategorySelectFields, {
+      props: {
+        categories,
+        modelValue: 101,
+        errors: {},
+        'onUpdate:modelValue': (value) => wrapper.setProps({ modelValue: value }),
+      },
+    })
+
+    await wrapper.get('select[name="asset_group_id"]').setValue('2')
+    await nextTick()
+
+    expect(wrapper.get('select[name="asset_group_id"]').element.value).toBe('2')
+    expect(wrapper.get('select[name="asset_system_id"]').element.value).toBe('')
   })
 
   it('resets the subsystem when the system changes and emits only a valid leaf', async () => {
@@ -109,5 +141,25 @@ describe('CategorySelectFields', () => {
     expect(select.attributes('aria-invalid')).toBe('true')
     expect(select.attributes('aria-describedby')).toBe('asset-subsystem-error')
     expect(wrapper.get('#asset-subsystem-error').attributes('role')).toBe('alert')
+  })
+
+  it('requires every hierarchy level and enables children only after their parent', async () => {
+    const wrapper = mount(CategorySelectFields, {
+      props: { categories, modelValue: null, errors: {} },
+    })
+    const group = wrapper.get('select[name="asset_group_id"]')
+    const system = wrapper.get('select[name="asset_system_id"]')
+    const subsystem = wrapper.get('select[name="asset_subsystem_id"]')
+
+    expect(group.attributes('required')).toBeDefined()
+    expect(system.attributes('required')).toBeDefined()
+    expect(subsystem.attributes('required')).toBeDefined()
+    expect(system.attributes('disabled')).toBeDefined()
+    expect(subsystem.attributes('disabled')).toBeDefined()
+
+    await group.setValue('1')
+    expect(system.attributes('disabled')).toBeUndefined()
+    await system.setValue('11')
+    expect(subsystem.attributes('disabled')).toBeUndefined()
   })
 })

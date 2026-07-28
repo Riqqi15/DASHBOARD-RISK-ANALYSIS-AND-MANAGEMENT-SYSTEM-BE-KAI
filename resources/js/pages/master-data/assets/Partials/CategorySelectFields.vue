@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 const props = defineProps({
   categories: { type: Array, required: true },
@@ -12,6 +12,7 @@ const emit = defineEmits(['update:modelValue'])
 const selectedGroupId = ref('')
 const selectedSystemId = ref('')
 const selectedSubsystemId = ref('')
+let preserveParentsForInternalNull = false
 
 const selectedGroup = computed(() => props.categories.find(
   (group) => String(group.id) === String(selectedGroupId.value),
@@ -46,6 +47,10 @@ const optionDisabled = (option, level) => option.is_active === false && !isCurre
 
 const syncFromModel = (value) => {
   if (value === null || value === undefined || value === '') {
+    if (!preserveParentsForInternalNull) {
+      selectedGroupId.value = ''
+      selectedSystemId.value = ''
+    }
     selectedSubsystemId.value = ''
     return
   }
@@ -73,12 +78,16 @@ watch(
 const onGroupChange = () => {
   selectedSystemId.value = ''
   selectedSubsystemId.value = ''
+  preserveParentsForInternalNull = true
   emit('update:modelValue', null)
+  nextTick(() => { preserveParentsForInternalNull = false })
 }
 
 const onSystemChange = () => {
   selectedSubsystemId.value = ''
+  preserveParentsForInternalNull = true
   emit('update:modelValue', null)
+  nextTick(() => { preserveParentsForInternalNull = false })
 }
 
 const onSubsystemChange = () => {
@@ -107,6 +116,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
         v-model="selectedGroupId"
         name="asset_group_id"
         :class="inputClass"
+        required
         @change="onGroupChange"
       >
         <option value="">Pilih aset prasarana</option>
@@ -129,6 +139,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
         name="asset_system_id"
         :class="inputClass"
         :disabled="!selectedGroupId"
+        required
         @change="onSystemChange"
       >
         <option value="">Pilih system</option>

@@ -34,13 +34,24 @@ const assets = [{
   lokasi: 'Stasiun Gambir',
   jumlah_unit: 81,
   status: 'aktif',
+  unit_kerja: { id: 1, code: 'DAOP-1', name: 'Daerah Operasi 1 Jakarta' },
   category: {
     group: { id: 1, name: 'Peralatan Luar Sinyal Elektrik' },
     system: { id: 11, name: 'Peraga Sinyal Elektrik' },
     subsystem: { id: 101, name: 'Track Circuit' },
   },
 }]
-const statusOptions = [{ value: 'aktif', label: 'Aktif' }]
+const secondAsset = {
+  ...assets[0],
+  id: 42,
+  nama_aset: 'Track Circuit Manggarai',
+  lokasi: 'Stasiun Manggarai',
+  status: 'nonaktif',
+}
+const statusOptions = [
+  { value: 'aktif', label: 'Aktif' },
+  { value: 'nonaktif', label: 'Nonaktif' },
+]
 const legacySummary = { asset_count: 2, total: 20, sparepart_in: 0, sparepart_out: 0 }
 
 describe('AssetHierarchyTable', () => {
@@ -92,6 +103,20 @@ describe('AssetHierarchyTable', () => {
     expect(subsystem.text()).toContain('Aktif')
   })
 
+  it('shows the unit inside desktop asset details for pusat and handles missing unit data', () => {
+    const pusat = mount(AssetHierarchyTable, {
+      props: { rows, assets, legacySummary: null, statusOptions, showUnit: true },
+      global: { stubs: { Link: true } },
+    })
+    const missing = mount(AssetHierarchyTable, {
+      props: { rows, assets: [{ ...assets[0], unit_kerja: null }], legacySummary: null, statusOptions, showUnit: true },
+      global: { stubs: { Link: true } },
+    })
+
+    expect(pusat.get('[data-subsystem-id="101"]').text()).toContain('DAOP-1 — Daerah Operasi 1 Jakarta')
+    expect(missing.get('[data-subsystem-id="101"]').text()).toContain('Unit tidak tersedia')
+  })
+
   it('collapses and expands a group with accessible state', async () => {
     const wrapper = mount(AssetHierarchyTable, {
       props: { rows, assets, legacySummary: null, statusOptions },
@@ -100,12 +125,24 @@ describe('AssetHierarchyTable', () => {
     const button = wrapper.get('[data-group-id="1"] button')
 
     expect(button.attributes('aria-expanded')).toBe('true')
-    expect(button.attributes('aria-controls')).toBe('asset-group-1-rows')
+    const groupTargetIds = button.attributes('aria-controls').split(' ')
+    expect(groupTargetIds.length).toBeGreaterThan(1)
+    for (const id of groupTargetIds) {
+      expect(wrapper.get(`#${id}`).isVisible()).toBe(true)
+    }
     await button.trigger('click')
     expect(button.attributes('aria-expanded')).toBe('false')
-    expect(wrapper.find('[data-subsystem-id="101"]').exists()).toBe(false)
+    for (const id of groupTargetIds) {
+      expect(wrapper.get(`#${id}`).attributes('style'), `${id} should be hidden`).toContain('display: none')
+    }
     await button.trigger('click')
-    expect(wrapper.get('[data-subsystem-id="101"]').exists()).toBe(true)
+    const systemButton = wrapper.get('[data-system-id="11"] button')
+    const systemTargetIds = systemButton.attributes('aria-controls').split(' ')
+    await systemButton.trigger('click')
+    expect(systemButton.attributes('aria-expanded')).toBe('false')
+    for (const id of systemTargetIds) {
+      expect(wrapper.get(`#${id}`).attributes('style'), `${id} should be hidden`).toContain('display: none')
+    }
   })
 
   it('keeps edit/delete actions and presents a clear legacy fallback', async () => {
@@ -150,6 +187,44 @@ describe('AssetHierarchyCard', () => {
     expect(wrapper.emitted('delete')).toEqual([[assets[0]]])
   })
 
+  it('groups current-page assets into one aggregate subsystem card', async () => {
+    const wrapper = mount(AssetHierarchyCard, {
+      props: { rows, assets: [assets[0], secondAsset], legacySummary: null, statusOptions, showUnit: true },
+      global: { stubs: { Link: { props: ['href'], template: '<a :href="href"><slot /></a>' } } },
+    })
+    const card = wrapper.get('[data-subsystem-card="101"]')
+
+    expect(wrapper.findAll('[data-subsystem-card="101"]')).toHaveLength(1)
+    expect(card.findAll('dt').filter((item) => item.text() === 'TOTAL')).toHaveLength(1)
+    expect(card.findAll('[data-asset-detail]')).toHaveLength(2)
+    expect(card.text()).toContain('Track Circuit Gambir')
+    expect(card.text()).toContain('Track Circuit Manggarai')
+    expect(card.text()).toContain('Stasiun Gambir')
+    expect(card.text()).toContain('Stasiun Manggarai')
+    expect(card.text()).toContain('Aktif')
+    expect(card.text()).toContain('Nonaktif')
+    expect(card.text()).toContain('DAOP-1 — Daerah Operasi 1 Jakarta')
+    expect(card.get('a[href="/master-asset/41/edit"]').exists()).toBe(true)
+    expect(card.get('a[href="/master-asset/42/edit"]').exists()).toBe(true)
+    await card.get('[aria-label="Hapus aset Track Circuit Manggarai"]').trigger('click')
+    expect(wrapper.emitted('delete').at(-1)).toEqual([secondAsset])
+  })
+
+  it('shows a graceful unit fallback in a pusat card when relation data is missing', () => {
+    const wrapper = mount(AssetHierarchyCard, {
+      props: {
+        rows,
+        assets: [{ ...assets[0], unit_kerja: null }],
+        legacySummary: null,
+        statusOptions,
+        showUnit: true,
+      },
+      global: { stubs: { Link: true } },
+    })
+
+    expect(wrapper.get('[data-subsystem-card="101"]').text()).toContain('Unit tidak tersedia')
+  })
+
   it('uses the full filtered legacy summary instead of the current-page quantity', () => {
     const legacy = {
       ...assets[0],
@@ -159,11 +234,15 @@ describe('AssetHierarchyCard', () => {
       category: null,
       jumlah_unit: 3,
     }
+    const secondLegacy = { ...legacy, id: 53, nama_aset: 'Aset Warisan Kedua' }
     const wrapper = mount(AssetHierarchyCard, {
-      props: { rows, assets: [legacy], legacySummary, statusOptions },
+      props: { rows, assets: [legacy, secondLegacy], legacySummary, statusOptions },
       global: { stubs: { Link: true } },
     })
 
-    expect(wrapper.text()).toContain('20')
+    const card = wrapper.get('[data-subsystem-card="legacy"]')
+    expect(wrapper.findAll('[data-subsystem-card="legacy"]')).toHaveLength(1)
+    expect(card.text()).toContain('20')
+    expect(card.findAll('[data-asset-detail]')).toHaveLength(2)
   })
 })
