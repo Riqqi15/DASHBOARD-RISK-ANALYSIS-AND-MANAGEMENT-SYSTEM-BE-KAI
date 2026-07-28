@@ -30,8 +30,14 @@ class InventoryAuthorizationTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $part = SparePart::factory()->create();
         $stock = InventoryStock::factory()->for($part)->create();
+        $otherStock = InventoryStock::factory()->for($part)->create();
         $movement = StockMovement::factory()
             ->for($stock->unitKerja)
+            ->for($part)
+            ->for($pusat, 'actor')
+            ->create();
+        $otherMovement = StockMovement::factory()
+            ->for($otherStock->unitKerja)
             ->for($part)
             ->for($pusat, 'actor')
             ->create();
@@ -45,9 +51,17 @@ class InventoryAuthorizationTest extends TestCase
         $this->assertTrue($pusat->can('viewAny', InventoryStock::class));
         $this->assertTrue($pusat->can('view', $stock));
         $this->assertTrue($pusat->can('createMovement', $stock));
+        $this->assertSame(
+            [$stock->id, $otherStock->id],
+            InventoryStock::query()->visibleTo($pusat)->orderBy('id')->pluck('id')->all(),
+        );
         $this->assertTrue($pusat->can('viewAny', StockMovement::class));
         $this->assertTrue($pusat->can('view', $movement));
         $this->assertTrue($pusat->can('correct', $movement));
+        $this->assertSame(
+            [$movement->id, $otherMovement->id],
+            StockMovement::query()->visibleTo($pusat)->orderBy('id')->pluck('id')->all(),
+        );
     }
 
     public function test_unit_user_only_sees_and_moves_own_unit_stock(): void
@@ -70,12 +84,14 @@ class InventoryAuthorizationTest extends TestCase
             ->create();
 
         $this->assertSame([$ownStock->id], InventoryStock::query()->visibleTo($ownUser)->pluck('id')->all());
+        $this->assertTrue($ownUser->can('viewAny', InventoryStock::class));
         $this->assertTrue($ownUser->can('view', $ownStock));
         $this->assertFalse($ownUser->can('view', $otherStock));
         $this->assertTrue($ownUser->can('createMovement', $ownStock));
         $this->assertFalse($ownUser->can('createMovement', $otherStock));
 
         $this->assertSame([$ownMovement->id], StockMovement::query()->visibleTo($ownUser)->pluck('id')->all());
+        $this->assertTrue($ownUser->can('viewAny', StockMovement::class));
         $this->assertTrue($ownUser->can('view', $ownMovement));
         $this->assertFalse($ownUser->can('view', $otherMovement));
         $this->assertTrue($ownUser->can('correct', $ownMovement));
@@ -120,8 +136,12 @@ class InventoryAuthorizationTest extends TestCase
             $this->assertFalse($user->can('viewAny', SparePart::class));
             $this->assertFalse($user->can('view', $part));
             $this->assertFalse($user->can('create', SparePart::class));
+            $this->assertFalse($user->can('update', $part));
+            $this->assertFalse($user->can('delete', $part));
+            $this->assertFalse($user->can('viewAny', InventoryStock::class));
             $this->assertFalse($user->can('view', $stock));
             $this->assertFalse($user->can('createMovement', $stock));
+            $this->assertFalse($user->can('viewAny', StockMovement::class));
             $this->assertFalse($user->can('view', $movement));
             $this->assertFalse($user->can('correct', $movement));
         }
