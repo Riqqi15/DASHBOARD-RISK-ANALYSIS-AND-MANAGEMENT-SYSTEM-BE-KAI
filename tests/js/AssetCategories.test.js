@@ -1,9 +1,10 @@
 import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import AssetCategories from '@/pages/Admin/AssetCategories/Index.vue'
 import MainLayout from '@/layouts/MainLayout.vue'
 import CategoryPanel from '@/pages/Admin/AssetCategories/Partials/CategoryPanel.vue'
+import CategoryDialog from '@/pages/Admin/AssetCategories/Partials/CategoryDialog.vue'
 import DeactivateCategoryDialog from '@/pages/Admin/AssetCategories/Partials/DeactivateCategoryDialog.vue'
 import DeleteCategoryDialog from '@/pages/Admin/AssetCategories/Partials/DeleteCategoryDialog.vue'
 
@@ -15,6 +16,8 @@ const inertia = vi.hoisted(() => ({
   delete: vi.fn(),
   errors: {},
   responseErrors: {},
+  deferResponse: false,
+  pendingResponse: null,
   page: {
     url: '/admin/asset-categories',
     props: { auth: { user: { id: 1, name: 'Administrator', username: 'admin', role: 'pusat' } }, flash: {} },
@@ -39,11 +42,22 @@ vi.mock('@inertiajs/vue3', async () => {
     })
     const payload = () => Object.fromEntries(keys.map((key) => [key, form[key]]))
     const submit = (method, url, options) => {
+      form.processing = true
+      options?.onStart?.()
       inertia[method](url, payload(), options)
-      if (Object.keys(inertia.responseErrors).length) {
-        Object.assign(form.errors, inertia.responseErrors)
-        options?.onError?.(inertia.responseErrors)
+      const complete = () => {
+        if (Object.keys(inertia.responseErrors).length) {
+          Object.assign(form.errors, inertia.responseErrors)
+          options?.onError?.(inertia.responseErrors)
+        } else {
+          options?.onSuccess?.()
+        }
+        form.processing = false
+        options?.onFinish?.()
+        inertia.pendingResponse = null
       }
+      if (inertia.deferResponse) inertia.pendingResponse = complete
+      else complete()
     }
     form.post = (url, options) => submit('post', url, options)
     form.put = (url, options) => submit('put', url, options)
@@ -113,21 +127,26 @@ const groups = [
   },
 ]
 
-const mountPage = (overrides = {}) => mount(AssetCategories, {
-  props: {
-    groups,
-    selectedGroupId: 1,
-    selectedSystemId: 11,
-    capabilities: { manage: true },
-    ...overrides,
-  },
-  global: {
-    stubs: {
-      MainLayout: { template: '<main><slot /></main>' },
-      Teleport: true,
+const mountedPages = []
+const mountPage = (overrides = {}) => {
+  const wrapper = mount(AssetCategories, {
+    props: {
+      groups,
+      selectedGroupId: 1,
+      selectedSystemId: 11,
+      capabilities: { manage: true },
+      ...overrides,
     },
-  },
-})
+    global: {
+      stubs: {
+        MainLayout: { template: '<main><slot /></main>' },
+        Teleport: true,
+      },
+    },
+  })
+  mountedPages.push(wrapper)
+  return wrapper
+}
 
 describe('AssetCategories', () => {
   beforeEach(() => {
@@ -138,6 +157,12 @@ describe('AssetCategories', () => {
     inertia.delete.mockReset()
     inertia.errors = {}
     inertia.responseErrors = {}
+    inertia.deferResponse = false
+    inertia.pendingResponse = null
+  })
+
+  afterEach(() => {
+    for (const wrapper of mountedPages.splice(0)) wrapper.unmount()
   })
 
   it('renders backend data and drills down from group to system to subsystem', async () => {
@@ -177,7 +202,8 @@ describe('AssetCategories', () => {
     expect(dialog.get('label[for="category-name"]').text()).toContain('Nama subsystem')
     expect(dialog.get('#category-name').attributes('autofocus')).toBeDefined()
 
-    await dialog.trigger('keydown', { key: 'Escape' })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await nextTick()
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
   })
 
@@ -221,7 +247,8 @@ describe('AssetCategories', () => {
 
     await wrapper.get('[aria-label="Aktifkan Motor Point"]').trigger('click')
     expect(wrapper.get('[role="dialog"]').text()).toContain('tetap terlihat')
-    await wrapper.get('[aria-label="Konfirmasi aktifkan kategori"]').trigger('click')
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Aktifkan subsystem?')
+    await wrapper.get('[aria-label="Konfirmasi aktifkan subsystem"]').trigger('click')
 
     expect(inertia.patch).toHaveBeenCalledWith('/admin/asset-subsystems/121/status', {
       is_active: true,
@@ -235,9 +262,10 @@ describe('AssetCategories', () => {
     const wrapper = mountPage()
     await wrapper.get('[aria-label="Hapus Track Circuit"]').trigger('click')
 
+    expect(wrapper.get('[role="dialog"]').text()).toContain('Hapus subsystem?')
     expect(wrapper.get('[role="dialog"]').text()).toContain('Track Circuit')
     expect(wrapper.get('[role="dialog"]').text()).toContain('hanya dapat dihapus jika belum digunakan')
-    await wrapper.get('[aria-label="Konfirmasi hapus kategori"]').trigger('click')
+    await wrapper.get('[aria-label="Konfirmasi hapus subsystem"]').trigger('click')
 
     expect(inertia.delete).toHaveBeenCalledWith('/admin/asset-subsystems/111', {}, expect.objectContaining({ preserveScroll: true }))
     expect(wrapper.get('[role="alert"]').text()).toContain('8 aset')
@@ -368,12 +396,12 @@ describe('AssetCategories', () => {
   it('focuses the status dialog and closes it when the focused dialog receives Escape', async () => {
     const wrapper = mount(DeactivateCategoryDialog, {
       attachTo: document.body,
-      props: { category: groups[0], activate: false, processing: false },
+      props: { category: groups[0], levelLabel: 'kategori', activate: false, processing: false },
       global: { stubs: { Teleport: true } },
     })
     await nextTick()
 
-    expect(document.activeElement).toBe(wrapper.get('[role="dialog"]').element)
+    expect(document.activeElement).toBe(wrapper.get('[data-dialog-initial-focus]').element)
     document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await nextTick()
     expect(wrapper.emitted('close')).toHaveLength(1)
@@ -383,12 +411,12 @@ describe('AssetCategories', () => {
   it('focuses the delete dialog and closes it when the focused dialog receives Escape', async () => {
     const wrapper = mount(DeleteCategoryDialog, {
       attachTo: document.body,
-      props: { category: groups[0], form: { processing: false, errors: {} } },
+      props: { category: groups[0], levelLabel: 'kategori', form: { processing: false, errors: {} } },
       global: { stubs: { Teleport: true } },
     })
     await nextTick()
 
-    expect(document.activeElement).toBe(wrapper.get('[role="dialog"]').element)
+    expect(document.activeElement).toBe(wrapper.get('[data-dialog-initial-focus]').element)
     document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await nextTick()
     expect(wrapper.emitted('close')).toHaveLength(1)
@@ -398,10 +426,13 @@ describe('AssetCategories', () => {
   it('keeps status and delete dialogs locked while a request is processing', async () => {
     const status = mount(DeactivateCategoryDialog, {
       attachTo: document.body,
-      props: { category: groups[0], activate: false, processing: true },
+      props: { category: groups[0], levelLabel: 'kategori', activate: false, processing: true },
       global: { stubs: { Teleport: true } },
     })
     await nextTick()
+    expect(document.activeElement).toBe(status.get('[role="dialog"]').element)
+    expect(status.get('[role="dialog"]').attributes('aria-busy')).toBe('true')
+    expect(status.get('[aria-label="Konfirmasi nonaktifkan kategori"]').text()).toBe('Memproses…')
     expect(status.findAll('button').every((button) => button.attributes('disabled') !== undefined)).toBe(true)
     document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await nextTick()
@@ -410,14 +441,145 @@ describe('AssetCategories', () => {
 
     const deletion = mount(DeleteCategoryDialog, {
       attachTo: document.body,
-      props: { category: groups[0], form: { processing: true, errors: {} } },
+      props: { category: groups[0], levelLabel: 'kategori', form: { processing: true, errors: {} } },
       global: { stubs: { Teleport: true } },
     })
     await nextTick()
+    expect(deletion.get('[role="dialog"]').attributes('aria-busy')).toBe('true')
+    expect(deletion.get('[aria-label="Konfirmasi hapus kategori"]').text()).toBe('Menghapus…')
     expect(deletion.findAll('button').every((button) => button.attributes('disabled') !== undefined)).toBe(true)
     document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await nextTick()
     expect(deletion.emitted('close')).toBeUndefined()
     deletion.unmount()
+  })
+
+  it('closes a category dialog on success even while Inertia still marks the form processing', async () => {
+    const wrapper = mountPage()
+    await wrapper.get('[aria-label="Tambah kategori"]').trigger('click')
+    await wrapper.get('#category-name').setValue('Kategori baru')
+    await wrapper.get('[role="dialog"] form').trigger('submit')
+
+    expect(inertia.post).toHaveBeenCalled()
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+  })
+
+  it('keeps the form open for validation errors and blocks user close until processing finishes', async () => {
+    inertia.deferResponse = true
+    const wrapper = mountPage()
+    await wrapper.get('[aria-label="Tambah kategori"]').trigger('click')
+    await wrapper.get('#category-name').setValue('Kategori baru')
+    await wrapper.get('[role="dialog"] form').trigger('submit')
+
+    expect(wrapper.get('[role="dialog"]').attributes('aria-busy')).toBe('true')
+    await wrapper.get('[role="dialog"]').trigger('keydown', { key: 'Escape' })
+    await wrapper.get('[role="dialog"] button[aria-label="Tutup dialog"]').trigger('click')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+
+    inertia.responseErrors = { normalized_name: 'Nama kategori sudah digunakan.' }
+    inertia.pendingResponse()
+    await nextTick()
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+    expect(wrapper.get('[role="alert"]').text()).toContain('Nama kategori sudah digunakan')
+  })
+
+  it('traps forward and reverse Tab navigation inside the shared dialog', async () => {
+    const outside = document.createElement('button')
+    outside.textContent = 'Pemicu dialog'
+    document.body.append(outside)
+    outside.focus()
+    const wrapper = mount(CategoryDialog, {
+      attachTo: document.body,
+      props: {
+        title: 'Tambah kategori',
+        levelLabel: 'kategori',
+        description: 'Tambah kategori global.',
+        form: { name: '', sort_order: 0, errors: {}, processing: false },
+      },
+      global: { stubs: { Teleport: true } },
+    })
+    await nextTick()
+
+    const first = wrapper.get('[aria-label="Tutup dialog"]').element
+    const last = wrapper.get('button[type="submit"]').element
+    last.focus()
+    last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+    const forwardWrapped = document.activeElement === first
+    first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }))
+    const reverseWrapped = document.activeElement === last
+
+    outside.focus()
+    const outsideRedirected = document.activeElement === wrapper.get('[data-dialog-initial-focus]').element
+
+    wrapper.unmount()
+    outside.remove()
+    expect(forwardWrapped).toBe(true)
+    expect(reverseWrapped).toBe(true)
+    expect(outsideRedirected).toBe(true)
+  })
+
+  it('uses document Escape, isolates the background, then restores focus and cleanup', async () => {
+    const trigger = document.createElement('button')
+    trigger.textContent = 'Buka kategori'
+    document.body.append(trigger)
+    trigger.focus()
+    const closeSpy = vi.fn()
+    const wrapper = mount(CategoryDialog, {
+      attachTo: document.body,
+      props: {
+        title: 'Tambah kategori',
+        levelLabel: 'kategori',
+        description: 'Tambah kategori global.',
+        form: { name: '', sort_order: 0, errors: {}, processing: false },
+      },
+      attrs: { onClose: closeSpy },
+      global: { stubs: { Teleport: true } },
+    })
+    await nextTick()
+
+    const isolated = trigger.hasAttribute('inert') && trigger.getAttribute('aria-hidden') === 'true'
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await nextTick()
+    const closeCount = closeSpy.mock.calls.length
+
+    wrapper.unmount()
+    const restoredFocus = document.activeElement === trigger
+    const backgroundRestored = !trigger.hasAttribute('inert') && !trigger.hasAttribute('aria-hidden')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    const cleanedListener = closeSpy.mock.calls.length === closeCount
+    trigger.remove()
+    expect(isolated).toBe(true)
+    expect(closeCount).toBe(1)
+    expect(restoredFocus).toBe(true)
+    expect(backgroundRestored).toBe(true)
+    expect(cleanedListener).toBe(true)
+  })
+
+  it('renders subsystem leaves as content instead of a useless selector control', () => {
+    const wrapper = mountPage()
+
+    expect(wrapper.text()).toContain('Track Circuit')
+    expect(wrapper.find('[aria-label="Pilih subsystem Track Circuit"]').exists()).toBe(false)
+    expect(wrapper.get('[aria-label="Ubah nama Track Circuit"]').exists()).toBe(true)
+  })
+
+  it('clears child searches whenever their parent scope changes', async () => {
+    const groupChange = mountPage()
+    await groupChange.get('[aria-label="Cari system"]').setValue('peraga')
+    await groupChange.get('[aria-label="Cari subsystem"]').setValue('track')
+    await groupChange.get('[aria-label="Pilih kategori Telekomunikasi"]').trigger('click')
+
+    expect(groupChange.get('[aria-label="Cari system"]').element.value).toBe('')
+    expect(groupChange.get('[aria-label="Cari subsystem"]').element.value).toBe('')
+    expect(groupChange.text()).toContain('Radio Kereta')
+    expect(groupChange.text()).toContain('Radio Lokomotif')
+
+    const systemChange = mountPage()
+    await systemChange.get('[aria-label="Cari subsystem"]').setValue('track')
+    await systemChange.get('[aria-label="Pilih system Penggerak Wesel"]').trigger('click')
+
+    expect(systemChange.get('[aria-label="Cari subsystem"]').element.value).toBe('')
+    expect(systemChange.text()).toContain('Motor Point')
   })
 })

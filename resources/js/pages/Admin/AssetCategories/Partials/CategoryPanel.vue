@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ChevronRight, Pencil, Plus, Power, Search, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -17,11 +17,14 @@ const props = defineProps({
   canManage: { type: Boolean, default: false },
   disabledTitle: { type: String, default: '' },
   disabledDescription: { type: String, default: '' },
+  selectable: { type: Boolean, default: true },
+  scopeKey: { type: [String, Number], default: null },
 })
 
 defineEmits(['select', 'add', 'edit', 'toggle', 'delete'])
 
 const query = ref('')
+watch(() => props.scopeKey, () => { query.value = '' })
 const visibleItems = computed(() => {
   const needle = query.value.trim().toLocaleLowerCase('id')
   return needle ? props.items.filter((item) => item.name.toLocaleLowerCase('id').includes(needle)) : props.items
@@ -89,12 +92,13 @@ const dependencyLabel = (item) => {
         class="rounded-lg border transition-colors motion-reduce:transition-none"
         :class="item.id === selectedId ? 'border-orange-300 bg-orange-50/70' : 'border-slate-200 bg-white hover:border-slate-300'"
       >
-        <button
-          type="button"
+        <component
+          :is="selectable ? 'button' : 'div'"
+          :type="selectable ? 'button' : undefined"
           class="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#171650] focus-visible:ring-offset-2"
-          :aria-label="selectLabel(item)"
-          :aria-pressed="item.id === selectedId"
-          @click="$emit('select', item)"
+          :aria-label="selectable ? selectLabel(item) : undefined"
+          :aria-pressed="selectable ? item.id === selectedId : undefined"
+          @click="selectable && $emit('select', item)"
         >
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm font-semibold text-slate-900">{{ item.name }}</span>
@@ -103,8 +107,8 @@ const dependencyLabel = (item) => {
           <span class="rounded-full px-2 py-1 text-[11px] font-medium" :class="item.is_active ? 'bg-emerald-50 text-[#16865B]' : 'bg-slate-100 text-slate-600'">
             {{ item.is_active ? 'Aktif' : 'Nonaktif' }}
           </span>
-          <ChevronRight :size="17" class="shrink-0 text-slate-400" aria-hidden="true" />
-        </button>
+          <ChevronRight v-if="selectable" :size="17" class="shrink-0 text-slate-400" aria-hidden="true" />
+        </component>
         <div v-if="canManage" class="flex items-center gap-1 border-t border-slate-200/80 px-2 py-1.5">
           <button type="button" class="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-medium text-slate-600 outline-none hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[#171650]" :aria-label="`Ubah nama ${item.name}`" @click="$emit('edit', item)">
             <Pencil :size="15" aria-hidden="true" /> Ubah nama

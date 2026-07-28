@@ -83,8 +83,13 @@ const openEdit = (level, category) => {
   categoryDialog.value = { mode: 'edit', level, category }
 }
 
-const closeCategoryDialog = () => {
-  if (!categoryForm.value?.processing) categoryDialog.value = null
+const completeCategoryDialog = () => {
+  categoryDialog.value = null
+  categoryForm.value = null
+}
+
+const dismissCategoryDialog = () => {
+  if (!categoryForm.value?.processing) completeCategoryDialog()
 }
 
 const submitCategory = () => {
@@ -94,7 +99,7 @@ const submitCategory = () => {
   const endpoint = categoryDialog.value.mode === 'edit' ? `${details.endpoint}/${categoryDialog.value.category.id}` : details.endpoint
   categoryForm.value[method](endpoint, {
     preserveScroll: true,
-    onSuccess: closeCategoryDialog,
+    onSuccess: completeCategoryDialog,
   })
 }
 
@@ -109,7 +114,10 @@ const submitStatus = () => {
   const endpoint = `${levelDetails[statusDialog.value.level].endpoint}/${statusDialog.value.category.id}/status`
   statusForm.value.patch(endpoint, {
     preserveScroll: true,
-    onSuccess: () => { statusDialog.value = null },
+    onSuccess: () => {
+      statusDialog.value = null
+      statusForm.value = null
+    },
   })
 }
 
@@ -124,7 +132,10 @@ const submitDelete = () => {
   const endpoint = `${levelDetails[deleteDialog.value.level].endpoint}/${deleteDialog.value.category.id}`
   deleteForm.value.delete(endpoint, {
     preserveScroll: true,
-    onSuccess: () => { deleteDialog.value = null },
+    onSuccess: () => {
+      deleteDialog.value = null
+      deleteForm.value = null
+    },
   })
 }
 </script>
@@ -193,6 +204,7 @@ const submitDelete = () => {
             level="system"
             :items="systems"
             :selected-id="activeSystemId"
+            :scope-key="activeGroupId"
             search-label="Cari system"
             add-label="Tambah system"
             :add-disabled="!selectedGroup?.is_active"
@@ -215,6 +227,8 @@ const submitDelete = () => {
             title="Subsystem"
             level="subsystem"
             :items="subsystems"
+            :scope-key="activeSystemId"
+            :selectable="false"
             search-label="Cari subsystem"
             add-label="Tambah subsystem"
             :add-disabled="!selectedSystem?.is_active"
@@ -240,13 +254,14 @@ const submitDelete = () => {
       :level-label="levelDetails[categoryDialog.level].label"
       :description="categoryDialog.mode === 'edit' ? 'Perbarui nama dan urutan tanpa mengubah data yang sudah terhubung.' : categoryDialog.level === 'group' ? 'Kategori baru tersedia untuk seluruh wilayah.' : `Tambahkan di bawah ${categoryDialog.level === 'system' ? selectedGroup?.name : selectedSystem?.name}.`"
       :form="categoryForm"
-      @close="closeCategoryDialog"
+      @close="dismissCategoryDialog"
       @submit="submitCategory"
     />
     <DeactivateCategoryDialog
       v-if="canManage && statusDialog && statusForm"
       :category="statusDialog.category"
       :activate="statusDialog.activate"
+      :level-label="levelDetails[statusDialog.level].label"
       :processing="statusForm.processing"
       @close="statusDialog = null"
       @confirm="submitStatus"
@@ -254,6 +269,7 @@ const submitDelete = () => {
     <DeleteCategoryDialog
       v-if="canManage && deleteDialog && deleteForm"
       :category="deleteDialog.category"
+      :level-label="levelDetails[deleteDialog.level].label"
       :form="deleteForm"
       @close="deleteDialog = null"
       @confirm="submitDelete"

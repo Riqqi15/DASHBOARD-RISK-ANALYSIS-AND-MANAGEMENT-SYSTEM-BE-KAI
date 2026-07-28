@@ -1,6 +1,6 @@
 <script setup>
-import { nextTick, onMounted, ref } from 'vue'
 import { X } from 'lucide-vue-next'
+import AccessibleDialog from './AccessibleDialog.vue'
 
 const props = defineProps({
   title: { type: String, required: true },
@@ -11,24 +11,10 @@ const props = defineProps({
 
 defineEmits(['close', 'submit'])
 
-const nameInput = ref(null)
-onMounted(async () => {
-  await nextTick()
-  nameInput.value?.focus()
-})
 </script>
 
 <template>
-  <Teleport to="body">
-    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[1px]" @click.self="!form.processing && $emit('close')">
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="category-dialog-title"
-        aria-describedby="category-dialog-description"
-        class="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20"
-        @keydown.esc.stop="!form.processing && $emit('close')"
-      >
+  <AccessibleDialog labelledby="category-dialog-title" describedby="category-dialog-description" :processing="form.processing" panel-class="w-full max-w-lg" @close="$emit('close')">
         <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
           <div>
             <h2 id="category-dialog-title" class="text-lg font-semibold text-slate-950">{{ title }}</h2>
@@ -48,8 +34,8 @@ onMounted(async () => {
             <label for="category-name" class="mb-2 block text-sm font-medium text-slate-800">Nama {{ levelLabel }}</label>
             <input
               id="category-name"
-              ref="nameInput"
               v-model="form.name"
+              data-dialog-initial-focus
               autofocus
               required
               maxlength="255"
@@ -86,7 +72,5 @@ onMounted(async () => {
             </button>
           </div>
         </form>
-      </section>
-    </div>
-  </Teleport>
+  </AccessibleDialog>
 </template>
