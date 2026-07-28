@@ -36,6 +36,26 @@ class UnitKerja extends Model
         return $this->hasMany(UnitSubsystemOpening::class);
     }
 
+    public function stocks(): HasMany
+    {
+        return $this->inventoryStocks();
+    }
+
+    public function inventoryStocks(): HasMany
+    {
+        return $this->hasMany(InventoryStock::class);
+    }
+
+    public function movements(): HasMany
+    {
+        return $this->stockMovements();
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
+    }
+
     protected function casts(): array
     {
         return [
