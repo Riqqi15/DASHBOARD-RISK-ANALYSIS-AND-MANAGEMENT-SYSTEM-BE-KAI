@@ -114,14 +114,14 @@ class AssetCategorySchemaTest extends TestCase
         $secondGroup = AssetGroup::factory()->create();
         $firstSystem = AssetSystem::factory()->for($firstGroup)->create(['name' => 'Interlocking Elektrik']);
 
-        $this->assertQueryIsRejected(fn () => AssetSystem::factory()->for($firstGroup)->create([
+        $this->assertDuplicateKeyRejected(fn () => AssetSystem::factory()->for($firstGroup)->create([
             'name' => '  INTERLOCKING   ELEKTRIK ',
         ]));
 
         $secondSystem = AssetSystem::factory()->for($secondGroup)->create(['name' => 'Interlocking Elektrik']);
         AssetSubsystem::factory()->for($firstSystem)->create(['name' => 'Local Control Panel']);
 
-        $this->assertQueryIsRejected(fn () => AssetSubsystem::factory()->for($firstSystem)->create([
+        $this->assertDuplicateKeyRejected(fn () => AssetSubsystem::factory()->for($firstSystem)->create([
             'name' => ' LOCAL   CONTROL PANEL ',
         ]));
 
@@ -130,6 +130,57 @@ class AssetCategorySchemaTest extends TestCase
         ]);
 
         $this->assertSame('local control panel', $sameNameInAnotherSystem->normalized_name);
+    }
+
+    public function test_asset_group_names_are_unique_globally_after_normalization(): void
+    {
+        AssetGroup::factory()->create(['name' => 'Peralatan Dalam Sinyal Elektrik']);
+
+        $this->assertDuplicateKeyRejected(fn () => AssetGroup::factory()->create([
+            'name' => " \tPERALATAN   DALAM SINYAL ELEKTRIK  ",
+        ]));
+    }
+
+    public function test_source_alias_paths_are_unique_within_category_type_only(): void
+    {
+        $group = AssetGroup::factory()->create();
+        $system = AssetSystem::factory()->for($group)->create();
+
+        AssetCategorySourceAlias::query()->create([
+            'category_type' => 'group',
+            'category_id' => $group->id,
+            'source_path' => 'Workbook.xlsx/Sheet 1/Group',
+            'normalized_source_path' => 'workbook.xlsx/sheet 1/group',
+            'workbook_name' => 'Workbook.xlsx',
+            'sheet_name' => 'Sheet 1',
+            'first_imported_at' => '2026-07-27 09:00:00',
+            'last_imported_at' => '2026-07-28 09:00:00',
+        ]);
+
+        $this->assertDuplicateKeyRejected(fn () => AssetCategorySourceAlias::query()->create([
+            'category_type' => 'group',
+            'category_id' => $group->id,
+            'source_path' => 'WORKBOOK.xlsx/SHEET 1/GROUP',
+            'normalized_source_path' => 'workbook.xlsx/sheet 1/group',
+            'workbook_name' => 'WORKBOOK.xlsx',
+            'sheet_name' => 'SHEET 1',
+            'first_imported_at' => '2026-07-27 10:00:00',
+            'last_imported_at' => '2026-07-28 10:00:00',
+        ]));
+
+        $systemAlias = AssetCategorySourceAlias::query()->create([
+            'category_type' => 'system',
+            'category_id' => $system->id,
+            'source_path' => 'Workbook.xlsx/Sheet 1/Group',
+            'normalized_source_path' => 'workbook.xlsx/sheet 1/group',
+            'workbook_name' => 'Workbook.xlsx',
+            'sheet_name' => 'Sheet 1',
+            'first_imported_at' => '2026-07-27 09:00:00',
+            'last_imported_at' => '2026-07-28 09:00:00',
+        ]);
+
+        $this->assertSame('system', $systemAlias->category_type);
+        $this->assertDatabaseCount('asset_category_source_aliases', 2);
     }
 
     public function test_legacy_assets_may_remain_without_a_category_relation(): void
@@ -150,9 +201,9 @@ class AssetCategorySchemaTest extends TestCase
         $subsystem = AssetSubsystem::factory()->for($system)->create();
         Asset::factory()->for($subsystem, 'assetSubsystem')->create();
 
-        $this->assertQueryIsRejected(fn () => $group->forceDelete());
-        $this->assertQueryIsRejected(fn () => $system->forceDelete());
-        $this->assertQueryIsRejected(fn () => $subsystem->forceDelete());
+        $this->assertRestrictedDeleteRejected(fn () => $group->forceDelete());
+        $this->assertRestrictedDeleteRejected(fn () => $system->forceDelete());
+        $this->assertRestrictedDeleteRejected(fn () => $subsystem->forceDelete());
     }
 
     public function test_all_category_levels_support_soft_deletes(): void
@@ -217,12 +268,26 @@ class AssetCategorySchemaTest extends TestCase
         ]);
     }
 
-    private function assertQueryIsRejected(Closure $operation): void
+    private function assertDuplicateKeyRejected(Closure $operation): void
+    {
+        $this->assertMysqlError(1062, $operation);
+    }
+
+    private function assertRestrictedDeleteRejected(Closure $operation): void
+    {
+        $this->assertMysqlError(1451, $operation);
+    }
+
+    private function assertMysqlError(int $expectedErrorNumber, Closure $operation): void
     {
         try {
             $operation();
-        } catch (QueryException) {
-            $this->addToAssertionCount(1);
+        } catch (QueryException $exception) {
+            $this->assertSame(
+                $expectedErrorNumber,
+                $exception->errorInfo[1] ?? null,
+                'The database rejected the query for an unexpected reason.',
+            );
 
             return;
         }
