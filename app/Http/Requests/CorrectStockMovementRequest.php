@@ -62,9 +62,17 @@ class CorrectStockMovementRequest extends FormRequest
             'spare_part_id.prohibited' => 'Suku cadang koreksi selalu mengikuti transaksi sumber.',
             'type.prohibited' => 'Jenis koreksi ditentukan oleh sistem.',
             'reference_number.prohibited' => 'Nomor referensi koreksi mengikuti tautan transaksi sumber.',
+            'direction.required' => 'Pilih arah koreksi.',
+            'direction.enum' => 'Arah koreksi tidak valid.',
+            'quantity.required' => 'Masukkan jumlah koreksi.',
+            'quantity.integer' => 'Jumlah koreksi harus berupa bilangan bulat.',
             'quantity.min' => 'Jumlah koreksi minimal 1.',
+            'movement_date.required' => 'Pilih tanggal koreksi.',
+            'movement_date.date' => 'Tanggal koreksi tidak valid.',
             'movement_date.before_or_equal' => 'Tanggal koreksi tidak boleh melewati hari ini.',
+            'notes.string' => 'Catatan koreksi harus berupa teks.',
             'notes.max' => 'Catatan maksimal 1000 karakter.',
+            'idempotency_key.required' => 'Kunci transaksi tidak tersedia. Tutup lalu buka kembali formulir.',
             'idempotency_key.uuid' => 'Kunci transaksi tidak valid. Tutup lalu buka kembali formulir.',
         ];
     }

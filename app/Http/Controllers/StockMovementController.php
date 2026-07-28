@@ -60,7 +60,7 @@ class StockMovementController extends Controller
         Gate::authorize('correct', $source);
 
         $unit = UnitKerja::query()->findOrFail($source->unit_kerja_id);
-        $part = SparePart::withTrashed()->findOrFail($source->spare_part_id);
+        $part = SparePart::query()->findOrFail($source->spare_part_id);
 
         $this->movements->record(
             unit: $unit,

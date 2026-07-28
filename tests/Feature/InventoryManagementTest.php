@@ -165,6 +165,23 @@ class InventoryManagementTest extends TestCase
         $this->assertDatabaseCount('stock_movements', 0);
     }
 
+    public function test_store_required_validation_is_friendly_and_localized(): void
+    {
+        $user = User::factory()->unit()->create();
+
+        $this->actingAs($user)
+            ->from('/inventory')
+            ->post(route('stock-movements.store'), [])
+            ->assertSessionHasErrors([
+                'spare_part_id' => 'Pilih suku cadang.',
+                'type' => 'Pilih jenis transaksi.',
+                'direction' => 'Pilih arah transaksi.',
+                'quantity' => 'Masukkan jumlah transaksi.',
+                'movement_date' => 'Pilih tanggal transaksi.',
+                'idempotency_key' => 'Kunci transaksi tidak tersedia. Tutup lalu buka kembali formulir.',
+            ]);
+    }
+
     public function test_store_is_idempotent_for_an_identical_retry(): void
     {
         $user = User::factory()->unit()->create();
@@ -246,6 +263,24 @@ class InventoryManagementTest extends TestCase
         $this->actingAs($user)
             ->post(route('stock-movements.correct', $otherMovement), $this->correctionPayload())
             ->assertNotFound();
+    }
+
+    public function test_correction_required_validation_is_friendly_and_localized(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $user = User::factory()->unit($unit)->create();
+        $part = SparePart::factory()->create();
+        $source = StockMovement::factory()->for($unit)->for($part)->for($user, 'actor')->create();
+
+        $this->actingAs($user)
+            ->from('/inventory')
+            ->post(route('stock-movements.correct', $source), [])
+            ->assertSessionHasErrors([
+                'direction' => 'Pilih arah koreksi.',
+                'quantity' => 'Masukkan jumlah koreksi.',
+                'movement_date' => 'Pilih tanggal koreksi.',
+                'idempotency_key' => 'Kunci transaksi tidak tersedia. Tutup lalu buka kembali formulir.',
+            ]);
     }
 
     public function test_inactive_user_is_logged_out_before_inventory_mutation(): void
