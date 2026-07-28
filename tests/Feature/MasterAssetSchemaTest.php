@@ -24,6 +24,7 @@ class MasterAssetSchemaTest extends TestCase
 
         $this->assertTrue(Schema::hasColumns('assets', [
             'unit_kerja_id',
+            'asset_subsystem_id',
             'nama_aset',
             'aset_prasarana_sintel',
             'system',
