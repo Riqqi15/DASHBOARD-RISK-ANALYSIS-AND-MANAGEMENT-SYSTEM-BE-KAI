@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\AssetStatus;
+use App\Models\AssetSubsystem;
 use App\Models\UnitKerja;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -12,6 +13,7 @@ class AssetFactory extends Factory
     {
         return [
             'unit_kerja_id' => UnitKerja::factory(),
+            'asset_subsystem_id' => AssetSubsystem::factory(),
             'nama_aset' => fake()->words(3, true),
             'aset_prasarana_sintel' => 'PERALATAN LUAR SINYAL ELEKTRIK',
             'system' => 'PERAGA SINYAL ELEKTRIK',

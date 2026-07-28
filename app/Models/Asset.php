@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
     'unit_kerja_id',
+    'asset_subsystem_id',
     'nama_aset',
     'aset_prasarana_sintel',
     'system',
@@ -31,6 +32,11 @@ class Asset extends Model
     public function unitKerja(): BelongsTo
     {
         return $this->belongsTo(UnitKerja::class);
+    }
+
+    public function assetSubsystem(): BelongsTo
+    {
+        return $this->belongsTo(AssetSubsystem::class);
     }
 
     public function scopeVisibleTo(Builder $query, User $user): Builder
