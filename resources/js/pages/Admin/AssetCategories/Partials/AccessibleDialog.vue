@@ -105,7 +105,10 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleKeydown, true)
   document.removeEventListener('focusin', handleFocusIn, true)
   restoreBackground()
-  if (previousFocus?.isConnected) previousFocus.focus()
+  const focusTarget = previousFocus?.isConnected
+    ? previousFocus
+    : document.querySelector('[data-dialog-focus-fallback]')
+  if (focusTarget?.isConnected && typeof focusTarget.focus === 'function') focusTarget.focus()
   previousFocus = null
 })
 </script>

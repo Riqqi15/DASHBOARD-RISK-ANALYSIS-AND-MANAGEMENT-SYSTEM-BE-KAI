@@ -128,8 +128,9 @@ const groups = [
 ]
 
 const mountedPages = []
-const mountPage = (overrides = {}) => {
+const mountPage = (overrides = {}, options = {}) => {
   const wrapper = mount(AssetCategories, {
+    attachTo: options.attachTo,
     props: {
       groups,
       selectedGroupId: 1,
@@ -554,6 +555,24 @@ describe('AssetCategories', () => {
     expect(restoredFocus).toBe(true)
     expect(backgroundRestored).toBe(true)
     expect(cleanedListener).toBe(true)
+  })
+
+  it('restores focus to the stable page fallback when the dialog trigger was removed', async () => {
+    const wrapper = mountPage({}, { attachTo: document.body })
+    const fallback = wrapper.get('h2')
+    const trigger = wrapper.get('[aria-label="Hapus Track Circuit"]')
+    trigger.element.focus()
+    await trigger.trigger('click')
+    await nextTick()
+    expect(wrapper.get('[data-dialog-initial-focus]').element).toBe(document.activeElement)
+
+    await wrapper.setProps({ groups: [] })
+    expect(trigger.element.isConnected).toBe(false)
+    await wrapper.get('[role="dialog"] button[aria-label="Tutup dialog"]').trigger('click')
+    await nextTick()
+
+    expect(fallback.attributes('data-dialog-focus-fallback')).toBe('')
+    expect(document.activeElement).toBe(fallback.element)
   })
 
   it('renders subsystem leaves as content instead of a useless selector control', () => {

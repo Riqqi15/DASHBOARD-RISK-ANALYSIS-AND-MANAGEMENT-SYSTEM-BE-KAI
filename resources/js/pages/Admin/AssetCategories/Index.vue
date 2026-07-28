@@ -145,7 +145,7 @@ const submitDelete = () => {
   <MainLayout>
     <div class="mb-6">
       <p class="text-sm font-medium text-orange-600">Taksonomi aset global</p>
-      <h2 class="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Kategori Aset</h2>
+      <h2 data-dialog-focus-fallback tabindex="-1" class="mt-1 rounded text-2xl font-semibold tracking-tight text-slate-950 outline-none focus-visible:ring-2 focus-visible:ring-[#171650] focus-visible:ring-offset-2">Kategori Aset</h2>
       <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Jaga susunan kategori aset yang digunakan bersama oleh seluruh Daop dan Divre.</p>
     </div>
 
