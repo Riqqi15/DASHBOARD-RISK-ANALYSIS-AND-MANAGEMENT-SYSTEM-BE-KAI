@@ -49,4 +49,21 @@ class AuditLoggerTest extends TestCase
         $this->assertSame(['name' => 'Lama'], $audit->old_values);
         $this->assertSame(['name' => 'Baru'], $audit->new_values);
     }
+
+    public function test_logger_can_record_an_explicit_actor_without_an_authenticated_session(): void
+    {
+        $actor = User::factory()->pusat()->create();
+        $unit = UnitKerja::factory()->create();
+
+        $audit = app(AuditLogger::class)->record(
+            action: 'unit.updated',
+            subject: $unit,
+            before: ['name' => 'Lama'],
+            after: ['name' => 'Baru'],
+            actor: $actor,
+        );
+
+        $this->assertSame($actor->id, $audit->actor_id);
+        $this->assertGuest();
+    }
 }
