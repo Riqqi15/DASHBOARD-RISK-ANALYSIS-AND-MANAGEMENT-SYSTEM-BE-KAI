@@ -22,7 +22,7 @@ class StockMovementFactory extends Factory
         return [
             'unit_kerja_id' => UnitKerja::factory(),
             'spare_part_id' => SparePart::factory(),
-            'actor_id' => User::factory()->unit(),
+            'actor_id' => User::factory()->pusat(),
             'type' => StockMovementType::In,
             'direction' => StockDirection::In,
             'quantity' => $quantity,

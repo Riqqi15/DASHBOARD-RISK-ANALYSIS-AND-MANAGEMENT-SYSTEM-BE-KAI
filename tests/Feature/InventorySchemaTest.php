@@ -100,6 +100,15 @@ class InventorySchemaTest extends TestCase
         $this->assertTrue($part->assetSubsystem->spareParts->contains($part));
     }
 
+    public function test_stock_movement_factory_uses_a_pusat_actor_for_its_default_unit(): void
+    {
+        $movement = StockMovement::factory()->create();
+
+        $this->assertNotNull($movement->unit_kerja_id);
+        $this->assertTrue($movement->actor->isPusat());
+        $this->assertNull($movement->actor->unit_kerja_id);
+    }
+
     public function test_inventory_scopes_only_limit_regional_users_to_their_unit(): void
     {
         $ownUser = User::factory()->unit()->create();
@@ -141,14 +150,21 @@ class InventorySchemaTest extends TestCase
         $this->assertMysqlError(1062, fn () => InventoryStock::factory()->for($unit)->for($part)->create());
 
         $actor = User::factory()->unit($unit)->create();
-        StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
+        $movement = StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
             'idempotency_key' => '98d4bb31-49f7-4e04-af74-e1b884de0b63',
         ]);
         $this->assertMysqlError(1062, fn () => StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
             'idempotency_key' => '98d4bb31-49f7-4e04-af74-e1b884de0b63',
         ]));
+        StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
+            'reverses_movement_id' => $movement->id,
+        ]);
+
         $this->assertMysqlError(1451, fn () => $unit->forceDelete());
         $this->assertMysqlError(1451, fn () => $part->forceDelete());
+        $this->assertMysqlError(1451, fn () => $actor->delete());
+        $this->assertMysqlError(1451, fn () => $part->assetSubsystem->forceDelete());
+        $this->assertMysqlError(1451, fn () => $movement->delete());
     }
 
     public function test_sparepart_values_are_cast_and_soft_deleted(): void
