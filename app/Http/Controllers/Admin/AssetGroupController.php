@@ -59,33 +59,45 @@ class AssetGroupController extends Controller
 
     public function status(UpdateAssetCategoryStatusRequest $request, AssetGroup $assetGroup): RedirectResponse
     {
-        DB::transaction(function () use ($request, $assetGroup): void {
-            $before = $this->auditValues($assetGroup);
-            $assetGroup->update(['is_active' => $request->validated('is_active')]);
-            $this->auditLogger->record('asset_category.status_changed', $assetGroup, $before, $this->auditValues($assetGroup->fresh()));
+        $groupId = $assetGroup->id;
+        $requestedStatus = (bool) $request->validated('is_active');
+
+        $changed = DB::transaction(function () use ($groupId, $requestedStatus): bool {
+            $group = AssetGroup::query()->lockForUpdate()->findOrFail($groupId);
+            if ($group->is_active === $requestedStatus) {
+                return false;
+            }
+
+            $before = $this->auditValues($group);
+            $group->update(['is_active' => $requestedStatus]);
+            $this->auditLogger->record('asset_category.status_changed', $group, $before, $this->auditValues($group->fresh()));
+
+            return true;
         });
 
-        return redirect()->route('admin.asset-categories.index', ['group' => $assetGroup->id])
-            ->with('success', 'Status kelompok aset berhasil diperbarui.');
+        return redirect()->route('admin.asset-categories.index', ['group' => $groupId])
+            ->with('success', $changed ? 'Status kelompok aset berhasil diperbarui.' : 'Status kelompok aset tidak berubah.');
     }
 
     public function destroy(AssetGroup $assetGroup): RedirectResponse
     {
         Gate::authorize('delete', $assetGroup);
+        $groupId = $assetGroup->id;
 
-        $blockers = DB::transaction(function () use ($assetGroup): array {
+        $blockers = DB::transaction(function () use ($groupId): array {
+            $group = AssetGroup::query()->lockForUpdate()->findOrFail($groupId);
             $blockers = array_filter([
-                'sistem' => $assetGroup->systems()->withTrashed()->count(),
-                'alias sumber' => AssetCategorySourceAlias::query()->where('category_type', 'group')->where('category_id', $assetGroup->id)->count(),
+                'sistem' => $group->systems()->withTrashed()->count(),
+                'alias sumber' => AssetCategorySourceAlias::query()->where('category_type', 'group')->where('category_id', $group->id)->count(),
             ]);
 
             if ($blockers !== []) {
                 return $blockers;
             }
 
-            $before = $this->auditValues($assetGroup);
-            $assetGroup->delete();
-            $this->auditLogger->record('asset_category.deleted', $assetGroup, $before, []);
+            $before = $this->auditValues($group);
+            $group->delete();
+            $this->auditLogger->record('asset_category.deleted', $group, $before, []);
 
             return [];
         });
