@@ -2,10 +2,12 @@
 import { Link, useForm } from '@inertiajs/vue3'
 import { Info, Save } from 'lucide-vue-next'
 import BaseButton from '@/components/base/BaseButton.vue'
+import CategorySelectFields from './CategorySelectFields.vue'
 
 const props = defineProps({
   asset: { type: Object, default: null },
   units: { type: Array, required: true },
+  categories: { type: Array, required: true },
   statusOptions: { type: Array, required: true },
   can: { type: Object, required: true },
   submitLabel: { type: String, required: true },
@@ -14,9 +16,7 @@ const props = defineProps({
 const form = useForm({
   unit_kerja_id: props.asset?.unit_kerja_id ?? '',
   nama_aset: props.asset?.nama_aset ?? '',
-  aset_prasarana_sintel: props.asset?.aset_prasarana_sintel ?? '',
-  system: props.asset?.system ?? '',
-  subsystem: props.asset?.subsystem ?? '',
+  asset_subsystem_id: props.asset?.asset_subsystem_id ?? null,
   lokasi: props.asset?.lokasi ?? '',
   jumlah_unit: props.asset?.jumlah_unit ?? 0,
   tanggal_pemasangan: props.asset?.tanggal_pemasangan ?? '',
@@ -86,25 +86,11 @@ const today = new Date().toISOString().slice(0, 10)
         <p class="mt-1 text-sm text-slate-500">Struktur pengelompokan sesuai sumber data RAMS.</p>
       </div>
 
-      <div class="grid gap-6 md:grid-cols-2">
-        <div class="md:col-span-2">
-          <label for="aset-prasarana" class="mb-2 block text-sm font-medium text-slate-800">Aset prasarana Sintel</label>
-          <input id="aset-prasarana" v-model="form.aset_prasarana_sintel" :class="inputClass" maxlength="255" required placeholder="Kelompok aset prasarana" autocomplete="off" />
-          <p v-if="form.errors.aset_prasarana_sintel" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.aset_prasarana_sintel }}</p>
-        </div>
-
-        <div>
-          <label for="system" class="mb-2 block text-sm font-medium text-slate-800">System</label>
-          <input id="system" v-model="form.system" :class="inputClass" maxlength="255" required placeholder="Nama system" autocomplete="off" />
-          <p v-if="form.errors.system" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.system }}</p>
-        </div>
-
-        <div>
-          <label for="subsystem" class="mb-2 block text-sm font-medium text-slate-800">Subsystem</label>
-          <input id="subsystem" v-model="form.subsystem" :class="inputClass" maxlength="255" required placeholder="Nama subsystem" autocomplete="off" />
-          <p v-if="form.errors.subsystem" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.subsystem }}</p>
-        </div>
-      </div>
+      <CategorySelectFields
+        v-model="form.asset_subsystem_id"
+        :categories="categories"
+        :errors="form.errors"
+      />
     </section>
 
     <section aria-labelledby="asset-operation-title">

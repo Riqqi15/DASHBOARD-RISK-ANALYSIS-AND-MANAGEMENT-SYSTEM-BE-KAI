@@ -1,23 +1,23 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import {
   Boxes,
   CircleCheckBig,
   Database,
-  MapPin,
-  Pencil,
   Plus,
   Search,
-  Trash2,
   Warehouse,
   X,
 } from 'lucide-vue-next'
 import MainLayout from '@/layouts/MainLayout.vue'
+import AssetHierarchyCard from './Partials/AssetHierarchyCard.vue'
+import AssetHierarchyTable from './Partials/AssetHierarchyTable.vue'
 import DeleteAssetDialog from './Partials/DeleteAssetDialog.vue'
 
 const props = defineProps({
   assets: { type: Object, required: true },
+  hierarchy: { type: Array, required: true },
   stats: { type: Object, required: true },
   filters: { type: Object, required: true },
   units: { type: Array, required: true },
@@ -32,6 +32,9 @@ const filters = reactive({
 })
 const assetToDelete = ref(null)
 const deleting = ref(false)
+const hasActiveFilters = computed(() => Boolean(
+  filters.search || filters.status || filters.unit_kerja_id,
+))
 
 const applyFilters = () => router.get('/master-asset', filters, {
   preserveState: true,
@@ -59,22 +62,6 @@ const confirmDelete = () => {
 }
 
 const number = (value) => new Intl.NumberFormat('id-ID').format(value ?? 0)
-const statusLabel = (status) => props.statusOptions.find((item) => item.value === status)?.label ?? status
-const statusClass = (status) => ({
-  aktif: 'bg-emerald-50 text-emerald-700 ring-emerald-600/15',
-  nonaktif: 'bg-slate-100 text-slate-600 ring-slate-500/15',
-  dalam_perbaikan: 'bg-amber-50 text-amber-700 ring-amber-600/15',
-}[status] ?? 'bg-slate-100 text-slate-600 ring-slate-500/15')
-const dateLabel = (value) => {
-  if (!value) return 'Belum dicatat'
-
-  return new Intl.DateTimeFormat('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(value))
-}
 const paginationLabel = (label) => label
   .replace('&laquo; Previous', 'Sebelumnya')
   .replace('Next &raquo;', 'Berikutnya')
@@ -157,58 +144,22 @@ const paginationLabel = (label) => label
     </section>
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div v-if="assets.data.length" class="overflow-x-auto">
-        <table class="min-w-[1080px] w-full divide-y divide-slate-200">
-          <thead class="bg-slate-50">
-            <tr>
-              <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Aset</th>
-              <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Klasifikasi</th>
-              <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Unit &amp; lokasi</th>
-              <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Pemasangan</th>
-              <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Jumlah</th>
-              <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
-              <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Aksi</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="asset in assets.data" :key="asset.id" class="transition hover:bg-slate-50/70">
-              <td class="px-5 py-4">
-                <p class="font-medium text-slate-950">{{ asset.nama_aset }}</p>
-                <p class="mt-1 max-w-xs text-xs leading-5 text-slate-500">{{ asset.aset_prasarana_sintel }}</p>
-              </td>
-              <td class="px-5 py-4">
-                <p class="text-sm font-medium text-slate-800">{{ asset.system }}</p>
-                <p class="mt-1 text-xs text-slate-500">{{ asset.subsystem }}</p>
-              </td>
-              <td class="px-5 py-4">
-                <span class="rounded bg-blue-50 px-2 py-1 font-mono text-xs font-semibold text-[#2d2a70]">{{ asset.unit_kerja.code }}</span>
-                <p class="mt-2 flex items-center gap-1.5 text-xs" :class="asset.lokasi ? 'text-slate-600' : 'italic text-slate-400'">
-                  <MapPin :size="13" aria-hidden="true" />
-                  {{ asset.lokasi || 'Belum dilengkapi' }}
-                </p>
-              </td>
-              <td class="whitespace-nowrap px-5 py-4 text-sm text-slate-600">{{ dateLabel(asset.tanggal_pemasangan) }}</td>
-              <td class="px-5 py-4 text-right font-mono text-sm font-semibold text-slate-800">{{ number(asset.jumlah_unit) }}</td>
-              <td class="px-5 py-4">
-                <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset" :class="statusClass(asset.status)">{{ statusLabel(asset.status) }}</span>
-              </td>
-              <td class="whitespace-nowrap px-5 py-4 text-right">
-                <Link :href="`/master-asset/${asset.id}/edit`" class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#2d2a70] transition hover:bg-blue-50" :aria-label="`Edit aset ${asset.nama_aset}`">
-                  <Pencil :size="16" aria-hidden="true" />
-                </Link>
-                <button type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50" :aria-label="`Hapus aset ${asset.nama_aset}`" @click="assetToDelete = asset">
-                  <Trash2 :size="16" aria-hidden="true" />
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-if="assets.data.length">
+        <div data-desktop-hierarchy class="hidden md:block">
+          <AssetHierarchyTable :rows="hierarchy" :assets="assets.data" @delete="assetToDelete = $event" />
+        </div>
+        <div data-mobile-hierarchy class="bg-slate-50 p-3 md:hidden">
+          <AssetHierarchyCard :rows="hierarchy" :assets="assets.data" :status-options="statusOptions" @delete="assetToDelete = $event" />
+        </div>
       </div>
 
       <div v-else class="flex flex-col items-center px-6 py-16 text-center">
         <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500"><Database :size="24" aria-hidden="true" /></div>
-        <h3 class="mt-4 text-base font-semibold text-slate-900">Aset tidak ditemukan</h3>
-        <p class="mt-2 max-w-md text-sm leading-6 text-slate-500">Ubah kata pencarian atau filter. Jika belum ada data, tambahkan aset pertama untuk unit kerja Anda.</p>
+        <h3 class="mt-4 text-base font-semibold text-slate-900">{{ hasActiveFilters ? 'Tidak ada aset sesuai filter' : 'Belum ada aset' }}</h3>
+        <p v-if="hasActiveFilters" class="mt-2 max-w-md text-sm leading-6 text-slate-500">Ubah pencarian atau hapus filter untuk melihat aset lain.</p>
+        <p v-else class="mt-2 max-w-md text-sm leading-6 text-slate-500">Tambahkan aset pertama untuk mulai menyusun hierarki wilayah Anda.</p>
+        <button v-if="hasActiveFilters" data-clear-empty-filters type="button" class="mt-4 inline-flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#171650]" @click="clearFilters">Hapus filter</button>
+        <Link v-else href="/master-asset/create" class="mt-4 inline-flex h-11 items-center justify-center rounded-lg bg-[#F15A24] px-4 text-sm font-semibold text-white outline-none transition hover:bg-[#d94c1a] focus-visible:ring-2 focus-visible:ring-[#F15A24] focus-visible:ring-offset-2">Tambah aset pertama</Link>
       </div>
 
       <div v-if="assets.links.length > 3" class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4">

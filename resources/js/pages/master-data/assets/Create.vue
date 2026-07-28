@@ -6,6 +6,7 @@ import AssetForm from './Partials/AssetForm.vue'
 
 defineProps({
   units: { type: Array, required: true },
+  categories: { type: Array, required: true },
   statusOptions: { type: Array, required: true },
   can: { type: Object, required: true },
 })
@@ -31,7 +32,7 @@ defineProps({
     </div>
 
     <section class="max-w-5xl rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-      <AssetForm :units="units" :status-options="statusOptions" :can="can" submit-label="Simpan aset" />
+      <AssetForm :units="units" :categories="categories" :status-options="statusOptions" :can="can" submit-label="Simpan aset" />
     </section>
   </MainLayout>
 </template>

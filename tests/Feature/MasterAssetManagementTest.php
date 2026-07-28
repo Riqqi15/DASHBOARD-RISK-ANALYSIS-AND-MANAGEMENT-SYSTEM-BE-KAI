@@ -9,6 +9,7 @@ use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
 use App\Models\AuditLog;
 use App\Models\UnitKerja;
+use App\Models\UnitSubsystemOpening;
 use App\Models\User;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,6 +61,35 @@ class MasterAssetManagementTest extends TestCase
                 ->has('assets.data', 1)
                 ->where('can.choose_unit', true)
                 ->has('units'));
+    }
+
+    public function test_index_exposes_unit_scoped_hierarchy_totals_and_openings(): void
+    {
+        $ownUnit = UnitKerja::factory()->create();
+        $otherUnit = UnitKerja::factory()->create();
+        $user = User::factory()->unit($ownUnit)->create();
+        [$group, $system, $subsystem] = $this->categoryPath();
+        Asset::factory()->for($ownUnit)->for($subsystem, 'assetSubsystem')->create(['jumlah_unit' => 81]);
+        Asset::factory()->for($otherUnit)->for($subsystem, 'assetSubsystem')->create(['jumlah_unit' => 19]);
+        UnitSubsystemOpening::factory()->for($ownUnit)->for($subsystem, 'assetSubsystem')->create([
+            'sparepart_in' => 7,
+            'sparepart_out' => 2,
+        ]);
+        UnitSubsystemOpening::factory()->for($otherUnit)->for($subsystem, 'assetSubsystem')->create([
+            'sparepart_in' => 5,
+            'sparepart_out' => 4,
+        ]);
+
+        $this->actingAs($user)->get('/master-asset')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('hierarchy', 1)
+                ->where('hierarchy.0.id', $subsystem->id)
+                ->where('hierarchy.0.name', $subsystem->name)
+                ->where('hierarchy.0.asset_system.id', $system->id)
+                ->where('hierarchy.0.asset_system.asset_group.id', $group->id)
+                ->where('hierarchy.0.total', 81)
+                ->where('hierarchy.0.sparepart_in', 7)
+                ->where('hierarchy.0.sparepart_out', 2));
     }
 
     public function test_unit_creates_an_asset_only_for_its_own_unit(): void
@@ -279,6 +309,34 @@ class MasterAssetManagementTest extends TestCase
             ]));
 
         $this->assertFalse($inactive->is_active);
+    }
+
+    public function test_edit_categories_include_the_current_inactive_path_only(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $user = User::factory()->unit($unit)->create();
+        [$group, $system, $subsystem] = $this->categoryPath(
+            group: ['name' => 'Current Group', 'is_active' => false],
+            system: ['name' => 'Current System'],
+            subsystem: ['name' => 'Current Subsystem'],
+        );
+        [, , $unrelatedInactive] = $this->categoryPath(
+            group: ['name' => 'Other Inactive Group', 'is_active' => false],
+        );
+        $asset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create();
+
+        $this->actingAs($user)->get("/master-asset/{$asset->id}/edit")
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('categories', 1)
+                ->where('categories.0.id', $group->id)
+                ->where('categories.0.is_active', false)
+                ->where('categories.0.systems.0.id', $system->id)
+                ->where('categories.0.systems.0.subsystems.0.id', $subsystem->id)
+                ->where('categories.0.systems.0.subsystems.0.is_active', true)
+                ->missing('categories.1')
+                ->where('asset.asset_subsystem_id', $subsystem->id));
+
+        $this->assertFalse($unrelatedInactive->assetSystem->assetGroup->is_active);
     }
 
     public function test_unique_subsystems_stat_combines_linked_and_normalized_legacy_values_with_filters_and_unit_scope(): void

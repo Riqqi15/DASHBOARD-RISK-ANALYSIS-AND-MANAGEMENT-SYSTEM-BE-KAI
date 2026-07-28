@@ -22,6 +22,7 @@ const props = {
     data: [{
       id: 41,
       unit_kerja_id: 1,
+      asset_subsystem_id: 101,
       unit_kerja: { id: 1, code: 'DAOP-1', name: 'Daerah Operasi 1 Jakarta' },
       nama_aset: 'Track Circuit Backend',
       aset_prasarana_sintel: 'Peralatan Luar Sinyal Elektrik',
@@ -37,6 +38,18 @@ const props = {
     to: 1,
     total: 1,
   },
+  hierarchy: [{
+    id: 101,
+    name: 'Track Circuit',
+    total: 81,
+    sparepart_in: 7,
+    sparepart_out: 2,
+    asset_system: {
+      id: 11,
+      name: 'Peraga Sinyal Elektrik',
+      asset_group: { id: 1, name: 'Peralatan Luar Sinyal Elektrik' },
+    },
+  }],
   stats: { total_assets: 1, total_units: 12, active_assets: 1, unique_subsystems: 1 },
   filters: { search: '', status: '', unit_kerja_id: '' },
   units: [{ id: 1, code: 'DAOP-1', name: 'Daerah Operasi 1 Jakarta' }],
@@ -48,8 +61,8 @@ const props = {
   can: { choose_unit: true },
 }
 
-const mountPage = () => mount(MasterAsset, {
-  props,
+const mountPage = (overrides = {}) => mount(MasterAsset, {
+  props: { ...props, ...overrides },
   global: {
     stubs: {
       MainLayout: { template: '<main><slot /></main>' },
@@ -71,6 +84,11 @@ describe('MasterAsset', () => {
     expect(wrapper.text()).toContain('DAOP-1')
     expect(wrapper.text()).toContain('Belum dilengkapi')
     expect(wrapper.text()).toContain('12')
+    expect(wrapper.get('[data-desktop-hierarchy]').text()).toContain('Sparepart IN')
+    expect(wrapper.get('[data-mobile-hierarchy]').text()).toContain('Track Circuit Backend')
+    expect(wrapper.text()).toContain('81')
+    expect(wrapper.text()).toContain('7')
+    expect(wrapper.text()).toContain('2')
   })
 
   it('requests server-side filters', async () => {
@@ -94,5 +112,48 @@ describe('MasterAsset', () => {
     await confirmButton.trigger('click')
 
     expect(inertia.delete).toHaveBeenCalledWith('/master-asset/41', expect.objectContaining({ preserveScroll: true }))
+  })
+
+  it('distinguishes filtered empty results and clears filters as recovery', async () => {
+    const wrapper = mountPage({
+      assets: { data: [], links: [], from: null, to: null, total: 0 },
+      hierarchy: [],
+      filters: { search: 'track', status: 'aktif', unit_kerja_id: '' },
+    })
+
+    expect(wrapper.text()).toContain('Tidak ada aset sesuai filter')
+    expect(wrapper.text()).toContain('Hapus filter')
+    await wrapper.get('[data-clear-empty-filters]').trigger('click')
+    expect(inertia.get).toHaveBeenCalledWith('/master-asset', {
+      search: '', status: '', unit_kerja_id: '',
+    }, expect.objectContaining({ preserveState: true, replace: true }))
+  })
+
+  it('offers asset creation when the database is truly empty', () => {
+    const wrapper = mountPage({
+      assets: { data: [], links: [], from: null, to: null, total: 0 },
+      hierarchy: [],
+      stats: { total_assets: 0, total_units: 0, active_assets: 0, unique_subsystems: 0 },
+    })
+
+    expect(wrapper.text()).toContain('Belum ada aset')
+    expect(wrapper.findAll('a[href="/master-asset/create"]').some((link) => link.text().includes('Tambah aset pertama'))).toBe(true)
+  })
+
+  it('preserves backend pagination links', () => {
+    const wrapper = mountPage({
+      assets: {
+        ...props.assets,
+        links: [
+          { label: '&laquo; Previous', url: null, active: false },
+          { label: '1', url: '/master-asset?page=1', active: true },
+          { label: '2', url: '/master-asset?page=2', active: false },
+          { label: 'Next &raquo;', url: '/master-asset?page=2', active: false },
+        ],
+      },
+    })
+
+    expect(wrapper.get('[aria-label="Paginasi Master Aset"]').text()).toContain('Sebelumnya')
+    expect(wrapper.get('[aria-label="Paginasi Master Aset"]').text()).toContain('Berikutnya')
   })
 })

@@ -10,6 +10,7 @@ use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
 use App\Models\UnitKerja;
+use App\Queries\AssetHierarchyQuery;
 use App\Services\AuditLogger;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -22,7 +23,10 @@ use Inertia\Response;
 
 class MasterAssetController extends Controller
 {
-    public function __construct(private readonly AuditLogger $auditLogger) {}
+    public function __construct(
+        private readonly AuditLogger $auditLogger,
+        private readonly AssetHierarchyQuery $assetHierarchyQuery,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -66,6 +70,7 @@ class MasterAssetController extends Controller
 
         return Inertia::render('master-data/assets/MasterAsset', [
             'assets' => $assets,
+            'hierarchy' => $this->assetHierarchyQuery->forUser($request->user(), $unitId),
             'stats' => $stats,
             'filters' => [
                 'search' => $search,
@@ -103,7 +108,7 @@ class MasterAssetController extends Controller
         Gate::authorize('update', $asset);
 
         return Inertia::render('master-data/assets/Edit', [
-            ...$this->formProps($request),
+            ...$this->formProps($request, $asset->assetSubsystem),
             'asset' => $this->assetPayload($asset),
         ]);
     }
@@ -168,11 +173,11 @@ class MasterAssetController extends Controller
             ->findOrFail($id);
     }
 
-    private function formProps(Request $request): array
+    private function formProps(Request $request, ?AssetSubsystem $currentSubsystem = null): array
     {
         return [
             'units' => $request->user()->isPusat() ? $this->activeUnits() : [],
-            'categories' => $this->activeCategories(),
+            'categories' => $this->activeCategories($currentSubsystem),
             'statusOptions' => $this->statusOptions(),
             'can' => ['choose_unit' => $request->user()->isPusat()],
         ];
@@ -227,9 +232,9 @@ class MasterAssetController extends Controller
         return $this->assetPayload($asset);
     }
 
-    private function activeCategories(): array
+    private function activeCategories(?AssetSubsystem $currentSubsystem = null): array
     {
-        return AssetGroup::query()
+        $categories = AssetGroup::query()
             ->where('is_active', true)
             ->with(['systems' => fn ($systems) => $systems
                 ->where('is_active', true)
@@ -249,6 +254,60 @@ class MasterAssetController extends Controller
                     ])->values()->all(),
                 ])->values()->all(),
             ])->values()->all();
+
+        if (! $currentSubsystem) {
+            return $categories;
+        }
+
+        $currentSubsystem->loadMissing('assetSystem.assetGroup');
+        $currentSystem = $currentSubsystem->assetSystem;
+        $currentGroup = $currentSystem?->assetGroup;
+
+        if (! $currentSystem || ! $currentGroup) {
+            return $categories;
+        }
+
+        $currentPath = [
+            'id' => $currentGroup->id,
+            'name' => $currentGroup->name,
+            'is_active' => $currentGroup->is_active,
+            'systems' => [[
+                'id' => $currentSystem->id,
+                'name' => $currentSystem->name,
+                'is_active' => $currentSystem->is_active,
+                'subsystems' => [[
+                    'id' => $currentSubsystem->id,
+                    'name' => $currentSubsystem->name,
+                    'is_active' => $currentSubsystem->is_active,
+                ]],
+            ]],
+        ];
+        $groupIndex = array_search($currentGroup->id, array_column($categories, 'id'), true);
+
+        if ($groupIndex === false) {
+            $categories[] = $currentPath;
+
+            return $categories;
+        }
+
+        $systemIndex = array_search(
+            $currentSystem->id,
+            array_column($categories[$groupIndex]['systems'], 'id'),
+            true,
+        );
+
+        if ($systemIndex === false) {
+            $categories[$groupIndex]['systems'][] = $currentPath['systems'][0];
+
+            return $categories;
+        }
+
+        $subsystemIds = array_column($categories[$groupIndex]['systems'][$systemIndex]['subsystems'], 'id');
+        if (! in_array($currentSubsystem->id, $subsystemIds, true)) {
+            $categories[$groupIndex]['systems'][$systemIndex]['subsystems'][] = $currentPath['systems'][0]['subsystems'][0];
+        }
+
+        return $categories;
     }
 
     private function categoryPayload(AssetGroup|AssetSystem|AssetSubsystem $category): array
