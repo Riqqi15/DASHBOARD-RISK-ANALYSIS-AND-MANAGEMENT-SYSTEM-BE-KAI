@@ -14,6 +14,7 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --sql-mode=STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+      - --log-bin-trust-function-creators=1
     volumes:
       - rams_mysql_data:/var/lib/mysql
     healthcheck:
@@ -37,6 +38,7 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --sql-mode=STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+      - --log-bin-trust-function-creators=1
     tmpfs:
       - /var/lib/mysql
     healthcheck:

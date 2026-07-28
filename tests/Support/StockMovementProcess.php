@@ -55,30 +55,35 @@ try {
 
     if ($action === 'cleanup') {
         $scope = $argv[2] ?? '';
-        DB::transaction(function () use ($scope): void {
-            $part = SparePart::withTrashed()->where('source_key', 'race|'.$scope)->first();
-            $actor = User::query()->where('email', "{$scope}@example.test")->first();
-            $unit = UnitKerja::query()->where('code', 'RACE-'.substr(hash('sha256', $scope), 0, 12))->first();
-            if ($part) {
-                $movementIds = StockMovement::query()->where('spare_part_id', $part->id)->pluck('id');
-                AuditLog::query()->where('auditable_type', StockMovement::class)->whereIn('auditable_id', $movementIds)->delete();
-                StockMovement::query()->where('spare_part_id', $part->id)->delete();
-                InventoryStock::query()->where('spare_part_id', $part->id)->delete();
-                $subsystem = AssetSubsystem::withTrashed()->find($part->asset_subsystem_id);
-                $part->forceDelete();
-                if ($subsystem) {
-                    $system = AssetSystem::withTrashed()->find($subsystem->asset_system_id);
-                    $subsystem->forceDelete();
-                    if ($system) {
-                        $group = AssetGroup::withTrashed()->find($system->asset_group_id);
-                        $system->forceDelete();
-                        $group?->forceDelete();
+        DB::statement('SET @rams_allow_stock_movement_mutation = 1');
+        try {
+            DB::transaction(function () use ($scope): void {
+                $part = SparePart::withTrashed()->where('source_key', 'race|'.$scope)->first();
+                $actor = User::query()->where('email', "{$scope}@example.test")->first();
+                $unit = UnitKerja::query()->where('code', 'RACE-'.substr(hash('sha256', $scope), 0, 12))->first();
+                if ($part) {
+                    $movementIds = StockMovement::query()->where('spare_part_id', $part->id)->pluck('id');
+                    AuditLog::query()->where('auditable_type', StockMovement::class)->whereIn('auditable_id', $movementIds)->delete();
+                    StockMovement::query()->where('spare_part_id', $part->id)->delete();
+                    InventoryStock::query()->where('spare_part_id', $part->id)->delete();
+                    $subsystem = AssetSubsystem::withTrashed()->find($part->asset_subsystem_id);
+                    $part->forceDelete();
+                    if ($subsystem) {
+                        $system = AssetSystem::withTrashed()->find($subsystem->asset_system_id);
+                        $subsystem->forceDelete();
+                        if ($system) {
+                            $group = AssetGroup::withTrashed()->find($system->asset_group_id);
+                            $system->forceDelete();
+                            $group?->forceDelete();
+                        }
                     }
                 }
-            }
-            $actor?->delete();
-            $unit?->delete();
-        });
+                $actor?->delete();
+                $unit?->delete();
+            });
+        } finally {
+            DB::statement('SET @rams_allow_stock_movement_mutation = NULL');
+        }
         echo '{"cleaned":true}';
         exit(0);
     }

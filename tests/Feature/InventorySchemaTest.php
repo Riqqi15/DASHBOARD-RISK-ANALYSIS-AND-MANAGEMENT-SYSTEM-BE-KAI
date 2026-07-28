@@ -164,7 +164,7 @@ class InventorySchemaTest extends TestCase
         $this->assertMysqlError(1451, fn () => $part->forceDelete());
         $this->assertMysqlError(1451, fn () => $actor->delete());
         $this->assertMysqlError(1451, fn () => $part->assetSubsystem->forceDelete());
-        $this->assertMysqlError(1451, fn () => StockMovement::query()->whereKey($movement->id)->delete());
+        $this->assertMysqlError(1644, fn () => StockMovement::query()->whereKey($movement->id)->delete());
     }
 
     public function test_sparepart_values_are_cast_and_soft_deleted(): void

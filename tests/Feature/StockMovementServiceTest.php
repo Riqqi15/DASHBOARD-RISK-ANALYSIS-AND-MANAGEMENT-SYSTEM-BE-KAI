@@ -395,9 +395,12 @@ class StockMovementServiceTest extends TestCase
             $this->assertArrayHasKey('reverses_movement_id', $exception->errors());
         }
 
-        StockMovement::query()->whereKey($original->id)->delete();
+        $missing = $original->replicate();
+        $missing->id = $original->id + 1_000_000;
+        $missing->exists = true;
+        $missing->syncOriginal();
         try {
-            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $original);
+            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $missing);
             $this->fail('Expected missing source validation failure.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('reverses_movement_id', $exception->errors());
