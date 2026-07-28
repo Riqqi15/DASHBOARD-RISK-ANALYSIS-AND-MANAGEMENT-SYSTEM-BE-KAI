@@ -38,6 +38,19 @@ RAMS_ADMIN_PASSWORD=admin1234
 
 Simpan kredensial lokal hanya di `.env`. Git mengabaikan file tersebut.
 
+### Akun demo Daop
+
+Seeder lokal membuat akun `daop1` sampai `daop9`. Setiap akun terikat pada Daop dengan nomor yang sama dan memakai password lokal `daop1234`.
+
+```text
+daop1 / daop1234
+daop2 / daop1234
+...
+daop9 / daop1234
+```
+
+Akun ini hanya dibuat ketika `APP_ENV` adalah `local` atau `testing` dan `RAMS_SEED_DEMO_ACCOUNTS=true`. Jangan aktifkan kredensial demo pada production.
+
 ## Menjalankan aplikasi
 
 Nyalakan database dan server development:

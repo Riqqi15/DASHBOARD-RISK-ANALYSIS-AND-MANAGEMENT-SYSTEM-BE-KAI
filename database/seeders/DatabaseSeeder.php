@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             UnitKerjaSeeder::class,
             AdminUserSeeder::class,
+            RegionalAccountSeeder::class,
         ]);
     }
 }

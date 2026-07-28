@@ -7,4 +7,8 @@ return [
         'email' => env('RAMS_ADMIN_EMAIL'),
         'password' => env('RAMS_ADMIN_PASSWORD'),
     ],
+    'demo_accounts' => [
+        'enabled' => (bool) env('RAMS_SEED_DEMO_ACCOUNTS', false),
+        'daop_password' => env('RAMS_DAOP_PASSWORD'),
+    ],
 ];
