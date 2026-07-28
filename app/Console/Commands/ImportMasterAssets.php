@@ -43,6 +43,8 @@ class ImportMasterAssets extends Command
             $this->line("Dibuat: {$result['created']}");
             $this->line("Diperbarui: {$result['updated']}");
             $this->line("Dilewati: {$result['skipped']}");
+            $this->line("Pembukaan dibuat: {$result['openings_created']}");
+            $this->line("Pembukaan diperbarui: {$result['openings_updated']}");
 
             return self::SUCCESS;
         } catch (Throwable $exception) {

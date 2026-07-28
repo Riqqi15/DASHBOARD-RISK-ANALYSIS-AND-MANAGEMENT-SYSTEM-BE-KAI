@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\AssetSystemController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\RegionalAccountController;
 use App\Http\Controllers\Admin\UnitKerjaController;
+use App\Http\Controllers\Admin\UnitSubsystemOpeningController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\MasterAssetController;
 use Illuminate\Support\Facades\Route;
@@ -59,4 +60,6 @@ Route::middleware(['auth', 'active', 'pusat'])->prefix('admin')->name('admin.')-
     Route::get('accounts/{account}/password', [RegionalAccountController::class, 'editPassword'])->name('accounts.password.edit');
     Route::put('accounts/{account}/password', [RegionalAccountController::class, 'updatePassword'])->name('accounts.password.update');
     Route::get('audit-logs', AuditLogController::class)->name('audit-logs.index');
+    Route::put('unit-subsystem-openings/{opening}', [UnitSubsystemOpeningController::class, 'update'])
+        ->name('unit-subsystem-openings.update');
 });

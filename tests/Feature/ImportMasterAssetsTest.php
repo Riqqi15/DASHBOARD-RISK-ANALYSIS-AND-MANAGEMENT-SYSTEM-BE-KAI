@@ -38,6 +38,8 @@ class ImportMasterAssetsTest extends TestCase
         ]);
 
         $this->artisan('rams:import-master-assets', ['workbook' => $path, '--unit' => 'DAOP-1'])
+            ->expectsOutputToContain('Pembukaan dibuat: 1')
+            ->expectsOutputToContain('Pembukaan diperbarui: 0')
             ->assertSuccessful();
 
         $asset = Asset::query()->sole();
@@ -115,7 +117,7 @@ class ImportMasterAssetsTest extends TestCase
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Predictive Data Asset');
         $sheet->fromArray([
-            'ASET PRASARANA SINTEL', 'System', 'Subsystem', 'TOTAL',
+            'ASET PRASARANA SINTEL', 'System', 'Subsystem', 'TOTAL', 'Sparepart IN', 'Sparepart OUT',
         ], null, 'A2');
         $sheet->setCellValue('AA2', $validHeaders ? 'Tanggal Pemasangan' : 'Tanggal Salah');
 

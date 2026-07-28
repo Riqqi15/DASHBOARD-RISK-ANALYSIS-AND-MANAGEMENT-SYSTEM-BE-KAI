@@ -26,6 +26,16 @@ class AssetSubsystem extends Model
         return $this->hasMany(Asset::class);
     }
 
+    public function openings(): HasMany
+    {
+        return $this->unitSubsystemOpenings();
+    }
+
+    public function unitSubsystemOpenings(): HasMany
+    {
+        return $this->hasMany(UnitSubsystemOpening::class);
+    }
+
     protected static function booted(): void
     {
         static::saving(function (self $category): void {

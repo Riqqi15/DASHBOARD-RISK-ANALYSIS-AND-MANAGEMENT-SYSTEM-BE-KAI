@@ -26,6 +26,16 @@ class UnitKerja extends Model
         return $this->hasMany(Asset::class);
     }
 
+    public function openings(): HasMany
+    {
+        return $this->unitSubsystemOpenings();
+    }
+
+    public function unitSubsystemOpenings(): HasMany
+    {
+        return $this->hasMany(UnitSubsystemOpening::class);
+    }
+
     protected function casts(): array
     {
         return [
