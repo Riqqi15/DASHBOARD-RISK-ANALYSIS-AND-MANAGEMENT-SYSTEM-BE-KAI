@@ -12,7 +12,11 @@ use App\Services\AssetCategoryBackfill;
 use App\Services\AssetCategoryResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use RuntimeException;
+use Symfony\Component\Process\Process;
 use Tests\TestCase;
 use Throwable;
 
@@ -248,20 +252,24 @@ class AssetCategoryBackfillTest extends TestCase
             'last_imported_at' => now(),
         ]);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('book.xlsx');
-        $this->expectExceptionMessage('Sheet X');
-        $this->expectExceptionMessage('row 7');
-        $this->expectExceptionMessage('missing group');
-
-        app(AssetCategoryResolver::class)->resolve(
-            'Missing Group',
-            'System',
-            'Subsystem',
-            'book.xlsx',
-            'Sheet X',
-            7,
-        );
+        try {
+            app(AssetCategoryResolver::class)->resolve(
+                'Missing Group',
+                'System',
+                'Subsystem',
+                'book.xlsx',
+                'Sheet X',
+                7,
+            );
+            $this->fail('Expected a missing alias target to fail resolution.');
+        } catch (Throwable $exception) {
+            $this->assertSame(RuntimeException::class, $exception::class);
+            $this->assertStringContainsString('resolution conflict', $exception->getMessage());
+            $this->assertStringContainsString('book.xlsx', $exception->getMessage());
+            $this->assertStringContainsString('Sheet X', $exception->getMessage());
+            $this->assertStringContainsString('row 7', $exception->getMessage());
+            $this->assertStringContainsString('missing group', $exception->getMessage());
+        }
     }
 
     public function test_unaliased_inactive_group_conflict_is_contextual_and_atomic(): void
@@ -348,6 +356,171 @@ class AssetCategoryBackfillTest extends TestCase
             ->assertFailed();
     }
 
+    public function test_backfill_retries_the_outer_asset_transaction_after_a_deadlock(): void
+    {
+        $suffix = Str::lower((string) Str::uuid());
+        $groupName = "Retry Group {$suffix}";
+        $systemName = "Retry System {$suffix}";
+        $subsystemName = "Retry Subsystem {$suffix}";
+
+        try {
+            $process = $this->categoryResolverProcess([
+                'retry-backfill',
+                $groupName,
+                $systemName,
+                $subsystemName,
+            ]);
+            $process->setTimeout(30);
+            $process->mustRun();
+            $result = json_decode($process->getOutput(), true, 512, JSON_THROW_ON_ERROR);
+
+            $this->assertSame(2, $result['attempts']);
+            $this->assertSame(1, $result['linked']);
+            $this->assertSame(0, $result['skipped']);
+            $this->assertNotNull($result['asset_subsystem_id']);
+        } finally {
+            $cleanup = $this->categoryResolverProcess([
+                'cleanup',
+                $groupName,
+                $systemName,
+                $subsystemName,
+            ]);
+            $cleanup->setTimeout(30);
+            $cleanup->mustRun();
+        }
+    }
+
+    public function test_failure_reports_committed_progress_and_original_diagnostic_context(): void
+    {
+        $first = $this->legacyAsset([
+            'aset_prasarana_sintel' => 'First Valid Group',
+            'system' => 'First Valid System',
+            'subsystem' => 'First Valid Subsystem',
+        ]);
+        $second = $this->legacyAsset([
+            'aset_prasarana_sintel' => 'Second Broken Group',
+            'system' => 'Second Broken System',
+            'subsystem' => 'Second Broken Subsystem',
+        ]);
+        AssetCategorySourceAlias::query()->create([
+            'category_type' => 'group',
+            'category_id' => 999999,
+            'source_path' => 'Second Broken Group',
+            'normalized_source_path' => 'second broken group',
+            'workbook_name' => 'old.xlsx',
+            'sheet_name' => 'Old Sheet',
+            'first_imported_at' => now(),
+            'last_imported_at' => now(),
+        ]);
+
+        $exitCode = Artisan::call('rams:backfill-asset-categories');
+        $output = preg_replace('/\s+/u', ' ', Artisan::output()) ?? Artisan::output();
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('Backfill kategori aset gagal:', $output);
+        $this->assertStringContainsString('Terhubung: 1', $output);
+        $this->assertStringContainsString('Dilewati: 0', $output);
+        $this->assertStringContainsString('legacy-database', $output);
+        $this->assertStringContainsString('assets', $output);
+        $this->assertStringContainsString("row {$second->id}", $output);
+        $this->assertStringContainsString('second broken group', $output);
+        $this->assertNotNull($first->fresh()->asset_subsystem_id);
+        $this->assertNull($second->fresh()->asset_subsystem_id);
+        $this->assertDatabaseHas('asset_category_source_aliases', [
+            'category_type' => 'subsystem',
+            'normalized_source_path' => 'first valid group|first valid system|first valid subsystem',
+        ]);
+    }
+
+    public function test_two_independent_processes_resolve_one_unseen_path_without_duplicates(): void
+    {
+        $suffix = Str::lower((string) Str::uuid());
+        $groupName = "Concurrent Group {$suffix}";
+        $systemName = "Concurrent System {$suffix}";
+        $subsystemName = "Concurrent Subsystem {$suffix}";
+        $barrier = storage_path("framework/testing/category-resolver-{$suffix}");
+        $processes = [];
+
+        File::ensureDirectoryExists(dirname($barrier));
+
+        try {
+            foreach ([1, 2] as $worker) {
+                $process = $this->categoryResolverProcess([
+                    'resolve',
+                    $groupName,
+                    $systemName,
+                    $subsystemName,
+                    $barrier,
+                    (string) $worker,
+                ]);
+                $process->setTimeout(30);
+                $process->start();
+                $processes[] = $process;
+            }
+
+            $deadline = microtime(true) + 15;
+            while (! File::exists("{$barrier}.1.ready") || ! File::exists("{$barrier}.2.ready")) {
+                foreach ($processes as $process) {
+                    if ($process->isTerminated()) {
+                        $this->fail('Concurrency worker exited before the barrier: '.$process->getErrorOutput());
+                    }
+                }
+
+                if (microtime(true) >= $deadline) {
+                    $this->fail('Timed out waiting for concurrency workers to reach the barrier.');
+                }
+
+                usleep(10_000);
+            }
+
+            File::put("{$barrier}.go", 'go');
+            $resolvedIds = [];
+
+            foreach ($processes as $process) {
+                $process->wait();
+                $this->assertTrue(
+                    $process->isSuccessful(),
+                    trim($process->getErrorOutput().' '.$process->getOutput()),
+                );
+                $resolvedIds[] = json_decode($process->getOutput(), true, 512, JSON_THROW_ON_ERROR);
+            }
+
+            $this->assertSame($resolvedIds[0], $resolvedIds[1]);
+            $this->assertSame(1, AssetGroup::query()->where('normalized_name', mb_strtolower($groupName))->count());
+            $this->assertSame(1, AssetSystem::query()->where('normalized_name', mb_strtolower($systemName))->count());
+            $this->assertSame(1, AssetSubsystem::query()->where('normalized_name', mb_strtolower($subsystemName))->count());
+            $this->assertSame(3, AssetCategorySourceAlias::query()
+                ->whereIn('normalized_source_path', [
+                    mb_strtolower($groupName),
+                    mb_strtolower($groupName.'|'.$systemName),
+                    mb_strtolower($groupName.'|'.$systemName.'|'.$subsystemName),
+                ])
+                ->count());
+        } finally {
+            File::put("{$barrier}.go", 'go');
+            foreach ($processes as $process) {
+                if ($process->isRunning()) {
+                    $process->stop(1);
+                }
+            }
+
+            $cleanup = $this->categoryResolverProcess([
+                'cleanup',
+                $groupName,
+                $systemName,
+                $subsystemName,
+            ]);
+            $cleanup->setTimeout(30);
+            $cleanup->mustRun();
+
+            File::delete([
+                "{$barrier}.go",
+                "{$barrier}.1.ready",
+                "{$barrier}.2.ready",
+            ]);
+        }
+    }
+
     public function test_rerun_does_not_touch_an_already_linked_asset_or_its_aliases(): void
     {
         Carbon::setTestNow('2026-07-28 08:00:00');
@@ -375,6 +548,22 @@ class AssetCategoryBackfillTest extends TestCase
             'system' => 'Peraga Sinyal Elektrik',
             'subsystem' => 'Axle Counter',
         ], $attributes));
+    }
+
+    /** @param list<string> $arguments */
+    private function categoryResolverProcess(array $arguments): Process
+    {
+        return new Process(
+            [PHP_BINARY, base_path('tests/Support/AssetCategoryResolverProcess.php'), ...$arguments],
+            base_path(),
+            [
+                'APP_ENV' => 'testing',
+                'DB_CONNECTION' => 'mysql',
+                'DB_HOST' => '127.0.0.1',
+                'DB_PORT' => '3307',
+                'DB_DATABASE' => 'rams_testing',
+            ],
+        );
     }
 
     /** @return array{groups:int, systems:int, subsystems:int, aliases:int} */

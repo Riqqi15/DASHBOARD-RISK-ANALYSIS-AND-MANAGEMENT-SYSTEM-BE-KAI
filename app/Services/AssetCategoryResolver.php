@@ -32,7 +32,7 @@ class AssetCategoryResolver
         $displayNames = array_map($this->displayName(...), $sourceNames);
         $normalizedNames = array_map($this->normalize(...), $sourceNames);
 
-        return DB::transaction(function () use (
+        $resolve = function () use (
             $sourceNames,
             $displayNames,
             $normalizedNames,
@@ -79,7 +79,13 @@ class AssetCategoryResolver
             );
 
             return compact('group', 'system', 'subsystem');
-        }, 3);
+        };
+
+        if (DB::connection()->transactionLevel() > 0) {
+            return $resolve();
+        }
+
+        return DB::transaction($resolve, 3);
     }
 
     public function normalize(string $value): string

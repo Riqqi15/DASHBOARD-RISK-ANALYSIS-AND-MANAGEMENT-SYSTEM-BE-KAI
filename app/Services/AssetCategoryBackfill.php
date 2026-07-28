@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Asset;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
+use Throwable;
 
 class AssetCategoryBackfill
 {
@@ -15,56 +17,64 @@ class AssetCategoryBackfill
         $linked = 0;
         $skipped = 0;
 
-        Asset::query()
-            ->whereNull('asset_subsystem_id')
-            ->orderBy('id')
-            ->chunkById(100, function ($assets) use (&$linked, &$skipped): void {
-                foreach ($assets as $asset) {
-                    $group = (string) $asset->aset_prasarana_sintel;
-                    $system = (string) $asset->system;
-                    $subsystem = (string) $asset->subsystem;
+        try {
+            Asset::query()
+                ->whereNull('asset_subsystem_id')
+                ->orderBy('id')
+                ->chunkById(100, function ($assets) use (&$linked, &$skipped): void {
+                    foreach ($assets as $asset) {
+                        $group = (string) $asset->aset_prasarana_sintel;
+                        $system = (string) $asset->system;
+                        $subsystem = (string) $asset->subsystem;
 
-                    if (
-                        $this->resolver->normalize($group) === ''
-                        || $this->resolver->normalize($system) === ''
-                        || $this->resolver->normalize($subsystem) === ''
-                    ) {
-                        $skipped++;
+                        if (
+                            $this->resolver->normalize($group) === ''
+                            || $this->resolver->normalize($system) === ''
+                            || $this->resolver->normalize($subsystem) === ''
+                        ) {
+                            $skipped++;
 
-                        continue;
-                    }
-
-                    $wasLinked = DB::transaction(function () use ($asset, $group, $system, $subsystem): bool {
-                        $lockedAsset = Asset::query()
-                            ->whereKey($asset->id)
-                            ->whereNull('asset_subsystem_id')
-                            ->lockForUpdate()
-                            ->first();
-
-                        if (! $lockedAsset) {
-                            return false;
+                            continue;
                         }
 
-                        $categories = $this->resolver->resolve(
-                            $group,
-                            $system,
-                            $subsystem,
-                            'legacy-database',
-                            'assets',
-                            $lockedAsset->id,
-                        );
+                        $wasLinked = DB::transaction(function () use ($asset, $group, $system, $subsystem): bool {
+                            $lockedAsset = Asset::query()
+                                ->whereKey($asset->id)
+                                ->whereNull('asset_subsystem_id')
+                                ->lockForUpdate()
+                                ->first();
 
-                        $lockedAsset->asset_subsystem_id = $categories['subsystem']->id;
-                        $lockedAsset->save();
+                            if (! $lockedAsset) {
+                                return false;
+                            }
 
-                        return true;
-                    });
+                            $categories = $this->resolver->resolve(
+                                $group,
+                                $system,
+                                $subsystem,
+                                'legacy-database',
+                                'assets',
+                                $lockedAsset->id,
+                            );
 
-                    if ($wasLinked) {
-                        $linked++;
+                            $lockedAsset->asset_subsystem_id = $categories['subsystem']->id;
+                            $lockedAsset->save();
+
+                            return true;
+                        }, 3);
+
+                        if ($wasLinked) {
+                            $linked++;
+                        }
                     }
-                }
-            });
+                });
+        } catch (Throwable $exception) {
+            throw new RuntimeException(
+                "Backfill berhenti. Terhubung: {$linked}. Dilewati: {$skipped}. {$exception->getMessage()}",
+                0,
+                $exception,
+            );
+        }
 
         return compact('linked', 'skipped');
     }
