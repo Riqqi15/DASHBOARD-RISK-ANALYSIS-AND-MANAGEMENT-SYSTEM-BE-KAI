@@ -6,6 +6,7 @@ use App\Models\UnitKerja;
 use App\Models\User;
 use App\Services\AuditLogger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use LogicException;
 use Tests\TestCase;
 
 class AuditLoggerTest extends TestCase
@@ -65,5 +66,24 @@ class AuditLoggerTest extends TestCase
 
         $this->assertSame($actor->id, $audit->actor_id);
         $this->assertGuest();
+    }
+
+    public function test_logger_rejects_an_explicit_unsaved_actor_instead_of_falling_back_to_auth(): void
+    {
+        $authenticatedActor = User::factory()->pusat()->create();
+        $unit = UnitKerja::factory()->create();
+        $this->actingAs($authenticatedActor);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Actor audit eksplisit harus sudah tersimpan.');
+
+        try {
+            app(AuditLogger::class)->record('unit.updated', $unit, [], ['name' => 'Baru'], new User([
+                'name' => 'Belum tersimpan',
+                'username' => 'unsaved.actor',
+            ]));
+        } finally {
+            $this->assertDatabaseCount('audit_logs', 0);
+        }
     }
 }

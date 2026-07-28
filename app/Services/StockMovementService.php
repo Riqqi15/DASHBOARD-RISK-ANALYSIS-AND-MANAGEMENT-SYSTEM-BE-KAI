@@ -32,30 +32,37 @@ class StockMovementService
         string $idempotencyKey,
         ?StockMovement $reverses = null,
     ): StockMovement {
-        $this->authorizeActor($actor, $unit);
-        $this->validateMovement($unit, $part, $type, $direction, $quantity, $reverses);
+        $this->validateStaticMovement($type, $direction, $quantity, $reverses);
 
         try {
             return DB::transaction(function () use ($unit, $part, $actor, $type, $direction, $quantity, $movementDate, $referenceNumber, $notes, $idempotencyKey, $reverses): StockMovement {
+                [$authoritativeUnit, $authoritativePart, $authoritativeActor, $authoritativeReverses] = $this->authoritativeModels(
+                    $unit,
+                    $part,
+                    $actor,
+                    $type,
+                    $reverses,
+                );
+
                 $existing = StockMovement::query()
                     ->where('idempotency_key', $idempotencyKey)
                     ->first();
                 if ($existing) {
-                    return $this->resolveIdempotentMovement($existing, $unit, $part, $actor, $type, $direction, $quantity, $movementDate, $referenceNumber, $notes, $reverses);
+                    return $this->resolveIdempotentMovement($existing, $authoritativeUnit, $authoritativePart, $authoritativeActor, $type, $direction, $quantity, $movementDate, $referenceNumber, $notes, $authoritativeReverses);
                 }
 
                 $timestamp = now();
                 InventoryStock::query()->insertOrIgnore([
-                    'unit_kerja_id' => $unit->id,
-                    'spare_part_id' => $part->id,
+                    'unit_kerja_id' => $authoritativeUnit->id,
+                    'spare_part_id' => $authoritativePart->id,
                     'quantity' => 0,
                     'created_at' => $timestamp,
                     'updated_at' => $timestamp,
                 ]);
 
                 $stock = InventoryStock::query()
-                    ->where('unit_kerja_id', $unit->id)
-                    ->where('spare_part_id', $part->id)
+                    ->where('unit_kerja_id', $authoritativeUnit->id)
+                    ->where('spare_part_id', $authoritativePart->id)
                     ->lockForUpdate()
                     ->firstOrFail();
 
@@ -63,7 +70,7 @@ class StockMovementService
                     ->where('idempotency_key', $idempotencyKey)
                     ->first();
                 if ($existingAfterLock) {
-                    return $this->resolveIdempotentMovement($existingAfterLock, $unit, $part, $actor, $type, $direction, $quantity, $movementDate, $referenceNumber, $notes, $reverses);
+                    return $this->resolveIdempotentMovement($existingAfterLock, $authoritativeUnit, $authoritativePart, $authoritativeActor, $type, $direction, $quantity, $movementDate, $referenceNumber, $notes, $authoritativeReverses);
                 }
 
                 $before = $stock->quantity;
@@ -75,9 +82,9 @@ class StockMovementService
                 }
 
                 $movement = StockMovement::query()->create([
-                    'unit_kerja_id' => $unit->id,
-                    'spare_part_id' => $part->id,
-                    'actor_id' => $actor->id,
+                    'unit_kerja_id' => $authoritativeUnit->id,
+                    'spare_part_id' => $authoritativePart->id,
+                    'actor_id' => $authoritativeActor->id,
                     'type' => $type,
                     'direction' => $direction,
                     'quantity' => $quantity,
@@ -86,7 +93,7 @@ class StockMovementService
                     'movement_date' => $movementDate->toDateString(),
                     'reference_number' => $referenceNumber,
                     'notes' => $notes,
-                    'reverses_movement_id' => $reverses?->id,
+                    'reverses_movement_id' => $authoritativeReverses?->id,
                     'idempotency_key' => $idempotencyKey,
                 ]);
 
@@ -96,7 +103,7 @@ class StockMovementService
                     subject: $movement,
                     before: ['quantity' => $before],
                     after: ['quantity' => $after],
-                    actor: $actor,
+                    actor: $authoritativeActor,
                 );
 
                 return $movement;
@@ -106,13 +113,78 @@ class StockMovementService
                 throw $exception;
             }
 
-            $existing = StockMovement::query()->where('idempotency_key', $idempotencyKey)->first();
-            if (! $existing) {
-                throw $exception;
-            }
+            return DB::transaction(function () use ($exception, $unit, $part, $actor, $type, $direction, $quantity, $movementDate, $referenceNumber, $notes, $idempotencyKey, $reverses): StockMovement {
+                [$authoritativeUnit, $authoritativePart, $authoritativeActor, $authoritativeReverses] = $this->authoritativeModels(
+                    $unit,
+                    $part,
+                    $actor,
+                    $type,
+                    $reverses,
+                );
+                $existing = StockMovement::query()->where('idempotency_key', $idempotencyKey)->first();
+                if (! $existing) {
+                    throw $exception;
+                }
 
-            return $this->resolveIdempotentMovement($existing, $unit, $part, $actor, $type, $direction, $quantity, $movementDate, $referenceNumber, $notes, $reverses);
+                return $this->resolveIdempotentMovement($existing, $authoritativeUnit, $authoritativePart, $authoritativeActor, $type, $direction, $quantity, $movementDate, $referenceNumber, $notes, $authoritativeReverses);
+            }, 5);
         }
+    }
+
+    /** @return array{UnitKerja, SparePart, User, StockMovement|null} */
+    private function authoritativeModels(
+        UnitKerja $unit,
+        SparePart $part,
+        User $actor,
+        StockMovementType $type,
+        ?StockMovement $reverses,
+    ): array {
+        if (! $actor->exists || $actor->getKey() === null) {
+            throw new AuthorizationException('Pengguna pencatat transaksi tidak valid.');
+        }
+        $authoritativeActor = User::query()->whereKey($actor->getKey())->sharedLock()->first();
+        if (! $authoritativeActor || ! $authoritativeActor->is_active) {
+            throw new AuthorizationException('Pengguna pencatat transaksi tidak aktif atau tidak ditemukan.');
+        }
+
+        if (! $unit->exists || $unit->getKey() === null) {
+            throw ValidationException::withMessages(['unit_kerja_id' => 'Unit kerja tidak valid.']);
+        }
+        $authoritativeUnit = UnitKerja::query()->whereKey($unit->getKey())->where('is_active', true)->sharedLock()->first();
+        if (! $authoritativeUnit) {
+            throw ValidationException::withMessages(['unit_kerja_id' => 'Unit kerja tidak aktif atau tidak ditemukan.']);
+        }
+        $this->authorizeActor($authoritativeActor, $authoritativeUnit);
+
+        if (! $part->exists || $part->getKey() === null) {
+            throw ValidationException::withMessages(['spare_part_id' => 'Suku cadang tidak valid.']);
+        }
+        $authoritativePart = SparePart::query()
+            ->whereKey($part->getKey())
+            ->when($type !== StockMovementType::Correction, fn ($query) => $query->where('is_active', true))
+            ->sharedLock()
+            ->first();
+        if (! $authoritativePart) {
+            throw ValidationException::withMessages(['spare_part_id' => 'Suku cadang tidak aktif, terhapus, atau tidak ditemukan.']);
+        }
+
+        $authoritativeReverses = null;
+        if ($type === StockMovementType::Correction) {
+            if (! $reverses || ! $reverses->exists || $reverses->getKey() === null || $reverses->isDirty()) {
+                throw ValidationException::withMessages(['reverses_movement_id' => 'Transaksi sumber koreksi tidak valid.']);
+            }
+            $authoritativeReverses = StockMovement::query()->whereKey($reverses->getKey())->sharedLock()->first();
+            if (! $authoritativeReverses
+                || $authoritativeReverses->type === StockMovementType::Correction
+                || $authoritativeReverses->unit_kerja_id !== $authoritativeUnit->id
+                || $authoritativeReverses->spare_part_id !== $authoritativePart->id) {
+                throw ValidationException::withMessages([
+                    'reverses_movement_id' => 'Koreksi harus merujuk transaksi asli dari unit dan suku cadang yang sama.',
+                ]);
+            }
+        }
+
+        return [$authoritativeUnit, $authoritativePart, $authoritativeActor, $authoritativeReverses];
     }
 
     private function authorizeActor(User $actor, UnitKerja $unit): void
@@ -122,9 +194,7 @@ class StockMovementService
         }
     }
 
-    private function validateMovement(
-        UnitKerja $unit,
-        SparePart $part,
+    private function validateStaticMovement(
         StockMovementType $type,
         StockDirection $direction,
         int $quantity,
@@ -143,17 +213,7 @@ class StockMovementService
             throw ValidationException::withMessages(['direction' => 'Arah transaksi tidak sesuai dengan jenis transaksi.']);
         }
 
-        if ($type === StockMovementType::Correction) {
-            if (! $reverses || $reverses->unit_kerja_id !== $unit->id || $reverses->spare_part_id !== $part->id) {
-                throw ValidationException::withMessages([
-                    'reverses_movement_id' => 'Koreksi harus merujuk transaksi dari unit dan suku cadang yang sama.',
-                ]);
-            }
-
-            return;
-        }
-
-        if ($reverses) {
+        if ($type !== StockMovementType::Correction && $reverses) {
             throw ValidationException::withMessages([
                 'reverses_movement_id' => 'Referensi koreksi hanya dapat digunakan untuk transaksi koreksi.',
             ]);

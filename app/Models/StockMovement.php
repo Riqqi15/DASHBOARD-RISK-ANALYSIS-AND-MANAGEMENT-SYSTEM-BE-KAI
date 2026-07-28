@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use LogicException;
 
 #[Fillable([
     'unit_kerja_id',
@@ -31,6 +32,11 @@ class StockMovement extends Model
 {
     /** @use HasFactory<StockMovementFactory> */
     use HasFactory;
+
+    public function forceDelete(): never
+    {
+        throw new LogicException('Ledger mutasi stok bersifat immutable.');
+    }
 
     public function unitKerja(): BelongsTo
     {
@@ -75,5 +81,15 @@ class StockMovement extends Model
             'stock_after' => 'integer',
             'movement_date' => 'date',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (): never {
+            throw new LogicException('Ledger mutasi stok bersifat immutable.');
+        });
+        static::deleting(function (): never {
+            throw new LogicException('Ledger mutasi stok bersifat immutable.');
+        });
     }
 }

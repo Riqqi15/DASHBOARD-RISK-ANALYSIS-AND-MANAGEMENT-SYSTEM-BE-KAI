@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\StockDirection;
 use App\Enums\StockMovementType;
+use App\Enums\UserRole;
 use App\Models\AuditLog;
 use App\Models\InventoryStock;
 use App\Models\SparePart;
@@ -239,6 +240,210 @@ class StockMovementServiceTest extends TestCase
         $this->assertDatabaseCount('stock_movements', 0);
         $this->assertDatabaseCount('inventory_stocks', 0);
         $this->assertDatabaseCount('audit_logs', 0);
+    }
+
+    public function test_dirty_actor_role_cannot_bypass_authoritative_unit_scope(): void
+    {
+        $ownUnit = UnitKerja::factory()->create();
+        $otherUnit = UnitKerja::factory()->create();
+        $part = SparePart::factory()->create();
+        $actor = User::factory()->unit($ownUnit)->create();
+        $actor->role = UserRole::Pusat;
+        $actor->unit_kerja_id = null;
+
+        $this->expectException(AuthorizationException::class);
+
+        try {
+            $this->record($otherUnit, $part, $actor, StockMovementType::In, StockDirection::In, 1, (string) Str::uuid());
+        } finally {
+            $this->assertDatabaseCount('stock_movements', 0);
+            $this->assertDatabaseCount('inventory_stocks', 0);
+        }
+    }
+
+    public function test_stale_actor_cannot_bypass_database_deactivation_and_unsaved_actor_is_rejected(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $part = SparePart::factory()->create();
+        $staleActor = User::factory()->pusat()->create();
+        User::query()->whereKey($staleActor->id)->update(['is_active' => false]);
+
+        foreach ([$staleActor, User::factory()->pusat()->make()] as $actor) {
+            try {
+                $this->record($unit, $part, $actor, StockMovementType::In, StockDirection::In, 1, (string) Str::uuid());
+                $this->fail('Expected authoritative actor rejection.');
+            } catch (AuthorizationException) {
+                $this->assertTrue(true);
+            }
+        }
+
+        $this->assertDatabaseCount('stock_movements', 0);
+        $this->assertDatabaseCount('inventory_stocks', 0);
+    }
+
+    public function test_stale_unit_and_part_cannot_bypass_database_deactivation_for_normal_movement(): void
+    {
+        $actor = User::factory()->pusat()->create();
+        $unit = UnitKerja::factory()->create();
+        $part = SparePart::factory()->create();
+        UnitKerja::query()->whereKey($unit->id)->update(['is_active' => false]);
+        SparePart::query()->whereKey($part->id)->update(['is_active' => false]);
+
+        foreach ([
+            [$unit, SparePart::factory()->create(), 'unit_kerja_id'],
+            [UnitKerja::factory()->create(), $part, 'spare_part_id'],
+        ] as [$candidateUnit, $candidatePart, $field]) {
+            try {
+                $this->record($candidateUnit, $candidatePart, $actor, StockMovementType::In, StockDirection::In, 1, (string) Str::uuid());
+                $this->fail("Expected {$field} validation failure.");
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey($field, $exception->errors());
+            }
+        }
+
+        $this->assertDatabaseCount('stock_movements', 0);
+        $this->assertDatabaseCount('inventory_stocks', 0);
+    }
+
+    public function test_unsaved_unit_and_part_are_rejected_before_any_ledger_write(): void
+    {
+        $actor = User::factory()->pusat()->create();
+        $persistedUnit = UnitKerja::factory()->create();
+        $persistedPart = SparePart::factory()->create();
+
+        foreach ([
+            [UnitKerja::factory()->make(), $persistedPart, 'unit_kerja_id'],
+            [$persistedUnit, SparePart::factory()->make(), 'spare_part_id'],
+        ] as [$unit, $part, $field]) {
+            try {
+                $this->record($unit, $part, $actor, StockMovementType::In, StockDirection::In, 1, (string) Str::uuid());
+                $this->fail("Expected unsaved {$field} validation failure.");
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey($field, $exception->errors());
+            }
+        }
+
+        $this->assertDatabaseCount('stock_movements', 0);
+        $this->assertDatabaseCount('inventory_stocks', 0);
+    }
+
+    public function test_idempotent_retry_revalidates_authoritative_part_state(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $part = SparePart::factory()->create();
+        $actor = User::factory()->pusat()->create();
+        $key = (string) Str::uuid();
+        $original = $this->record($unit, $part, $actor, StockMovementType::In, StockDirection::In, 2, $key);
+        SparePart::query()->whereKey($part->id)->update(['is_active' => false]);
+
+        try {
+            $this->record($unit, $part, $actor, StockMovementType::In, StockDirection::In, 2, $key);
+            $this->fail('Expected inactive authoritative part rejection.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('spare_part_id', $exception->errors());
+        }
+
+        $this->assertDatabaseCount('stock_movements', 1);
+        $this->assertSame(2, $original->stock_after);
+        $this->assertSame(2, InventoryStock::query()->whereBelongsTo($unit)->whereBelongsTo($part)->value('quantity'));
+    }
+
+    public function test_correction_allows_inactive_historical_part_and_multiple_adjustments_to_original(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $part = SparePart::factory()->create();
+        $actor = User::factory()->pusat()->create();
+        $original = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 10, (string) Str::uuid());
+        SparePart::query()->whereKey($part->id)->update(['is_active' => false]);
+
+        $first = $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::Out, 2, Carbon::parse('2026-07-28'), null, 'Koreksi pertama', (string) Str::uuid(), $original);
+        $second = $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, 'Koreksi kedua', (string) Str::uuid(), $original);
+
+        $this->assertSame($original->id, $first->reverses_movement_id);
+        $this->assertSame($original->id, $second->reverses_movement_id);
+        $this->assertSame(9, InventoryStock::query()->whereBelongsTo($unit)->whereBelongsTo($part)->value('quantity'));
+        $this->assertLedgerMatchesStock($unit, $part);
+    }
+
+    public function test_correction_rejects_trashed_part_dirty_missing_and_unsaved_source(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $part = SparePart::factory()->create();
+        $actor = User::factory()->pusat()->create();
+        $original = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 5, (string) Str::uuid());
+
+        $dirty = $original->replicate();
+        $dirty->exists = true;
+        $dirty->id = $original->id;
+        $dirty->unit_kerja_id = UnitKerja::factory()->create()->id;
+        try {
+            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $dirty);
+            $this->fail('Expected dirty source validation failure.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('reverses_movement_id', $exception->errors());
+        }
+
+        $unsaved = new StockMovement([
+            'unit_kerja_id' => $unit->id,
+            'spare_part_id' => $part->id,
+            'type' => StockMovementType::Opening,
+        ]);
+        try {
+            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $unsaved);
+            $this->fail('Expected unsaved source validation failure.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('reverses_movement_id', $exception->errors());
+        }
+
+        StockMovement::query()->whereKey($original->id)->delete();
+        try {
+            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $original);
+            $this->fail('Expected missing source validation failure.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('reverses_movement_id', $exception->errors());
+        }
+
+        $replacement = StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create();
+        $part->delete();
+        try {
+            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $replacement);
+            $this->fail('Expected trashed part validation failure.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('spare_part_id', $exception->errors());
+        }
+    }
+
+    public function test_correction_cannot_reverse_another_correction(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $part = SparePart::factory()->create();
+        $actor = User::factory()->pusat()->create();
+        $original = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 5, (string) Str::uuid());
+        $correction = $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::Out, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $original);
+
+        $this->expectException(ValidationException::class);
+
+        $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $correction);
+    }
+
+    public function test_stock_movement_model_rejects_update_delete_and_force_delete(): void
+    {
+        $movement = StockMovement::factory()->create(['notes' => 'Asli']);
+
+        foreach (['update', 'delete', 'forceDelete'] as $operation) {
+            try {
+                match ($operation) {
+                    'update' => $movement->update(['notes' => 'Diubah']),
+                    'delete' => $movement->delete(),
+                    'forceDelete' => $movement->forceDelete(),
+                };
+                $this->fail("Expected immutable movement {$operation} guard.");
+            } catch (\LogicException $exception) {
+                $this->assertSame('Ledger mutasi stok bersifat immutable.', $exception->getMessage());
+            }
+        }
+
+        $this->assertDatabaseHas('stock_movements', ['id' => $movement->id, 'notes' => 'Asli']);
     }
 
     public function test_concurrent_out_never_overspends_and_keeps_ledger_consistent(): void
