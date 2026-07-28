@@ -6,6 +6,7 @@ import { MapPin, Pencil, Trash2 } from 'lucide-vue-next'
 const props = defineProps({
   rows: { type: Array, required: true },
   assets: { type: Array, required: true },
+  legacySummary: { type: Object, default: null },
   statusOptions: { type: Array, required: true },
 })
 
@@ -33,9 +34,9 @@ const cards = computed(() => props.assets.map((asset) => {
   return {
     asset,
     breadcrumb: names.join(' / '),
-    total: row?.total ?? asset.jumlah_unit ?? 0,
-    sparepart_in: row?.sparepart_in ?? 0,
-    sparepart_out: row?.sparepart_out ?? 0,
+    total: row?.total ?? props.legacySummary?.total ?? asset.jumlah_unit ?? 0,
+    sparepart_in: row?.sparepart_in ?? props.legacySummary?.sparepart_in ?? 0,
+    sparepart_out: row?.sparepart_out ?? props.legacySummary?.sparepart_out ?? 0,
   }
 }))
 </script>

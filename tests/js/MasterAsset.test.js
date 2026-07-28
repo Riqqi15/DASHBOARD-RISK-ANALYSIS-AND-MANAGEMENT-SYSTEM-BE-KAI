@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MasterAsset from '@/pages/master-data/assets/MasterAsset.vue'
+import AssetHierarchyTable from '@/pages/master-data/assets/Partials/AssetHierarchyTable.vue'
 
 const inertia = vi.hoisted(() => ({
   get: vi.fn(),
@@ -49,7 +50,19 @@ const props = {
       name: 'Peraga Sinyal Elektrik',
       asset_group: { id: 1, name: 'Peralatan Luar Sinyal Elektrik' },
     },
+  }, {
+    id: 102,
+    name: 'Axle Counter',
+    total: 19,
+    sparepart_in: 3,
+    sparepart_out: 1,
+    asset_system: {
+      id: 11,
+      name: 'Peraga Sinyal Elektrik',
+      asset_group: { id: 1, name: 'Peralatan Luar Sinyal Elektrik' },
+    },
   }],
+  legacySummary: null,
   stats: { total_assets: 1, total_units: 12, active_assets: 1, unique_subsystems: 1 },
   filters: { search: '', status: '', unit_kerja_id: '' },
   units: [{ id: 1, code: 'DAOP-1', name: 'Daerah Operasi 1 Jakarta' }],
@@ -84,11 +97,13 @@ describe('MasterAsset', () => {
     expect(wrapper.text()).toContain('DAOP-1')
     expect(wrapper.text()).toContain('Belum dilengkapi')
     expect(wrapper.text()).toContain('12')
-    expect(wrapper.get('[data-desktop-hierarchy]').text()).toContain('Sparepart IN')
-    expect(wrapper.get('[data-mobile-hierarchy]').text()).toContain('Track Circuit Backend')
-    expect(wrapper.text()).toContain('81')
-    expect(wrapper.text()).toContain('7')
-    expect(wrapper.text()).toContain('2')
+    const desktop = wrapper.getComponent(AssetHierarchyTable)
+    expect(desktop.text()).toContain('Sparepart IN')
+    expect(desktop.text()).toContain('Track Circuit Backend')
+    expect(desktop.text()).toContain('Belum dilengkapi')
+    expect(desktop.text()).toContain('Aktif')
+    expect(desktop.text()).toContain('100')
+    expect(desktop.text()).toContain('Axle Counter')
   })
 
   it('requests server-side filters', async () => {
@@ -118,6 +133,7 @@ describe('MasterAsset', () => {
     const wrapper = mountPage({
       assets: { data: [], links: [], from: null, to: null, total: 0 },
       hierarchy: [],
+      legacySummary: null,
       filters: { search: 'track', status: 'aktif', unit_kerja_id: '' },
     })
 
@@ -133,6 +149,7 @@ describe('MasterAsset', () => {
     const wrapper = mountPage({
       assets: { data: [], links: [], from: null, to: null, total: 0 },
       hierarchy: [],
+      legacySummary: null,
       stats: { total_assets: 0, total_units: 0, active_assets: 0, unique_subsystems: 0 },
     })
 
@@ -155,5 +172,9 @@ describe('MasterAsset', () => {
 
     expect(wrapper.get('[aria-label="Paginasi Master Aset"]').text()).toContain('Sebelumnya')
     expect(wrapper.get('[aria-label="Paginasi Master Aset"]').text()).toContain('Berikutnya')
+    const hierarchy = wrapper.getComponent(AssetHierarchyTable)
+    expect(hierarchy.props('rows')).toHaveLength(2)
+    expect(hierarchy.text()).toContain('100')
+    expect(hierarchy.text()).toContain('Axle Counter')
   })
 })

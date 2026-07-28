@@ -36,6 +36,7 @@ class MasterAssetController extends Controller
         $status = $request->string('status')->toString();
         $unitId = $request->filled('unit_kerja_id') ? $request->integer('unit_kerja_id') : null;
         $query = $this->filteredQuery($request, $search, $status, $unitId);
+        $hierarchyProps = $this->hierarchyProps($request, $query, $unitId);
 
         $stats = [
             'total_assets' => (clone $query)->count(),
@@ -70,7 +71,7 @@ class MasterAssetController extends Controller
 
         return Inertia::render('master-data/assets/MasterAsset', [
             'assets' => $assets,
-            'hierarchy' => $this->assetHierarchyQuery->forUser($request->user(), $unitId),
+            ...$hierarchyProps,
             'stats' => $stats,
             'filters' => [
                 'search' => $search,
@@ -163,6 +164,38 @@ class MasterAssetController extends Controller
                 $request->user()->isPusat() && $unitId,
                 fn (Builder $query): Builder => $query->where('unit_kerja_id', $unitId),
             );
+    }
+
+    private function hierarchyProps(Request $request, Builder $filteredQuery, ?int $unitId): array
+    {
+        $matched = (clone $filteredQuery)
+            ->select('asset_subsystem_id')
+            ->selectRaw('COUNT(*) AS asset_count')
+            ->selectRaw('COALESCE(SUM(jumlah_unit), 0) AS total')
+            ->groupBy('asset_subsystem_id')
+            ->get();
+        $subsystemIds = $matched
+            ->whereNotNull('asset_subsystem_id')
+            ->pluck('asset_subsystem_id')
+            ->map(fn ($id): int => (int) $id)
+            ->values();
+        $hierarchy = $subsystemIds->isEmpty()
+            ? collect()
+            : $this->assetHierarchyQuery
+                ->forUser($request->user(), $unitId)
+                ->whereIn('id', $subsystemIds)
+                ->values();
+        $legacy = $matched->first(fn (Asset $aggregate): bool => $aggregate->asset_subsystem_id === null);
+
+        return [
+            'hierarchy' => $hierarchy,
+            'legacySummary' => $legacy ? [
+                'asset_count' => (int) $legacy->getAttribute('asset_count'),
+                'total' => (int) $legacy->getAttribute('total'),
+                'sparepart_in' => 0,
+                'sparepart_out' => 0,
+            ] : null,
+        ];
     }
 
     private function visibleAsset(Request $request, int $id, bool $withCategory = false): Asset

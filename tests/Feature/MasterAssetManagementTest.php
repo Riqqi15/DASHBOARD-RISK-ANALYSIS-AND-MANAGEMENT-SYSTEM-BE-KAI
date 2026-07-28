@@ -92,6 +92,88 @@ class MasterAssetManagementTest extends TestCase
                 ->where('hierarchy.0.sparepart_out', 2));
     }
 
+    public function test_index_hierarchy_and_legacy_summary_use_the_full_filtered_result_before_pagination(): void
+    {
+        $selectedUnit = UnitKerja::factory()->create();
+        $otherUnit = UnitKerja::factory()->create();
+        $pusat = User::factory()->pusat()->create();
+        [, , $firstSubsystem] = $this->categoryPath(
+            group: ['name' => 'Group A', 'sort_order' => 1],
+            system: ['name' => 'System A', 'sort_order' => 1],
+            subsystem: ['name' => 'Subsystem A', 'sort_order' => 1],
+        );
+        [, , $secondSubsystem] = $this->categoryPath(
+            group: ['name' => 'Group B', 'sort_order' => 2],
+            system: ['name' => 'System B', 'sort_order' => 2],
+            subsystem: ['name' => 'Subsystem B', 'sort_order' => 2],
+        );
+        [, , $filteredOutSubsystem] = $this->categoryPath(
+            group: ['name' => 'Group C', 'sort_order' => 3],
+        );
+
+        foreach (range(1, 15) as $index) {
+            Asset::factory()->for($selectedUnit)->for($firstSubsystem, 'assetSubsystem')->create([
+                'nama_aset' => sprintf('Aset A %02d', $index),
+                'system' => 'A',
+                'subsystem' => 'A',
+                'jumlah_unit' => 1,
+                'status' => AssetStatus::Aktif,
+            ]);
+        }
+        Asset::factory()->for($selectedUnit)->for($secondSubsystem, 'assetSubsystem')->create([
+            'nama_aset' => 'Aset Z',
+            'system' => 'Z',
+            'subsystem' => 'Z',
+            'jumlah_unit' => 50,
+            'status' => AssetStatus::Aktif,
+        ]);
+        foreach ([9, 11] as $total) {
+            Asset::factory()->for($selectedUnit)->create([
+                'asset_subsystem_id' => null,
+                'nama_aset' => "Legacy {$total}",
+                'system' => 'ZZ',
+                'subsystem' => 'ZZ',
+                'jumlah_unit' => $total,
+                'status' => AssetStatus::Aktif,
+            ]);
+        }
+        Asset::factory()->for($selectedUnit)->for($filteredOutSubsystem, 'assetSubsystem')->create([
+            'status' => AssetStatus::Nonaktif,
+            'jumlah_unit' => 70,
+        ]);
+        Asset::factory()->for($otherUnit)->for($firstSubsystem, 'assetSubsystem')->create([
+            'status' => AssetStatus::Aktif,
+            'jumlah_unit' => 100,
+        ]);
+        Asset::factory()->for($otherUnit)->create([
+            'asset_subsystem_id' => null,
+            'status' => AssetStatus::Aktif,
+            'jumlah_unit' => 100,
+        ]);
+
+        $this->actingAs($pusat)
+            ->get("/master-asset?unit_kerja_id={$selectedUnit->id}&status=aktif")
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('assets.data', 15)
+                ->where('assets.data', fn ($assets): bool => collect($assets)->every(
+                    fn (array $asset): bool => $asset['asset_subsystem_id'] === $firstSubsystem->id,
+                ))
+                ->where('hierarchy', function ($rows) use ($firstSubsystem, $secondSubsystem, $filteredOutSubsystem): bool {
+                    $byId = collect($rows)->keyBy('id');
+
+                    return $byId->count() === 2
+                        && $byId->get($firstSubsystem->id)['total'] === 15
+                        && $byId->get($secondSubsystem->id)['total'] === 50
+                        && ! $byId->has($filteredOutSubsystem->id);
+                })
+                ->where('legacySummary', [
+                    'asset_count' => 2,
+                    'total' => 20,
+                    'sparepart_in' => 0,
+                    'sparepart_out' => 0,
+                ]));
+    }
+
     public function test_unit_creates_an_asset_only_for_its_own_unit(): void
     {
         $unit = UnitKerja::factory()->create();

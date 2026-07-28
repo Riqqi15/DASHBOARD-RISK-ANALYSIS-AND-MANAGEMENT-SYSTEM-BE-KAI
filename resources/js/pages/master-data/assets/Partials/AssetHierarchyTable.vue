@@ -1,11 +1,13 @@
 <script setup>
 import { computed, reactive } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, MapPin, Pencil, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps({
   rows: { type: Array, required: true },
   assets: { type: Array, required: true },
+  legacySummary: { type: Object, default: null },
+  statusOptions: { type: Array, required: true },
 })
 
 const emit = defineEmits(['delete'])
@@ -14,16 +16,17 @@ const collapsedGroups = reactive(new Set())
 const collapsedSystems = reactive(new Set())
 const number = (value) => new Intl.NumberFormat('id-ID').format(Number(value) || 0)
 const relation = (row, snake, camel) => row?.[snake] ?? row?.[camel] ?? null
+const statusLabel = (status) => props.statusOptions.find((item) => item.value === status)?.label ?? status
+const statusClass = (status) => ({
+  aktif: 'bg-emerald-50 text-emerald-700 ring-emerald-600/15',
+  nonaktif: 'bg-slate-100 text-slate-600 ring-slate-500/15',
+  dalam_perbaikan: 'bg-amber-50 text-amber-700 ring-amber-600/15',
+}[status] ?? 'bg-slate-100 text-slate-600 ring-slate-500/15')
 
 const groups = computed(() => {
   const grouped = new Map()
-  const usedSubsystems = new Set(
-    props.assets.filter((asset) => asset.asset_subsystem_id != null).map((asset) => String(asset.asset_subsystem_id)),
-  )
 
   for (const row of props.rows) {
-    if (!usedSubsystems.has(String(row.id))) continue
-
     const system = relation(row, 'asset_system', 'assetSystem')
     const group = relation(system, 'asset_group', 'assetGroup')
     if (!system || !group) continue
@@ -46,7 +49,7 @@ const groups = computed(() => {
   }
 
   const legacyAssets = props.assets.filter((asset) => asset.asset_subsystem_id == null)
-  if (legacyAssets.length) {
+  if (props.legacySummary) {
     grouped.set('legacy', {
       id: 'legacy',
       name: 'Belum diklasifikasikan',
@@ -56,9 +59,9 @@ const groups = computed(() => {
         subsystems: [{
           id: 'legacy',
           name: 'Belum diklasifikasikan',
-          total: legacyAssets.reduce((total, asset) => total + (Number(asset.jumlah_unit) || 0), 0),
-          sparepart_in: 0,
-          sparepart_out: 0,
+          total: Number(props.legacySummary.total) || 0,
+          sparepart_in: Number(props.legacySummary.sparepart_in) || 0,
+          sparepart_out: Number(props.legacySummary.sparepart_out) || 0,
           assets: legacyAssets,
         }],
       }]]),
@@ -115,7 +118,8 @@ const systemKey = (groupId, systemId) => `${groupId}-${systemId}`
               {{ group.name }}
             </button>
           </td>
-          <td colspan="2" class="border-b border-slate-200 px-5 py-3 text-xs text-slate-500">Subtotal kelompok</td>
+          <td class="border-b border-slate-200 px-5 py-3 text-xs text-slate-500">Subtotal kelompok</td>
+          <td class="border-b border-slate-200 px-5 py-3" />
           <td class="border-b border-slate-200 px-5 py-3 text-right font-mono text-sm font-semibold tabular-nums">{{ number(group.total) }}</td>
           <td class="border-b border-slate-200 px-5 py-3 text-right font-mono text-sm font-semibold tabular-nums">{{ number(group.sparepart_in) }}</td>
           <td class="border-b border-slate-200 px-5 py-3 text-right font-mono text-sm font-semibold tabular-nums">{{ number(group.sparepart_out) }}</td>
@@ -159,7 +163,19 @@ const systemKey = (groupId, systemId) => `${groupId}-${systemId}`
               <td class="border-b border-slate-100 px-5 py-4">
                 <div class="border-l-2 border-[#F15A24] pl-4">
                   <p class="text-sm font-semibold text-slate-900">{{ subsystem.name }}</p>
-                  <p v-for="asset in subsystem.assets" :key="asset.id" class="mt-1 text-xs text-slate-500">{{ asset.nama_aset }}</p>
+                  <div v-if="subsystem.assets.length" class="mt-2 space-y-2">
+                    <div v-for="asset in subsystem.assets" :key="asset.id" class="rounded-md bg-slate-50 px-3 py-2">
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <p class="text-xs font-medium text-slate-800">{{ asset.nama_aset }}</p>
+                        <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset" :class="statusClass(asset.status)">{{ statusLabel(asset.status) }}</span>
+                      </div>
+                      <p class="mt-1 flex items-center gap-1 text-[11px]" :class="asset.lokasi ? 'text-slate-500' : 'italic text-slate-400'">
+                        <MapPin :size="12" aria-hidden="true" />
+                        {{ asset.lokasi || 'Belum dilengkapi' }}
+                      </p>
+                    </div>
+                  </div>
+                  <p v-else class="mt-1 text-xs italic text-slate-400">Detail aset tersedia di halaman lain</p>
                 </div>
               </td>
               <td class="border-b border-slate-100 px-5 py-4 text-right font-mono text-sm font-semibold tabular-nums text-slate-900">{{ number(subsystem.total) }}</td>
