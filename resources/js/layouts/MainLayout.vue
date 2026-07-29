@@ -14,7 +14,6 @@ import {
   Menu,
   Network,
   Package,
-  RefreshCcw,
   Search,
   ShieldCheck,
   X,
@@ -43,8 +42,7 @@ const menuItems = [
   { name: 'overview', label: 'Executive Overview', to: '/overview', icon: Activity },
   { name: 'master-asset', label: 'Master Aset', to: '/master-asset', icon: Database },
   { name: 'risk-matrix', label: 'Matriks Risiko', to: '/risk-matrix', icon: AlertTriangle },
-  { name: 'inventory', label: 'Predictive Inventory', to: '/inventory', icon: Package },
-  { name: 'reorder-stock', label: 'Reorder Stock', to: '/reorder-stock', icon: RefreshCcw },
+  { name: 'inventory', label: 'Inventori Suku Cadang', to: '/inventory', icon: Package },
 ]
 
 const adminMenuItems = [

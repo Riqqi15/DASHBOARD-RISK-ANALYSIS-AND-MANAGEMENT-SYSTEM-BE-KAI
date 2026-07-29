@@ -155,6 +155,14 @@ class InventoryController extends Controller
         $query = StockMovement::query()
             ->visibleTo($request->user())
             ->select('stock_movements.*')
+            ->selectSub(
+                InventoryStock::query()
+                    ->select('quantity')
+                    ->whereColumn('inventory_stocks.unit_kerja_id', 'stock_movements.unit_kerja_id')
+                    ->whereColumn('inventory_stocks.spare_part_id', 'stock_movements.spare_part_id')
+                    ->limit(1),
+                'current_stock',
+            )
             ->join('spare_parts', 'spare_parts.id', '=', 'stock_movements.spare_part_id')
             ->join('asset_subsystems', 'asset_subsystems.id', '=', 'spare_parts.asset_subsystem_id')
             ->join('asset_systems', 'asset_systems.id', '=', 'asset_subsystems.asset_system_id')
@@ -276,6 +284,8 @@ class InventoryController extends Controller
             'type' => $movement->type->value,
             'direction' => $movement->direction->value,
             'movement_date' => $movement->movement_date->toDateString(),
+            'posted_at' => $movement->created_at?->toIso8601String(),
+            'current_stock' => (int) ($movement->getAttribute('current_stock') ?? 0),
             'spare_part' => $this->partPayload($movement->sparePart),
             'unit' => $this->unitPayload($movement->unitKerja),
             'actor' => $movement->actor?->only(['id', 'name']),

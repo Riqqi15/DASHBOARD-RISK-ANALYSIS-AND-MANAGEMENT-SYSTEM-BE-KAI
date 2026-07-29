@@ -60,6 +60,8 @@ class InventoryIndexTest extends TestCase
                 ->where('stocks.data.0.spare_part.is_active', false)
                 ->has('movements.data', 1)
                 ->where('movements.data.0.spare_part.detail_equipment', 'Relay Lama')
+                ->where('movements.data.0.posted_at', '2026-07-29T10:00:00+07:00')
+                ->where('movements.data.0.current_stock', 4)
                 ->where('filters.unit_kerja_id', '')
                 ->where('can.choose_unit', false)
                 ->where('can.manage_master', false)
