@@ -100,10 +100,12 @@ describe('MovementHistory', () => {
     const loading = mountHistory([source], { loading: true })
     expect(loading.find('[data-history-loading]').exists()).toBe(true)
     expect(loading.text()).not.toContain('Relay 24 VDC')
+    expect(loading.text()).not.toContain('Belum ada transaksi stok')
 
     const error = mountHistory([source], { error: 'Koneksi terputus.' })
     expect(error.get('[data-history-error]').text()).toContain('Riwayat transaksi tidak dapat dimuat')
     expect(error.text()).not.toContain('BAST-17')
+    expect(error.text()).not.toContain('Belum ada transaksi stok')
     await error.get('[data-history-retry]').trigger('click')
     expect(error.emitted('retry')).toHaveLength(1)
 

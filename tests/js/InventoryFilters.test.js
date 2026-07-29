@@ -18,7 +18,8 @@ const mountFilters = (overrides = {}) => mount(InventoryFilters, {
 describe('InventoryFilters', () => {
   it('filters subsystem choices by group and resets a stale subsystem when the group changes', async () => {
     const wrapper = mountFilters()
-    expect(wrapper.get('#inventory-subsystem').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('#inventory-subsystem').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('#inventory-subsystem').text()).toContain('Radio / Radio Lokomotif')
 
     await wrapper.setProps({ filters: { ...filters, asset_group_id: '1' } })
     expect(wrapper.get('#inventory-subsystem').findAll('option').map((option) => option.text())).toContain('Elektrik / Track Circuit')
@@ -29,6 +30,25 @@ describe('InventoryFilters', () => {
     expect(wrapper.emitted('change')).toEqual([
       [{ key: 'asset_group_id', value: '2' }],
       [{ key: 'asset_subsystem_id', value: '' }],
+    ])
+  })
+
+  it('preserves a subsystem-only deep link until a group is explicitly selected', () => {
+    const wrapper = mountFilters({ filters: { ...filters, asset_subsystem_id: '202' } })
+    const subsystem = wrapper.get('#inventory-subsystem')
+
+    expect(subsystem.attributes('disabled')).toBeUndefined()
+    expect(subsystem.element.value).toBe('202')
+    expect(subsystem.text()).toContain('Radio / Radio Lokomotif')
+    expect(subsystem.text()).toContain('Elektrik / Track Circuit')
+  })
+
+  it('gives every filter control its backend query name', () => {
+    const wrapper = mountFilters({ showUnit: true, activeTab: 'history' })
+
+    expect(wrapper.findAll('input, select').map((field) => field.attributes('name'))).toEqual([
+      'search', 'unit_kerja_id', 'asset_group_id', 'asset_subsystem_id',
+      'movement_type', 'date_from', 'date_to',
     ])
   })
 })

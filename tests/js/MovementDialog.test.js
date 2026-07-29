@@ -5,10 +5,16 @@ import MovementDialog from '@/pages/master-data/inventory/Partials/MovementDialo
 
 enableAutoUnmount(afterEach)
 
-const inertia = vi.hoisted(() => ({ post: vi.fn(), forms: [] }))
+const inertia = vi.hoisted(() => ({ post: vi.fn(), forms: [], handlers: {}, unregisterBefore: vi.fn() }))
 const fetchState = vi.fn()
 
 vi.mock('@inertiajs/vue3', () => ({
+  router: {
+    on: vi.fn((event, callback) => {
+      inertia.handlers[event] = callback
+      return inertia.unregisterBefore
+    }),
+  },
   useForm: (values) => {
     const form = reactive({
       ...values,
@@ -54,6 +60,8 @@ describe('MovementDialog', () => {
   beforeEach(() => {
     inertia.post.mockReset()
     inertia.forms.length = 0
+    inertia.handlers = {}
+    inertia.unregisterBefore.mockReset()
     fetchState.mockReset()
     fetchState.mockResolvedValue({ ok: false })
     vi.stubGlobal('fetch', fetchState)
@@ -158,6 +166,27 @@ describe('MovementDialog', () => {
     expect(wrapper.get('[data-stock-before]').text()).toContain('—')
   })
 
+  it('invalidates a deferred stock-state response before returning early for a new matching stock', async () => {
+    let resolveState
+    fetchState.mockReturnValue(new Promise((resolve) => { resolveState = resolve }))
+    const wrapper = mountDialog({ initialPart: null, spareParts: [part, offPagePart], stocks: props.stocks })
+
+    await wrapper.get('#movement-unit').setValue('7')
+    await wrapper.get('#movement-part').setValue('22')
+    expect(wrapper.text()).toContain('Memverifikasi saldo')
+
+    await wrapper.get('#movement-part').setValue('21')
+    expect(wrapper.find('#movement-type option[value="out"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('Memverifikasi saldo')
+
+    resolveState({ ok: true, json: async () => ({ quantity: 0, can_open: true, can_out: false }) })
+    await flushPromises()
+
+    expect(wrapper.find('#movement-type option[value="opening"]').exists()).toBe(false)
+    expect(wrapper.find('#movement-type option[value="out"]').exists()).toBe(true)
+    expect(wrapper.get('[data-stock-before]').text()).toContain('5')
+  })
+
   it('never submits a hidden unit id for regional row transactions', () => {
     mountDialog({ canChooseUnit: false, units: [], initialStock: props.stocks[0] })
     expect(inertia.forms[0].unit_kerja_id).toBe('')
@@ -218,6 +247,37 @@ describe('MovementDialog', () => {
     expect(wrapper.get('form').attributes('name')).toBe('stock-movement')
     expect(wrapper.get('form').attributes('autocomplete')).toBe('off')
     expect(wrapper.findAll('[placeholder]').every((field) => !field.attributes('placeholder').includes('...'))).toBe(true)
+    expect(wrapper.findAll('input, select, textarea').map((field) => field.attributes('name'))).toEqual([
+      'unit_kerja_id', 'spare_part_id', 'type', 'reference_number', 'quantity', 'movement_date', 'notes',
+    ])
+  })
+
+  it('protects dirty drafts from unload and GET navigation and cleans up the Inertia guard', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const wrapper = mountDialog()
+    await wrapper.get('#movement-quantity').setValue('2')
+
+    const unload = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(unload)
+    expect(unload.defaultPrevented).toBe(true)
+
+    const navigation = { detail: { visit: { method: 'get' } }, preventDefault: vi.fn() }
+    inertia.handlers.before(navigation)
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(navigation.preventDefault).toHaveBeenCalledOnce()
+
+    confirm.mockClear()
+    const mutation = { detail: { visit: { method: 'post' } }, preventDefault: vi.fn() }
+    inertia.handlers.before(mutation)
+    expect(confirm).not.toHaveBeenCalled()
+    expect(mutation.preventDefault).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+    expect(inertia.unregisterBefore).toHaveBeenCalledOnce()
+    const afterCleanup = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(afterCleanup)
+    expect(afterCleanup.defaultPrevented).toBe(false)
+    confirm.mockRestore()
   })
 
   it('returns focus to the movement dialog when an OUT confirmation closes', async () => {

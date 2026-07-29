@@ -238,6 +238,7 @@ class InventoryIndexTest extends TestCase
             'tab' => ['forecast'],
             'page' => [-5],
             'movement_page' => ['bad'],
+            'master_page' => ['bad'],
             'movement_type' => ['transfer'],
             'date_from' => 'not-a-date',
             'date_to' => '2026-99-99',
@@ -252,7 +253,26 @@ class InventoryIndexTest extends TestCase
                 'movement_type' => '',
                 'date_from' => '',
                 'date_to' => '',
+                'master_page' => '1',
             ]));
+    }
+
+    public function test_master_client_page_is_normalized_and_round_trips_without_changing_inventory_scope(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $otherUnit = UnitKerja::factory()->create();
+        $user = User::factory()->unit($unit)->create();
+        $ownPart = SparePart::factory()->create();
+        $otherPart = SparePart::factory()->create();
+        InventoryStock::factory()->for($unit)->for($ownPart)->create();
+        InventoryStock::factory()->for($otherUnit)->for($otherPart)->create();
+
+        $this->actingAs($user)->get('/inventory?tab=master&master_page=2')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.master_page', '2')
+                ->has('stocks.data', 1)
+                ->where('stocks.data.0.unit_kerja_id', $unit->id));
     }
 
     public function test_stock_and_movement_pagination_are_independent_and_preserve_filters(): void

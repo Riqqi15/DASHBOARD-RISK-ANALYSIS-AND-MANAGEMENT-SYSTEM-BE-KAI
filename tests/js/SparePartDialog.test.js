@@ -5,9 +5,15 @@ import SparePartDialog from '@/pages/master-data/inventory/Partials/SparePartDia
 
 enableAutoUnmount(afterEach)
 
-const inertia = vi.hoisted(() => ({ post: vi.fn(), put: vi.fn(), delete: vi.fn(), forms: [] }))
+const inertia = vi.hoisted(() => ({ post: vi.fn(), put: vi.fn(), delete: vi.fn(), forms: [], handlers: {}, unregisterBefore: vi.fn() }))
 
 vi.mock('@inertiajs/vue3', () => ({
+  router: {
+    on: vi.fn((event, callback) => {
+      inertia.handlers[event] = callback
+      return inertia.unregisterBefore
+    }),
+  },
   useForm: (values) => {
     const form = reactive({
       ...values,
@@ -58,6 +64,8 @@ describe('SparePartDialog', () => {
     inertia.put.mockReset()
     inertia.delete.mockReset()
     inertia.forms.length = 0
+    inertia.handlers = {}
+    inertia.unregisterBefore.mockReset()
   })
 
   it('reuses the three-level hierarchy and groups the real master fields', () => {
@@ -190,6 +198,40 @@ describe('SparePartDialog', () => {
     expect(wrapper.get('form').attributes('name')).toBe('spare-part')
     expect(wrapper.get('form').attributes('autocomplete')).toBe('off')
     expect(wrapper.findAll('[placeholder]').every((field) => !field.attributes('placeholder').includes('...'))).toBe(true)
+    expect(wrapper.findAll('input, select, textarea').map((field) => field.attributes('name')).every(Boolean)).toBe(true)
+    expect(wrapper.findAll('input').map((field) => field.attributes('name'))).toEqual([
+      'code', 'unit_of_measure', 'equipment', 'detail_equipment', 'severity',
+      'max_yearly_failure', 'average_yearly_failure', 'max_lead_time_months',
+      'average_lead_time_months', 'safety_stock', 'lead_time_demand', 'reorder_point',
+    ])
+  })
+
+  it('protects dirty drafts from unload and GET navigation and cleans up the Inertia guard', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const wrapper = mountDialog()
+    await wrapper.get('#part-code').setValue('SP-DIRTY')
+
+    const unload = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(unload)
+    expect(unload.defaultPrevented).toBe(true)
+
+    const navigation = { detail: { visit: { method: 'get' } }, preventDefault: vi.fn() }
+    inertia.handlers.before(navigation)
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(navigation.preventDefault).toHaveBeenCalledOnce()
+
+    confirm.mockClear()
+    const mutation = { detail: { visit: { method: 'delete' } }, preventDefault: vi.fn() }
+    inertia.handlers.before(mutation)
+    expect(confirm).not.toHaveBeenCalled()
+    expect(mutation.preventDefault).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+    expect(inertia.unregisterBefore).toHaveBeenCalledOnce()
+    const afterCleanup = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(afterCleanup)
+    expect(afterCleanup.defaultPrevented).toBe(false)
+    confirm.mockRestore()
   })
 
   it('returns focus to the master dialog when deactivate confirmation closes', async () => {

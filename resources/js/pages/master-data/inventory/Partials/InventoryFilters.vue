@@ -14,7 +14,7 @@ const props = defineProps({
 const emit = defineEmits(['change', 'reset'])
 
 const subsystems = computed(() => props.categories
-  .filter((group) => String(group.id) === String(props.filters.asset_group_id))
+  .filter((group) => !props.filters.asset_group_id || String(group.id) === String(props.filters.asset_group_id))
   .flatMap((group) =>
   (group.systems ?? []).flatMap((system) => (system.subsystems ?? []).map((subsystem) => ({
     ...subsystem,
@@ -39,6 +39,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
           <Search :size="17" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           <input
             id="inventory-search"
+            name="search"
             type="search"
             :value="filters.search"
             placeholder="Kode, nama, kategori, unit, atau referensi…"
@@ -58,7 +59,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
 
       <div>
         <label for="inventory-group" class="mb-1.5 block text-sm font-semibold text-slate-700">Kelompok aset</label>
-        <select id="inventory-group" :value="filters.asset_group_id" :class="inputClass" @change="updateGroup">
+        <select id="inventory-group" name="asset_group_id" :value="filters.asset_group_id" :class="inputClass" @change="updateGroup">
           <option value="">Semua kelompok</option>
           <option v-for="group in categories" :key="group.id" :value="String(group.id)">{{ group.name }}</option>
         </select>
@@ -66,7 +67,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
 
       <div>
         <label for="inventory-subsystem" class="mb-1.5 block text-sm font-semibold text-slate-700">Subsystem</label>
-        <select id="inventory-subsystem" :value="filters.asset_subsystem_id" :class="inputClass" :disabled="!filters.asset_group_id" @change="update('asset_subsystem_id', $event)">
+        <select id="inventory-subsystem" name="asset_subsystem_id" :value="filters.asset_subsystem_id" :class="inputClass" :disabled="!categories.length" @change="update('asset_subsystem_id', $event)">
           <option value="">Semua subsystem</option>
           <option v-for="subsystem in subsystems" :key="subsystem.id" :value="String(subsystem.id)">{{ subsystem.label }}</option>
         </select>
@@ -74,7 +75,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
 
       <div v-if="activeTab === 'stock'">
         <label for="inventory-status" class="mb-1.5 block text-sm font-semibold text-slate-700">Kondisi stok</label>
-        <select id="inventory-status" :value="filters.stock_status" :class="inputClass" @change="update('stock_status', $event)">
+        <select id="inventory-status" name="stock_status" :value="filters.stock_status" :class="inputClass" @change="update('stock_status', $event)">
           <option value="all">Semua kondisi</option>
           <option value="available">Tersedia</option>
           <option value="below_reorder">Di bawah reorder point</option>
@@ -86,7 +87,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
       <template v-if="activeTab === 'history'">
         <div>
           <label for="movement-type-filter" class="mb-1.5 block text-sm font-semibold text-slate-700">Jenis transaksi</label>
-          <select id="movement-type-filter" :value="filters.movement_type" :class="inputClass" @change="update('movement_type', $event)">
+          <select id="movement-type-filter" name="movement_type" :value="filters.movement_type" :class="inputClass" @change="update('movement_type', $event)">
             <option value="">Semua jenis</option>
             <option value="in">Masuk</option>
             <option value="out">Keluar</option>
@@ -96,11 +97,11 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
         </div>
         <div>
           <label for="movement-date-from" class="mb-1.5 block text-sm font-semibold text-slate-700">Dari tanggal</label>
-          <input id="movement-date-from" type="date" :value="filters.date_from" :class="inputClass" @change="update('date_from', $event)" />
+          <input id="movement-date-from" name="date_from" type="date" :value="filters.date_from" :class="inputClass" @change="update('date_from', $event)" />
         </div>
         <div>
           <label for="movement-date-to" class="mb-1.5 block text-sm font-semibold text-slate-700">Sampai tanggal</label>
-          <input id="movement-date-to" type="date" :value="filters.date_to" :class="inputClass" @change="update('date_to', $event)" />
+          <input id="movement-date-to" name="date_to" type="date" :value="filters.date_to" :class="inputClass" @change="update('date_to', $event)" />
         </div>
       </template>
     </div>

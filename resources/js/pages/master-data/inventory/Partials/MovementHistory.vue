@@ -89,7 +89,7 @@ const pageLabel = (label) => label.includes('Previous') ? 'Sebelumnya' : label.i
       </article>
     </div>
 
-    <div v-else class="px-5 py-12 text-center">
+    <div v-if="!loading && !error && !movements.data.length" class="px-5 py-12 text-center">
       <History :size="34" class="mx-auto text-slate-300" aria-hidden="true" />
       <h3 class="mt-3 text-sm font-semibold text-slate-900">Belum ada transaksi stok</h3>
       <p class="mt-1 text-sm text-slate-500">Transaksi masuk, keluar, saldo awal, dan koreksi akan tercatat di sini.</p>

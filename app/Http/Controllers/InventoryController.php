@@ -124,6 +124,7 @@ class InventoryController extends Controller
             'movement_type' => StockMovementType::tryFrom($movementType)?->value ?? '',
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
+            'master_page' => (string) $this->page($request->input('master_page')),
         ];
     }
 

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useForm } from '@inertiajs/vue3'
+import { router, useForm } from '@inertiajs/vue3'
 import { AlertTriangle, ArrowRight, X } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -83,10 +83,12 @@ const trackedValues = computed(() => isCorrection.value ? {
 const isDirty = computed(() => JSON.stringify(trackedValues.value) !== initialSnapshot.value)
 
 const resetValues = () => {
+  stateRequest += 1
   localError.value = ''
   confirmingOut.value = false
   confirmingDiscard.value = false
   verifiedState.value = null
+  stateLoading.value = false
   form.clearErrors?.()
   form.idempotency_key = crypto.randomUUID()
   form.movement_date = today
@@ -123,19 +125,26 @@ watch([() => form.quantity, () => form.spare_part_id, () => form.unit_kerja_id, 
   localError.value = ''
   confirmingOut.value = false
 })
-watch([() => form.spare_part_id, () => form.unit_kerja_id], async ([partId, unitId]) => {
+watch([
+  () => form.spare_part_id,
+  () => form.unit_kerja_id,
+  () => matchingStock.value?.id,
+  () => matchingStock.value?.quantity,
+], async ([partId, unitId]) => {
+  const currentRequest = ++stateRequest
   verifiedState.value = null
+  stateLoading.value = false
   if (isCorrection.value || !partId || (props.canChooseUnit && !unitId)) return
   if (matchingStock.value && Number(matchingStock.value.quantity) > 0) return
 
-  const currentRequest = ++stateRequest
   const params = new URLSearchParams()
   if (props.canChooseUnit) params.set('unit_kerja_id', String(unitId))
   params.set('spare_part_id', String(partId))
   stateLoading.value = true
   try {
     const response = await fetch(`/inventory/stock-state?${params.toString()}`, { headers: { Accept: 'application/json' } })
-    if (currentRequest === stateRequest && response.ok) verifiedState.value = await response.json()
+    const state = response.ok ? await response.json() : null
+    if (currentRequest === stateRequest && state) verifiedState.value = state
   } catch {
     // The state remains unknown; server validation still protects every write.
   } finally {
@@ -170,10 +179,30 @@ const handleKeydown = (event) => {
   else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
 }
+const protectsDirtyDraft = () => props.open && isDirty.value && !form.processing
+const handleBeforeUnload = (event) => {
+  if (!protectsDirtyDraft()) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+const handleBeforeVisit = (event) => {
+  if (!protectsDirtyDraft() || String(event.detail?.visit?.method ?? '').toLowerCase() !== 'get') return
+  if (!window.confirm('Perubahan transaksi belum disimpan. Tinggalkan halaman?')) event.preventDefault()
+}
+let unregisterBeforeVisit
 watch(confirmingOut, (open) => { if (open) nextTick(focusFirst) })
 watch(confirmingDiscard, (open) => { if (open) nextTick(focusFirst) })
-onMounted(() => document.addEventListener('keydown', handleKeydown, true))
-onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown, true))
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown, true)
+  window.addEventListener('beforeunload', handleBeforeUnload)
+  unregisterBeforeVisit = router.on?.('before', handleBeforeVisit)
+})
+onBeforeUnmount(() => {
+  stateRequest += 1
+  document.removeEventListener('keydown', handleKeydown, true)
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+  unregisterBeforeVisit?.()
+})
 
 const close = () => {
   if (form.processing) return
@@ -268,28 +297,28 @@ const focusFirstError = () => Object.keys(fieldIds).find((field) => {
           <div v-else class="grid gap-4 sm:grid-cols-2">
             <div v-if="canChooseUnit">
               <label for="movement-unit" class="mb-1.5 block text-sm font-medium text-slate-800">Unit kerja <span class="text-red-600">*</span></label>
-              <select id="movement-unit" v-model="form.unit_kerja_id" :class="inputClass" :aria-invalid="invalid('unit_kerja_id')" :aria-describedby="describedBy('unit_kerja_id')" required>
+              <select id="movement-unit" v-model="form.unit_kerja_id" name="unit_kerja_id" :class="inputClass" :aria-invalid="invalid('unit_kerja_id')" :aria-describedby="describedBy('unit_kerja_id')" required>
                 <option value="">Pilih unit kerja</option><option v-for="unit in units" :key="unit.id" :value="String(unit.id)">{{ unit.code }} — {{ unit.name }}</option>
               </select>
               <p v-if="form.errors.unit_kerja_id" id="movement-unit-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.unit_kerja_id }}</p>
             </div>
             <div :class="canChooseUnit ? '' : 'sm:col-span-2'">
               <label for="movement-part" class="mb-1.5 block text-sm font-medium text-slate-800">Suku cadang <span class="text-red-600">*</span></label>
-              <select id="movement-part" v-model="form.spare_part_id" :class="inputClass" :aria-invalid="invalid('spare_part_id')" :aria-describedby="describedBy('spare_part_id')" required>
+              <select id="movement-part" v-model="form.spare_part_id" name="spare_part_id" :class="inputClass" :aria-invalid="invalid('spare_part_id')" :aria-describedby="describedBy('spare_part_id')" required>
                 <option value="">Pilih suku cadang</option><option v-for="part in spareParts.filter((item) => item.is_active !== false)" :key="part.id" :value="String(part.id)">{{ part.code }} — {{ part.detail_equipment }}</option>
               </select>
               <p v-if="form.errors.spare_part_id" id="movement-part-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.spare_part_id }}</p>
             </div>
             <div>
               <label for="movement-type" class="mb-1.5 block text-sm font-medium text-slate-800">Jenis transaksi <span class="text-red-600">*</span></label>
-              <select id="movement-type" v-model="form.type" :class="inputClass" :aria-invalid="invalid('type')" :aria-describedby="describedBy('type')" required>
+              <select id="movement-type" v-model="form.type" name="type" :class="inputClass" :aria-invalid="invalid('type')" :aria-describedby="describedBy('type')" required>
                 <option value="in">Masuk</option><option v-if="canUseOut" value="out">Keluar</option><option v-if="canUseOpening" value="opening">Saldo awal</option>
               </select>
               <p v-if="form.errors.type" id="movement-type-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.type }}</p>
             </div>
             <div>
               <label for="movement-reference" class="mb-1.5 block text-sm font-medium text-slate-800">Nomor referensi <span class="font-normal text-slate-400">(opsional)</span></label>
-              <input id="movement-reference" v-model="form.reference_number" maxlength="100" :class="inputClass" :aria-invalid="invalid('reference_number')" :aria-describedby="describedBy('reference_number')" placeholder="BAST, tiket, atau dokumen…" />
+              <input id="movement-reference" v-model="form.reference_number" name="reference_number" maxlength="100" :class="inputClass" :aria-invalid="invalid('reference_number')" :aria-describedby="describedBy('reference_number')" placeholder="BAST, tiket, atau dokumen…" />
               <p v-if="form.errors.reference_number" id="movement-reference-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.reference_number }}</p>
             </div>
           </div>
@@ -297,24 +326,24 @@ const focusFirstError = () => Object.keys(fieldIds).find((field) => {
           <div class="grid gap-4 sm:grid-cols-2">
             <div v-if="isCorrection">
               <label for="movement-direction" class="mb-1.5 block text-sm font-medium text-slate-800">Arah koreksi <span class="text-red-600">*</span></label>
-              <select id="movement-direction" v-model="form.direction" :class="inputClass" :aria-invalid="invalid('direction')" :aria-describedby="describedBy('direction')" required><option value="in">Tambah stok</option><option value="out">Kurangi stok</option></select>
+              <select id="movement-direction" v-model="form.direction" name="direction" :class="inputClass" :aria-invalid="invalid('direction')" :aria-describedby="describedBy('direction')" required><option value="in">Tambah stok</option><option value="out">Kurangi stok</option></select>
               <p v-if="form.errors.direction" id="movement-direction-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.direction }}</p>
             </div>
             <div>
               <label for="movement-quantity" class="mb-1.5 block text-sm font-medium text-slate-800">Jumlah <span class="text-red-600">*</span></label>
-              <div class="relative"><input id="movement-quantity" v-model="form.quantity" type="number" min="1" step="1" :class="[inputClass, 'pr-20 font-mono tabular-nums']" :aria-invalid="invalid('quantity')" :aria-describedby="describedBy('quantity')" required /><span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">{{ unitLabel }}</span></div>
+              <div class="relative"><input id="movement-quantity" v-model="form.quantity" name="quantity" type="number" min="1" step="1" :class="[inputClass, 'pr-20 font-mono tabular-nums']" :aria-invalid="invalid('quantity')" :aria-describedby="describedBy('quantity')" required /><span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">{{ unitLabel }}</span></div>
               <p v-if="form.errors.quantity" id="movement-quantity-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.quantity }}</p>
             </div>
             <div>
               <label for="movement-date" class="mb-1.5 block text-sm font-medium text-slate-800">Tanggal operasional <span class="text-red-600">*</span></label>
-              <input id="movement-date" v-model="form.movement_date" type="date" :max="today" :class="inputClass" :aria-invalid="invalid('movement_date')" :aria-describedby="describedBy('movement_date')" required />
+              <input id="movement-date" v-model="form.movement_date" name="movement_date" type="date" :max="today" :class="inputClass" :aria-invalid="invalid('movement_date')" :aria-describedby="describedBy('movement_date')" required />
               <p v-if="form.errors.movement_date" id="movement-date-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.movement_date }}</p>
             </div>
           </div>
 
           <div>
             <label for="movement-notes" class="mb-1.5 block text-sm font-medium text-slate-800">Catatan <span class="font-normal text-slate-400">(opsional)</span></label>
-            <textarea id="movement-notes" v-model="form.notes" rows="3" maxlength="1000" class="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-950 outline-none focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" :aria-invalid="invalid('notes')" :aria-describedby="describedBy('notes')" placeholder="Kondisi barang atau alasan koreksi…" />
+            <textarea id="movement-notes" v-model="form.notes" name="notes" rows="3" maxlength="1000" class="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-950 outline-none focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" :aria-invalid="invalid('notes')" :aria-describedby="describedBy('notes')" placeholder="Kondisi barang atau alasan koreksi…" />
             <p v-if="form.errors.notes" id="movement-notes-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.notes }}</p>
           </div>
 

@@ -94,7 +94,7 @@ const props = {
   units: [unit],
   filters: {
     search: '', asset_group_id: '', asset_subsystem_id: '', stock_status: 'all',
-    unit_kerja_id: '', tab: 'stock', movement_type: '', date_from: '', date_to: '',
+    unit_kerja_id: '', tab: 'stock', movement_type: '', date_from: '', date_to: '', master_page: '1',
   },
   can: { choose_unit: true, manage_master: true, record_movement: true },
 }
@@ -261,7 +261,28 @@ describe('Inventory', () => {
     await wrapper.get('[data-master-next]').trigger('click')
     expect(wrapper.get('[data-master-mobile]').text()).toContain('Suku cadang 51')
     expect(wrapper.get('#inventory-search').element.value).toBe('suku')
-    expect(inertia.get).not.toHaveBeenCalled()
+    expect(inertia.get).toHaveBeenCalledWith('/inventory', expect.objectContaining({ master_page: '2' }), expect.objectContaining({
+      replace: false,
+    }))
+  })
+
+  it('restores the master client page from URL props and resets it for real filter changes', async () => {
+    const manyParts = Array.from({ length: 51 }, (_, index) => ({
+      ...part,
+      id: index + 1,
+      code: `SP-${String(index + 1).padStart(3, '0')}`,
+      detail_equipment: `Suku cadang ${index + 1}`,
+    }))
+    const wrapper = mountPage({ spareParts: manyParts, filters: { ...props.filters, tab: 'master', master_page: '2' } })
+
+    expect(wrapper.get('[data-master-mobile]').text()).toContain('Suku cadang 51')
+    await wrapper.setProps({ filters: { ...props.filters, tab: 'master', master_page: '1' } })
+    expect(wrapper.get('[data-master-mobile]').text()).toContain('Suku cadang 1')
+
+    inertia.get.mockClear()
+    await wrapper.get('#inventory-search').setValue('relay')
+    await vi.waitFor(() => expect(inertia.get).toHaveBeenCalled())
+    expect(inertia.get).toHaveBeenCalledWith('/inventory', expect.objectContaining({ search: 'relay', master_page: '1' }), expect.any(Object))
   })
 
   it('restores focus to the exact movement and master dialog openers after unmount', async () => {

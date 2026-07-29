@@ -24,6 +24,7 @@ const props = defineProps({
 const normalizedFilters = (filters) => ({
   ...filters,
   tab: filters.tab === 'master' && !props.can.manage_master ? 'stock' : filters.tab,
+  master_page: String(filters.master_page || '1'),
 })
 const filterState = reactive(normalizedFilters(props.filters))
 const loading = ref(false)
@@ -40,8 +41,6 @@ const movementOpener = ref(null)
 const partOpener = ref(null)
 const masterPage = ref(1)
 let searchTimer
-
-watch(() => props.filters, (filters) => Object.assign(filterState, normalizedFilters(filters)), { deep: true })
 
 const activeTab = computed(() => filterState.tab)
 const tabs = computed(() => [
@@ -62,20 +61,36 @@ const hasActiveFilters = computed(() => Boolean(
 const masterPageSize = 50
 const masterPageCount = computed(() => Math.max(1, Math.ceil(props.spareParts.length / masterPageSize)))
 const masterPageParts = computed(() => props.spareParts.slice((masterPage.value - 1) * masterPageSize, masterPage.value * masterPageSize))
-watch(() => [props.spareParts, props.filters], () => { masterPage.value = 1 }, { deep: true })
+const pageFromFilters = (filters) => Math.min(
+  Math.max(Number.parseInt(filters.master_page, 10) || 1, 1),
+  masterPageCount.value,
+)
+watch(() => props.filters, (filters) => {
+  Object.assign(filterState, normalizedFilters(filters))
+  masterPage.value = pageFromFilters(filters)
+}, { deep: true, immediate: true })
+watch(() => props.spareParts.length, () => {
+  masterPage.value = Math.min(masterPage.value, masterPageCount.value)
+  filterState.master_page = String(masterPage.value)
+})
 
 const requestFilters = (overrides = {}) => ({ ...filterState, ...overrides })
-const visit = (overrides = {}) => {
+const visit = (overrides = {}, options = {}) => {
   loadError.value = ''
   router.get('/inventory', requestFilters(overrides), {
     preserveState: true,
     preserveScroll: true,
-    replace: true,
+    replace: options.replace ?? true,
   })
+}
+const resetMasterPage = () => {
+  masterPage.value = 1
+  filterState.master_page = '1'
 }
 const changeFilter = ({ key, value }) => {
   filterState[key] = value
   if (key === 'asset_group_id') filterState.asset_subsystem_id = ''
+  resetMasterPage()
   if (key === 'search') {
     clearTimeout(searchTimer)
     searchTimer = setTimeout(() => visit(), 300)
@@ -86,13 +101,23 @@ const resetFilters = () => {
   Object.assign(filterState, {
     search: '', asset_group_id: '', asset_subsystem_id: '', stock_status: 'all', unit_kerja_id: '',
     movement_type: '', date_from: '', date_to: '',
+    master_page: '1',
   })
+  masterPage.value = 1
   visit()
 }
 const switchTab = (tab) => {
   if (tab === activeTab.value) return
   filterState.tab = tab
-  visit({ tab })
+  resetMasterPage()
+  visit({ tab, master_page: '1' })
+}
+const changeMasterPage = (page) => {
+  const nextPage = Math.min(Math.max(page, 1), masterPageCount.value)
+  if (nextPage === masterPage.value) return
+  masterPage.value = nextPage
+  filterState.master_page = String(nextPage)
+  visit({ master_page: String(nextPage) }, { replace: false })
 }
 
 const openMovement = (stock = null) => {
@@ -201,7 +226,7 @@ const masterCategory = (part) => part.category
             <div class="mt-3 flex justify-end"><button type="button" class="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70]" :aria-label="`Ubah suku cadang ${part.detail_equipment}`" @click="openPart(part)"><Pencil :size="16" aria-hidden="true" /> Ubah</button></div>
           </article>
         </div>
-        <nav v-if="!loading && !loadError && spareParts.length && masterPageCount > 1" data-master-pagination class="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-3" aria-label="Paginasi master suku cadang"><p class="text-sm text-slate-500">Halaman {{ masterPage }} dari {{ masterPageCount }}</p><div class="flex gap-2"><button type="button" :disabled="masterPage === 1" class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70] disabled:cursor-not-allowed disabled:opacity-40" @click="masterPage -= 1">Sebelumnya</button><button data-master-next type="button" :disabled="masterPage === masterPageCount" class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70] disabled:cursor-not-allowed disabled:opacity-40" @click="masterPage += 1">Berikutnya</button></div></nav>
+        <nav v-if="!loading && !loadError && spareParts.length && masterPageCount > 1" data-master-pagination class="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-3" aria-label="Paginasi master suku cadang"><p class="text-sm text-slate-500">Halaman {{ masterPage }} dari {{ masterPageCount }}</p><div class="flex gap-2"><button type="button" :disabled="masterPage === 1" class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70] disabled:cursor-not-allowed disabled:opacity-40" @click="changeMasterPage(masterPage - 1)">Sebelumnya</button><button data-master-next type="button" :disabled="masterPage === masterPageCount" class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70] disabled:cursor-not-allowed disabled:opacity-40" @click="changeMasterPage(masterPage + 1)">Berikutnya</button></div></nav>
         <div v-if="!loadError && !loading && !spareParts.length" class="px-5 py-12 text-center"><PackagePlus :size="34" class="mx-auto text-slate-300" aria-hidden="true" /><h3 class="mt-3 text-sm font-semibold text-slate-900">{{ hasActiveFilters ? 'Tidak ada suku cadang sesuai filter' : 'Belum ada master suku cadang' }}</h3><p class="mt-1 text-sm text-slate-500">{{ hasActiveFilters ? 'Hapus filter untuk melihat data master lainnya.' : 'Tambahkan identitas suku cadang pertama untuk mulai mencatat stok.' }}</p><button v-if="hasActiveFilters" data-master-reset type="button" class="mt-4 min-h-11 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70]" @click="resetFilters">Hapus filter master</button><button v-else data-master-create type="button" class="mt-4 min-h-11 rounded-lg bg-[#f26522] px-4 text-sm font-semibold text-white outline-none hover:bg-[#d95418] focus-visible:ring-2 focus-visible:ring-[#f26522] focus-visible:ring-offset-2" @click="openPart()">Tambah suku cadang</button></div>
       </section>
     </div>
