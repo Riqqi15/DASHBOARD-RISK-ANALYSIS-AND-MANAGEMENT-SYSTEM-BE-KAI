@@ -144,6 +144,31 @@ class InventoryIndexTest extends TestCase
                 ->where('stats.movements_this_month', 2));
     }
 
+    public function test_history_marks_only_uncorrected_original_movements_as_correctable(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $user = User::factory()->unit($unit)->create();
+        $part = SparePart::factory()->create();
+        $corrected = StockMovement::factory()->for($unit)->for($part)->for($user, 'actor')->create();
+        $available = StockMovement::factory()->for($unit)->for($part)->for($user, 'actor')->create();
+        $correction = StockMovement::factory()->for($unit)->for($part)->for($user, 'actor')->create([
+            'type' => StockMovementType::Correction,
+            'reverses_movement_id' => $corrected->id,
+        ]);
+
+        $this->actingAs($user)->get('/inventory?tab=history')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('movements.data', function ($rows) use ($corrected, $available, $correction): bool {
+                    $eligibility = collect($rows)->mapWithKeys(
+                        fn (array $row): array => [$row['id'] => $row['is_correctable'] ?? null],
+                    );
+
+                    return $eligibility->get($corrected->id) === false
+                        && $eligibility->get($available->id) === true
+                        && $eligibility->get($correction->id) === false;
+                }));
+    }
+
     public function test_stock_status_boundaries_drive_rows_filters_and_below_reorder_stat(): void
     {
         $unit = UnitKerja::factory()->create();

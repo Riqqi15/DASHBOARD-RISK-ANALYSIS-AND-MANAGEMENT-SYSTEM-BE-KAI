@@ -45,6 +45,10 @@ class CorrectStockMovementRequest extends FormRequest
         return [function (Validator $validator): void {
             if ($this->sourceMovement()->type === StockMovementType::Correction) {
                 $validator->errors()->add('movement', 'Transaksi koreksi tidak dapat dikoreksi kembali.');
+            } elseif ($this->sourceMovement()->corrections()
+                ->where('idempotency_key', '<>', $this->string('idempotency_key')->toString())
+                ->exists()) {
+                $validator->errors()->add('movement', 'Transaksi sumber sudah pernah dikoreksi.');
             }
         }];
     }

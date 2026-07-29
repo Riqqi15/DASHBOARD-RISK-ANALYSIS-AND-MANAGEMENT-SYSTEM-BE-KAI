@@ -25,7 +25,9 @@ const source = {
   spare_part: part,
   unit,
   actor: { id: 1, name: 'Operator Pusat' },
+  is_correctable: true,
 }
+const correctedSource = { ...source, is_correctable: false }
 const correction = {
   ...source,
   id: 42,
@@ -37,9 +39,10 @@ const correction = {
   reference_number: null,
   reverses_movement_id: 41,
   notes: 'Koreksi salah jumlah',
+  is_correctable: false,
 }
 
-const mountHistory = (data = [source, correction], overrides = {}) => mount(MovementHistory, {
+const mountHistory = (data = [correctedSource, correction], overrides = {}) => mount(MovementHistory, {
   props: {
     movements: {
       data,
@@ -85,7 +88,7 @@ describe('MovementHistory', () => {
 
     const corrected = mountHistory()
     expect(corrected.text()).toContain('Koreksi #41')
-    expect(corrected.find('[aria-label="Koreksi transaksi 41"]').exists()).toBe(true)
+    expect(corrected.find('[aria-label="Koreksi transaksi 41"]').exists()).toBe(false)
     expect(corrected.find('[aria-label="Koreksi transaksi 42"]').exists()).toBe(false)
   })
 

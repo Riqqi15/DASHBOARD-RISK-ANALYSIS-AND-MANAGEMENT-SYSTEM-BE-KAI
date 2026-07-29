@@ -368,7 +368,7 @@ class StockMovementServiceTest extends TestCase
         $this->assertSame(2, InventoryStock::query()->whereBelongsTo($unit)->whereBelongsTo($part)->value('quantity'));
     }
 
-    public function test_correction_allows_inactive_historical_part_and_multiple_adjustments_to_original(): void
+    public function test_correction_allows_inactive_historical_part_but_rejects_a_second_adjustment_to_original(): void
     {
         $unit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
@@ -377,11 +377,20 @@ class StockMovementServiceTest extends TestCase
         SparePart::query()->whereKey($part->id)->update(['is_active' => false]);
 
         $first = $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::Out, 2, Carbon::parse('2026-07-28'), null, 'Koreksi pertama', (string) Str::uuid(), $original);
-        $second = $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, 'Koreksi kedua', (string) Str::uuid(), $original);
+
+        try {
+            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, 'Koreksi kedua', (string) Str::uuid(), $original);
+            $this->fail('Expected a repeated correction validation failure.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                'Transaksi sumber sudah pernah dikoreksi.',
+                $exception->errors()['reverses_movement_id'][0] ?? null,
+            );
+        }
 
         $this->assertSame($original->id, $first->reverses_movement_id);
-        $this->assertSame($original->id, $second->reverses_movement_id);
-        $this->assertSame(9, InventoryStock::query()->whereBelongsTo($unit)->whereBelongsTo($part)->value('quantity'));
+        $this->assertSame(8, InventoryStock::query()->whereBelongsTo($unit)->whereBelongsTo($part)->value('quantity'));
+        $this->assertSame(1, StockMovement::query()->where('reverses_movement_id', $original->id)->count());
         $this->assertLedgerMatchesStock($unit, $part);
     }
 

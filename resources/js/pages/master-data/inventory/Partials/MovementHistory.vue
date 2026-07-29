@@ -11,7 +11,7 @@ const props = defineProps({
 })
 defineEmits(['correct', 'retry', 'reset'])
 
-const canCorrect = (row) => row.type !== 'correction'
+const canCorrect = (row) => row.is_correctable === true
 
 const movementMeta = {
   in: { label: 'Masuk', sign: '+', class: 'text-emerald-700 bg-emerald-50 border-emerald-200' },

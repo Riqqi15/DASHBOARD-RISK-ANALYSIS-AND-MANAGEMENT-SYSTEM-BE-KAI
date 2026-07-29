@@ -290,6 +290,14 @@ class InventoryManagementTest extends TestCase
         $this->actingAs($user)
             ->post(route('stock-movements.correct', $source), $this->correctionPayload())
             ->assertRedirect('/inventory');
+        $this->actingAs($user)
+            ->from('/inventory?tab=history')
+            ->post(route('stock-movements.correct', $source), array_replace($this->correctionPayload(), [
+                'idempotency_key' => '1a04c537-8eb8-4cd1-8e0a-07633169bf24',
+            ]))
+            ->assertSessionHasErrors([
+                'movement' => 'Transaksi sumber sudah pernah dikoreksi.',
+            ]);
 
         $correction = StockMovement::query()->where('type', StockMovementType::Correction)->sole();
         $this->assertSame($unit->id, $correction->unit_kerja_id);

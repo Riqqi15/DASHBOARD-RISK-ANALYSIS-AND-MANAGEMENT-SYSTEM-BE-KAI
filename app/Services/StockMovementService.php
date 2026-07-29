@@ -42,6 +42,7 @@ class StockMovementService
                     $actor,
                     $type,
                     $reverses,
+                    $idempotencyKey,
                 );
 
                 $existing = StockMovement::query()
@@ -129,6 +130,7 @@ class StockMovementService
                     $actor,
                     $type,
                     $reverses,
+                    $idempotencyKey,
                 );
                 $existing = StockMovement::query()->where('idempotency_key', $idempotencyKey)->first();
                 if (! $existing) {
@@ -147,6 +149,7 @@ class StockMovementService
         User $actor,
         StockMovementType $type,
         ?StockMovement $reverses,
+        string $idempotencyKey,
     ): array {
         if (! $actor->exists || $actor->getKey() === null) {
             throw new AuthorizationException('Pengguna pencatat transaksi tidak valid.');
@@ -182,13 +185,20 @@ class StockMovementService
             if (! $reverses || ! $reverses->exists || $reverses->getKey() === null || $reverses->isDirty()) {
                 throw ValidationException::withMessages(['reverses_movement_id' => 'Transaksi sumber koreksi tidak valid.']);
             }
-            $authoritativeReverses = StockMovement::query()->whereKey($reverses->getKey())->sharedLock()->first();
+            $authoritativeReverses = StockMovement::query()->whereKey($reverses->getKey())->lockForUpdate()->first();
             if (! $authoritativeReverses
                 || $authoritativeReverses->type === StockMovementType::Correction
                 || $authoritativeReverses->unit_kerja_id !== $authoritativeUnit->id
                 || $authoritativeReverses->spare_part_id !== $authoritativePart->id) {
                 throw ValidationException::withMessages([
                     'reverses_movement_id' => 'Koreksi harus merujuk transaksi asli dari unit dan suku cadang yang sama.',
+                ]);
+            }
+            if ($authoritativeReverses->corrections()
+                ->where('idempotency_key', '<>', $idempotencyKey)
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'reverses_movement_id' => 'Transaksi sumber sudah pernah dikoreksi.',
                 ]);
             }
         }
