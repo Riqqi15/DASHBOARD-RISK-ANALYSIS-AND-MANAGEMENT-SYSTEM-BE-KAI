@@ -6,6 +6,7 @@ use App\Models\AssetSubsystem;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class AssetHierarchyQuery
 {
@@ -17,8 +18,20 @@ class AssetHierarchyQuery
     {
         $effectiveUnitId = $user->isUnit() ? $user->unit_kerja_id : $unitId;
 
+        $ledger = fn (string $direction) => DB::table('stock_movements')
+            ->join('spare_parts', 'spare_parts.id', '=', 'stock_movements.spare_part_id')
+            ->whereColumn('spare_parts.asset_subsystem_id', 'asset_subsystems.id')
+            ->where('stock_movements.direction', $direction)
+            ->when(
+                $effectiveUnitId !== null,
+                fn ($query) => $query->where('stock_movements.unit_kerja_id', $effectiveUnitId),
+            )
+            ->selectRaw('COALESCE(SUM(stock_movements.quantity), 0)');
+
         return AssetSubsystem::query()
             ->select('asset_subsystems.*')
+            ->selectSub($ledger('in'), 'ledger_in')
+            ->selectSub($ledger('out'), 'ledger_out')
             ->join('asset_systems', 'asset_systems.id', '=', 'asset_subsystems.asset_system_id')
             ->join('asset_groups', 'asset_groups.id', '=', 'asset_systems.asset_group_id')
             ->when(
@@ -56,8 +69,18 @@ class AssetHierarchyQuery
             ->get()
             ->each(function (AssetSubsystem $subsystem): void {
                 $subsystem->setAttribute('total', (int) ($subsystem->getAttribute('total') ?? 0));
-                $subsystem->setAttribute('sparepart_in', (int) ($subsystem->getAttribute('sparepart_in') ?? 0));
-                $subsystem->setAttribute('sparepart_out', (int) ($subsystem->getAttribute('sparepart_out') ?? 0));
+                $subsystem->setAttribute(
+                    'sparepart_in',
+                    (int) ($subsystem->getAttribute('sparepart_in') ?? 0)
+                        + (int) ($subsystem->getAttribute('ledger_in') ?? 0),
+                );
+                $subsystem->setAttribute(
+                    'sparepart_out',
+                    (int) ($subsystem->getAttribute('sparepart_out') ?? 0)
+                        + (int) ($subsystem->getAttribute('ledger_out') ?? 0),
+                );
+                $subsystem->offsetUnset('ledger_in');
+                $subsystem->offsetUnset('ledger_out');
             });
     }
 }
