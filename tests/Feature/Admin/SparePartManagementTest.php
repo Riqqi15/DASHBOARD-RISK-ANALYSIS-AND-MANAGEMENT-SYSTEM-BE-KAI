@@ -239,6 +239,41 @@ class SparePartManagementTest extends TestCase
         $this->assertSame(0, AuditLog::query()->count());
     }
 
+    public function test_manual_source_code_remains_reserved_after_the_spare_part_is_renamed(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $subsystem = AssetSubsystem::factory()->create();
+
+        $this->actingAs($pusat)->post(
+            route('admin.spare-parts.store'),
+            $this->payload($subsystem, ['code' => 'MANUAL-A']),
+        )->assertRedirect(route('inventory', ['tab' => 'master']));
+
+        $part = SparePart::query()->where('code', 'MANUAL-A')->sole();
+        $sourceKey = hash('sha256', 'manual|MANUAL-A');
+        $this->assertSame($sourceKey, $part->source_key);
+
+        $this->actingAs($pusat)->put(
+            route('admin.spare-parts.update', $part),
+            $this->payload($subsystem, ['code' => 'MANUAL-B']),
+        )->assertRedirect(route('inventory', ['tab' => 'master']));
+
+        $part->refresh();
+        $this->assertSame('MANUAL-B', $part->code);
+        $this->assertSame($sourceKey, $part->source_key);
+
+        $this->actingAs($pusat)->post(
+            route('admin.spare-parts.store'),
+            $this->payload($subsystem, ['code' => 'MANUAL-A']),
+        )->assertSessionHasErrors([
+            'code' => 'Kode suku cadang pernah digunakan sebagai identitas sumber dan tidak dapat dipakai ulang.',
+        ]);
+
+        $this->assertSame(1, SparePart::withTrashed()->count());
+        $this->assertSame(1, AuditLog::query()->where('action', 'spare_part.created')->count());
+        $this->assertSame(1, AuditLog::query()->where('action', 'spare_part.updated')->count());
+    }
+
     public function test_validation_enforces_database_bounds_with_indonesian_messages(): void
     {
         $pusat = User::factory()->pusat()->create();

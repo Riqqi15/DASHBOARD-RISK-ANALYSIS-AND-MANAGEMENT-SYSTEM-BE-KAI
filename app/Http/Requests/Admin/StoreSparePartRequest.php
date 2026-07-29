@@ -45,23 +45,49 @@ class StoreSparePartRequest extends FormRequest
     /** @return array<int, callable> */
     public function after(): array
     {
-        return [function (Validator $validator): void {
-            if ($validator->errors()->has('asset_subsystem_id')) {
-                return;
-            }
+        return [
+            function (Validator $validator): void {
+                if ($validator->errors()->has('asset_subsystem_id')) {
+                    return;
+                }
 
-            $pathIsActive = AssetSubsystem::query()
-                ->whereKey($this->integer('asset_subsystem_id'))
-                ->where('is_active', true)
-                ->whereHas('assetSystem', fn ($query) => $query
+                $pathIsActive = AssetSubsystem::query()
+                    ->whereKey($this->integer('asset_subsystem_id'))
                     ->where('is_active', true)
-                    ->whereHas('assetGroup', fn ($group) => $group->where('is_active', true)))
-                ->exists();
+                    ->whereHas('assetSystem', fn ($query) => $query
+                        ->where('is_active', true)
+                        ->whereHas('assetGroup', fn ($group) => $group->where('is_active', true)))
+                    ->exists();
 
-            if (! $pathIsActive) {
-                $validator->errors()->add('asset_subsystem_id', 'Subsistem aset atau kategori induknya tidak aktif atau tidak ditemukan.');
-            }
-        }];
+                if (! $pathIsActive) {
+                    $validator->errors()->add('asset_subsystem_id', 'Subsistem aset atau kategori induknya tidak aktif atau tidak ditemukan.');
+                }
+            },
+            function (Validator $validator): void {
+                if ($validator->errors()->has('code')) {
+                    return;
+                }
+
+                $code = $this->input('code');
+                if (! is_string($code)) {
+                    return;
+                }
+
+                $query = SparePart::withTrashed()
+                    ->where('source_key', hash('sha256', 'manual|'.$code));
+                $current = $this->route('spare_part');
+                if ($current instanceof SparePart) {
+                    $query->where('id', '!=', $current->id);
+                }
+
+                if ($query->exists()) {
+                    $validator->errors()->add(
+                        'code',
+                        'Kode suku cadang pernah digunakan sebagai identitas sumber dan tidak dapat dipakai ulang.',
+                    );
+                }
+            },
+        ];
     }
 
     /** @return array<string, string> */
