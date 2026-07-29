@@ -76,6 +76,26 @@ class StockMovementServiceTest extends TestCase
         $this->assertLedgerMatchesStock($unit, $part);
     }
 
+    public function test_opening_is_authoritative_and_rejected_after_the_first_ledger_movement(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $part = SparePart::factory()->create();
+        $actor = User::factory()->pusat()->create();
+
+        $first = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 4, (string) Str::uuid());
+        $this->assertSame(4, $first->stock_after);
+
+        try {
+            $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 2, (string) Str::uuid());
+            $this->fail('Expected a second opening to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('type', $exception->errors());
+        }
+
+        $this->assertDatabaseCount('stock_movements', 1);
+        $this->assertSame(4, InventoryStock::query()->whereBelongsTo($unit)->whereBelongsTo($part)->value('quantity'));
+    }
+
     public function test_out_rejects_insufficient_stock_without_partial_write(): void
     {
         $unit = UnitKerja::factory()->create();

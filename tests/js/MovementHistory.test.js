@@ -69,6 +69,10 @@ describe('MovementHistory', () => {
     expect(wrapper.text()).toContain('9 → 12')
     expect(wrapper.text()).toContain('Operator Pusat')
     expect(wrapper.text()).toContain('BAST-17')
+    expect(wrapper.get('[data-history-desktop]').text()).toContain('9 → 12')
+    expect(wrapper.get('[data-history-mobile]').text()).toContain('Relay 24 VDC')
+    expect(wrapper.get('[data-history-mobile]').text()).toContain('Operator Pusat')
+    expect(wrapper.get('[aria-label="Paginasi riwayat"] a').classes()).toEqual(expect.arrayContaining(['hover:bg-indigo-50', 'focus-visible:ring-2']))
   })
 
   it('keeps history immutable and starts a linked correction flow', async () => {

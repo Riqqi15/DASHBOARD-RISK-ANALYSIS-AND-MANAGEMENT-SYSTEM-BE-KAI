@@ -14,7 +14,6 @@ import {
   Menu,
   Network,
   Package,
-  Search,
   ShieldCheck,
   X,
 } from 'lucide-vue-next'
@@ -156,11 +155,6 @@ const closeSidebar = () => {
           </div>
 
           <div class="flex items-center gap-2 sm:gap-4">
-            <div class="hidden h-10 w-64 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 xl:flex">
-              <Search :size="17" class="text-slate-400" aria-hidden="true" />
-              <input type="search" placeholder="Cari data…" class="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-slate-400" aria-label="Cari data" />
-            </div>
-
             <div class="relative">
               <button
                 type="button"

@@ -37,9 +37,15 @@ const form = useForm(props.correction ? {
 
 const localError = ref('')
 const confirmingOut = ref(false)
+const confirmingDiscard = ref(false)
+const verifiedState = ref(null)
+const stateLoading = ref(false)
 const closeButton = ref(null)
 const dialogPanel = ref(null)
 const confirmationPanel = ref(null)
+const discardPanel = ref(null)
+const initialSnapshot = ref('')
+let stateRequest = 0
 
 const selectedPart = computed(() => isCorrection.value
   ? props.correction.spare_part
@@ -50,20 +56,37 @@ const selectedUnitId = computed(() => isCorrection.value
 const matchingStock = computed(() => props.stocks.find((row) =>
   String(row.spare_part_id) === String(isCorrection.value ? props.correction.spare_part_id : form.spare_part_id)
   && String(row.unit_kerja_id) === String(selectedUnitId.value)))
-const balanceKnown = computed(() => isCorrection.value || Boolean(matchingStock.value))
+const balanceKnown = computed(() => isCorrection.value || Boolean(matchingStock.value) || Boolean(verifiedState.value))
 const stockBefore = computed(() => Number(isCorrection.value
   ? props.correction.current_stock
-  : (matchingStock.value?.quantity ?? 0)))
+  : (matchingStock.value?.quantity ?? verifiedState.value?.quantity ?? 0)))
 const quantity = computed(() => Number(form.quantity || 0))
 const direction = computed(() => isCorrection.value ? form.direction : (form.type === 'out' ? 'out' : 'in'))
 const projectedStock = computed(() => stockBefore.value + (direction.value === 'out' ? -quantity.value : quantity.value))
 const unitLabel = computed(() => selectedPart.value?.unit_of_measure ?? 'unit')
-const canUseOut = computed(() => balanceKnown.value && stockBefore.value > 0)
-const canUseOpening = computed(() => balanceKnown.value && stockBefore.value === 0)
+const canUseOut = computed(() => isCorrection.value || Boolean(matchingStock.value ? stockBefore.value > 0 : verifiedState.value?.can_out))
+const canUseOpening = computed(() => !isCorrection.value && Boolean(verifiedState.value?.can_open))
+const trackedValues = computed(() => isCorrection.value ? {
+  direction: form.direction,
+  quantity: String(form.quantity),
+  movement_date: form.movement_date,
+  notes: form.notes,
+} : {
+  unit_kerja_id: form.unit_kerja_id,
+  spare_part_id: form.spare_part_id,
+  type: form.type,
+  quantity: String(form.quantity),
+  movement_date: form.movement_date,
+  reference_number: form.reference_number,
+  notes: form.notes,
+})
+const isDirty = computed(() => JSON.stringify(trackedValues.value) !== initialSnapshot.value)
 
 const resetValues = () => {
   localError.value = ''
   confirmingOut.value = false
+  confirmingDiscard.value = false
+  verifiedState.value = null
   form.clearErrors?.()
   form.idempotency_key = crypto.randomUUID()
   form.movement_date = today
@@ -72,6 +95,7 @@ const resetValues = () => {
 
   if (isCorrection.value) {
     form.direction = props.correction.direction === 'out' ? 'in' : 'out'
+    initialSnapshot.value = JSON.stringify(trackedValues.value)
     return
   }
 
@@ -80,6 +104,7 @@ const resetValues = () => {
   form.type = 'in'
   form.direction = 'in'
   form.reference_number = ''
+  initialSnapshot.value = JSON.stringify(trackedValues.value)
 }
 
 watch(() => props.open, (open, previous) => {
@@ -98,6 +123,25 @@ watch([() => form.quantity, () => form.spare_part_id, () => form.unit_kerja_id, 
   localError.value = ''
   confirmingOut.value = false
 })
+watch([() => form.spare_part_id, () => form.unit_kerja_id], async ([partId, unitId]) => {
+  verifiedState.value = null
+  if (isCorrection.value || !partId || (props.canChooseUnit && !unitId)) return
+  if (matchingStock.value && Number(matchingStock.value.quantity) > 0) return
+
+  const currentRequest = ++stateRequest
+  const params = new URLSearchParams()
+  if (props.canChooseUnit) params.set('unit_kerja_id', String(unitId))
+  params.set('spare_part_id', String(partId))
+  stateLoading.value = true
+  try {
+    const response = await fetch(`/inventory/stock-state?${params.toString()}`, { headers: { Accept: 'application/json' } })
+    if (currentRequest === stateRequest && response.ok) verifiedState.value = await response.json()
+  } catch {
+    // The state remains unknown; server validation still protects every write.
+  } finally {
+    if (currentRequest === stateRequest) stateLoading.value = false
+  }
+})
 watch(canUseOpening, (allowed) => {
   if (!allowed && !isCorrection.value && form.type === 'opening') form.type = 'in'
 })
@@ -106,13 +150,14 @@ watch(canUseOut, (allowed) => {
 })
 
 const focusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
-const activePanel = () => confirmationPanel.value ?? dialogPanel.value
+const activePanel = () => discardPanel.value ?? confirmationPanel.value ?? dialogPanel.value
 const focusables = () => [...(activePanel()?.querySelectorAll(focusableSelector) ?? [])].filter((element) => element.tabIndex >= 0)
 const focusFirst = () => (focusables()[0] ?? activePanel())?.focus()
 const handleKeydown = (event) => {
   if (event.key === 'Escape') {
     event.preventDefault()
-    if (confirmingOut.value) dismissOutConfirmation()
+    if (confirmingDiscard.value) dismissDiscardConfirmation()
+    else if (confirmingOut.value) dismissOutConfirmation()
     else close()
     return
   }
@@ -126,12 +171,23 @@ const handleKeydown = (event) => {
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
 }
 watch(confirmingOut, (open) => { if (open) nextTick(focusFirst) })
+watch(confirmingDiscard, (open) => { if (open) nextTick(focusFirst) })
 onMounted(() => document.addEventListener('keydown', handleKeydown, true))
 onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown, true))
 
 const close = () => {
-  if (!form.processing) emit('close')
+  if (form.processing) return
+  if (isDirty.value) {
+    confirmingDiscard.value = true
+    return
+  }
+  emit('close')
 }
+const dismissDiscardConfirmation = () => {
+  confirmingDiscard.value = false
+  nextTick(() => closeButton.value?.focus())
+}
+const confirmDiscard = () => emit('close')
 const dismissOutConfirmation = () => {
   confirmingOut.value = false
   nextTick(() => closeButton.value?.focus())
@@ -143,6 +199,7 @@ const postMovement = () => {
     : '/inventory/movements'
   form.post(url, {
     preserveScroll: true,
+    onError: () => nextTick(focusFirstError),
     onSuccess: () => {
       emit('success')
       emit('close')
@@ -164,27 +221,45 @@ const submit = () => {
 }
 
 const confirmOut = () => {
+  if (form.processing) return
   confirmingOut.value = false
   postMovement()
 }
 
 const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-950 outline-none transition focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10 disabled:bg-slate-100'
+const fieldIds = {
+  unit_kerja_id: 'movement-unit',
+  spare_part_id: 'movement-part',
+  type: 'movement-type',
+  direction: 'movement-direction',
+  quantity: 'movement-quantity',
+  movement_date: 'movement-date',
+  reference_number: 'movement-reference',
+  notes: 'movement-notes',
+}
+const invalid = (field) => form.errors[field] ? 'true' : undefined
+const describedBy = (field) => form.errors[field] ? `${fieldIds[field]}-error` : undefined
+const focusFirstError = () => Object.keys(fieldIds).find((field) => {
+  if (!form.errors[field]) return false
+  document.getElementById(fieldIds[field])?.focus()
+  return true
+})
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-[1px] sm:items-center sm:p-4" @click.self="close">
-      <section ref="dialogPanel" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="movement-dialog-title" class="max-h-[94vh] w-full overflow-y-auto rounded-t-2xl bg-white outline-none shadow-2xl sm:max-w-3xl sm:rounded-2xl">
+    <div v-if="open" data-dialog-backdrop class="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-[1px] sm:items-center sm:p-4" @click.self="close">
+      <section ref="dialogPanel" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="movement-dialog-title" class="max-h-[94vh] w-full overscroll-contain overflow-y-auto rounded-t-2xl bg-white outline-none shadow-2xl sm:max-w-3xl sm:rounded-2xl">
         <header class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
           <div>
             <p class="font-mono text-sm font-semibold uppercase tracking-[0.16em] text-[#2d2a70]">{{ isCorrection ? `Ledger / sumber #${correction.id}` : 'Ledger / transaksi baru' }}</p>
             <h2 id="movement-dialog-title" class="mt-1 text-lg font-semibold text-slate-950">{{ isCorrection ? `Koreksi transaksi #${correction.id}` : 'Catat IN/OUT' }}</h2>
             <p class="mt-1 text-sm text-slate-500">{{ isCorrection ? 'Koreksi dicatat sebagai transaksi baru yang tertaut; transaksi sumber tidak diubah.' : 'Pastikan unit, barang, jumlah, dan tanggal operasional sudah tepat.' }}</p>
           </div>
-          <button ref="closeButton" type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 outline-none hover:bg-slate-100 focus:ring-2 focus:ring-[#2d2a70]" aria-label="Tutup dialog transaksi" @click="close"><X :size="20" aria-hidden="true" /></button>
+          <button ref="closeButton" data-close-dialog type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 outline-none hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[#2d2a70]" aria-label="Tutup dialog transaksi" @click="close"><X :size="20" aria-hidden="true" /></button>
         </header>
 
-        <form class="space-y-5 p-5 sm:p-6" @submit.prevent="submit">
+        <form name="stock-movement" autocomplete="off" class="space-y-5 p-5 sm:p-6" @submit.prevent="submit">
           <div v-if="isCorrection" class="rounded-xl border border-amber-200 bg-amber-50 p-4">
             <div class="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900"><span class="font-mono text-sm text-[#2d2a70]">{{ correction.spare_part.code }}</span><span>{{ correction.spare_part.detail_equipment }}</span></div>
             <p class="mt-2 text-sm text-slate-600">{{ correction.unit.code }} · transaksi {{ correction.direction === 'out' ? 'keluar' : 'masuk' }} {{ correction.quantity }} {{ correction.spare_part.unit_of_measure }} pada {{ correction.movement_date }}</p>
@@ -193,53 +268,54 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
           <div v-else class="grid gap-4 sm:grid-cols-2">
             <div v-if="canChooseUnit">
               <label for="movement-unit" class="mb-1.5 block text-sm font-medium text-slate-800">Unit kerja <span class="text-red-600">*</span></label>
-              <select id="movement-unit" v-model="form.unit_kerja_id" :class="inputClass" required>
+              <select id="movement-unit" v-model="form.unit_kerja_id" :class="inputClass" :aria-invalid="invalid('unit_kerja_id')" :aria-describedby="describedBy('unit_kerja_id')" required>
                 <option value="">Pilih unit kerja</option><option v-for="unit in units" :key="unit.id" :value="String(unit.id)">{{ unit.code }} — {{ unit.name }}</option>
               </select>
-              <p v-if="form.errors.unit_kerja_id" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.unit_kerja_id }}</p>
+              <p v-if="form.errors.unit_kerja_id" id="movement-unit-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.unit_kerja_id }}</p>
             </div>
             <div :class="canChooseUnit ? '' : 'sm:col-span-2'">
               <label for="movement-part" class="mb-1.5 block text-sm font-medium text-slate-800">Suku cadang <span class="text-red-600">*</span></label>
-              <select id="movement-part" v-model="form.spare_part_id" :class="inputClass" required>
+              <select id="movement-part" v-model="form.spare_part_id" :class="inputClass" :aria-invalid="invalid('spare_part_id')" :aria-describedby="describedBy('spare_part_id')" required>
                 <option value="">Pilih suku cadang</option><option v-for="part in spareParts.filter((item) => item.is_active !== false)" :key="part.id" :value="String(part.id)">{{ part.code }} — {{ part.detail_equipment }}</option>
               </select>
-              <p v-if="form.errors.spare_part_id" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.spare_part_id }}</p>
+              <p v-if="form.errors.spare_part_id" id="movement-part-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.spare_part_id }}</p>
             </div>
             <div>
               <label for="movement-type" class="mb-1.5 block text-sm font-medium text-slate-800">Jenis transaksi <span class="text-red-600">*</span></label>
-              <select id="movement-type" v-model="form.type" :class="inputClass" required>
+              <select id="movement-type" v-model="form.type" :class="inputClass" :aria-invalid="invalid('type')" :aria-describedby="describedBy('type')" required>
                 <option value="in">Masuk</option><option v-if="canUseOut" value="out">Keluar</option><option v-if="canUseOpening" value="opening">Saldo awal</option>
               </select>
+              <p v-if="form.errors.type" id="movement-type-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.type }}</p>
             </div>
             <div>
               <label for="movement-reference" class="mb-1.5 block text-sm font-medium text-slate-800">Nomor referensi <span class="font-normal text-slate-400">(opsional)</span></label>
-              <input id="movement-reference" v-model="form.reference_number" maxlength="100" :class="inputClass" placeholder="BAST, tiket, atau dokumen" />
-              <p v-if="form.errors.reference_number" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.reference_number }}</p>
+              <input id="movement-reference" v-model="form.reference_number" maxlength="100" :class="inputClass" :aria-invalid="invalid('reference_number')" :aria-describedby="describedBy('reference_number')" placeholder="BAST, tiket, atau dokumen…" />
+              <p v-if="form.errors.reference_number" id="movement-reference-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.reference_number }}</p>
             </div>
           </div>
 
           <div class="grid gap-4 sm:grid-cols-2">
             <div v-if="isCorrection">
               <label for="movement-direction" class="mb-1.5 block text-sm font-medium text-slate-800">Arah koreksi <span class="text-red-600">*</span></label>
-              <select id="movement-direction" v-model="form.direction" :class="inputClass" required><option value="in">Tambah stok</option><option value="out">Kurangi stok</option></select>
-              <p v-if="form.errors.direction" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.direction }}</p>
+              <select id="movement-direction" v-model="form.direction" :class="inputClass" :aria-invalid="invalid('direction')" :aria-describedby="describedBy('direction')" required><option value="in">Tambah stok</option><option value="out">Kurangi stok</option></select>
+              <p v-if="form.errors.direction" id="movement-direction-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.direction }}</p>
             </div>
             <div>
               <label for="movement-quantity" class="mb-1.5 block text-sm font-medium text-slate-800">Jumlah <span class="text-red-600">*</span></label>
-              <div class="relative"><input id="movement-quantity" v-model="form.quantity" type="number" min="1" step="1" :class="[inputClass, 'pr-20 font-mono tabular-nums']" required /><span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">{{ unitLabel }}</span></div>
-              <p v-if="form.errors.quantity" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.quantity }}</p>
+              <div class="relative"><input id="movement-quantity" v-model="form.quantity" type="number" min="1" step="1" :class="[inputClass, 'pr-20 font-mono tabular-nums']" :aria-invalid="invalid('quantity')" :aria-describedby="describedBy('quantity')" required /><span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">{{ unitLabel }}</span></div>
+              <p v-if="form.errors.quantity" id="movement-quantity-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.quantity }}</p>
             </div>
             <div>
               <label for="movement-date" class="mb-1.5 block text-sm font-medium text-slate-800">Tanggal operasional <span class="text-red-600">*</span></label>
-              <input id="movement-date" v-model="form.movement_date" type="date" :max="today" :class="inputClass" required />
-              <p v-if="form.errors.movement_date" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.movement_date }}</p>
+              <input id="movement-date" v-model="form.movement_date" type="date" :max="today" :class="inputClass" :aria-invalid="invalid('movement_date')" :aria-describedby="describedBy('movement_date')" required />
+              <p v-if="form.errors.movement_date" id="movement-date-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.movement_date }}</p>
             </div>
           </div>
 
           <div>
             <label for="movement-notes" class="mb-1.5 block text-sm font-medium text-slate-800">Catatan <span class="font-normal text-slate-400">(opsional)</span></label>
-            <textarea id="movement-notes" v-model="form.notes" rows="3" maxlength="1000" class="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-950 outline-none focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" placeholder="Kondisi barang atau alasan koreksi" />
-            <p v-if="form.errors.notes" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.notes }}</p>
+            <textarea id="movement-notes" v-model="form.notes" rows="3" maxlength="1000" class="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-950 outline-none focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" :aria-invalid="invalid('notes')" :aria-describedby="describedBy('notes')" placeholder="Kondisi barang atau alasan koreksi…" />
+            <p v-if="form.errors.notes" id="movement-notes-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.notes }}</p>
           </div>
 
           <section class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4" aria-label="Dampak transaksi">
@@ -249,7 +325,8 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
             <ArrowRight :size="18" class="text-slate-400" aria-hidden="true" />
             <div class="text-right"><p class="text-sm font-semibold uppercase tracking-wider text-slate-500">Setelah transaksi</p><p class="mt-1 font-mono text-xl font-semibold tabular-nums" :class="projectedStock < 0 ? 'text-red-700' : 'text-slate-900'">{{ balanceKnown ? projectedStock : '—' }} <span v-if="balanceKnown" class="text-sm font-normal text-slate-500">{{ unitLabel }}</span></p></div>
           </section>
-          <p v-if="!balanceKnown && selectedPart" class="text-sm text-slate-500">Saldo belum terverifikasi pada halaman ini. Untuk stok keluar atau saldo awal, mulai dari aksi pada baris stok.</p>
+          <p v-if="stateLoading" class="text-sm text-slate-500" aria-live="polite">Memverifikasi saldo unit dan suku cadang…</p>
+          <p v-else-if="!balanceKnown && selectedPart" class="text-sm text-slate-500">Saldo belum terverifikasi. Stok keluar tetap tidak tersedia sampai server mengonfirmasi saldo.</p>
 
           <p v-if="localError" data-stock-error class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700" role="alert">{{ localError }}</p>
           <p v-if="form.errors.idempotency_key" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">{{ form.errors.idempotency_key }}</p>
@@ -266,7 +343,16 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
           <span class="flex h-11 w-11 items-center justify-center rounded-full bg-red-50 text-red-700"><AlertTriangle :size="21" aria-hidden="true" /></span>
           <h3 id="out-confirm-title" class="mt-4 text-lg font-semibold text-slate-950">Konfirmasi stok keluar</h3>
           <p class="mt-2 text-sm leading-6 text-slate-600">Keluarkan <strong>{{ quantity }} {{ unitLabel }}</strong> {{ selectedPart?.detail_equipment }}? Stok setelah transaksi menjadi <strong>{{ projectedStock }} {{ unitLabel }}</strong>.</p>
-          <div class="mt-5 flex justify-end gap-3"><button type="button" class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700" @click="dismissOutConfirmation">Periksa lagi</button><button data-confirm-out type="button" class="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white outline-none hover:bg-red-700 focus:ring-2 focus:ring-red-600 focus:ring-offset-2" @click="confirmOut">Ya, catat keluar</button></div>
+          <div class="mt-5 flex justify-end gap-3"><button type="button" class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700" @click="dismissOutConfirmation">Periksa lagi</button><button data-confirm-out type="button" :disabled="form.processing" class="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white outline-none hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:opacity-50" @click="confirmOut">{{ form.processing ? 'Menyimpan…' : 'Ya, catat keluar' }}</button></div>
+        </section>
+      </div>
+
+      <div v-if="confirmingDiscard" data-discard-confirmation class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-4">
+        <section ref="discardPanel" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="discard-movement-title" class="w-full max-w-md rounded-2xl bg-white p-6 outline-none shadow-2xl">
+          <AlertTriangle :size="24" class="text-amber-700" aria-hidden="true" />
+          <h3 id="discard-movement-title" class="mt-4 text-lg font-semibold text-slate-950">Buang perubahan transaksi?</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-600">Data yang belum disimpan akan hilang.</p>
+          <div class="mt-5 flex justify-end gap-3"><button data-discard-cancel type="button" class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700" @click="dismissDiscardConfirmation">Lanjut mengisi</button><button data-confirm-discard type="button" class="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white outline-none hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-600" @click="confirmDiscard">Buang perubahan</button></div>
         </section>
       </div>
     </div>

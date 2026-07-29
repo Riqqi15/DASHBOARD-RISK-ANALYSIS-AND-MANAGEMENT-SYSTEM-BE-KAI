@@ -1,4 +1,4 @@
-import { enableAutoUnmount, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { reactive } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MovementDialog from '@/pages/master-data/inventory/Partials/MovementDialog.vue'
@@ -6,6 +6,7 @@ import MovementDialog from '@/pages/master-data/inventory/Partials/MovementDialo
 enableAutoUnmount(afterEach)
 
 const inertia = vi.hoisted(() => ({ post: vi.fn(), forms: [] }))
+const fetchState = vi.fn()
 
 vi.mock('@inertiajs/vue3', () => ({
   useForm: (values) => {
@@ -53,6 +54,9 @@ describe('MovementDialog', () => {
   beforeEach(() => {
     inertia.post.mockReset()
     inertia.forms.length = 0
+    fetchState.mockReset()
+    fetchState.mockResolvedValue({ ok: false })
+    vi.stubGlobal('fetch', fetchState)
     vi.stubGlobal('crypto', { randomUUID: vi.fn()
       .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
       .mockReturnValueOnce('22222222-2222-4222-8222-222222222222') })
@@ -117,10 +121,30 @@ describe('MovementDialog', () => {
     expect(wrapper.find('#movement-type option[value="opening"]').exists()).toBe(false)
 
     const emptyStock = [{ ...props.stocks[0], quantity: 0 }]
+    fetchState.mockResolvedValue({ ok: true, json: async () => ({ quantity: 0, can_open: true, can_out: false }) })
     const empty = mountDialog({ initialPart: null, stocks: emptyStock })
     await empty.get('#movement-unit').setValue('7')
     await empty.get('#movement-part').setValue('21')
+    await flushPromises()
     expect(empty.find('#movement-type option[value="opening"]').exists()).toBe(true)
+  })
+
+  it('verifies an absent unit-part pair and allows its first opening without enabling unknown OUT', async () => {
+    fetchState.mockResolvedValue({
+      ok: true,
+      json: async () => ({ quantity: 0, can_open: true, can_out: false }),
+    })
+    const wrapper = mountDialog({ initialPart: null, stocks: [] })
+    await wrapper.get('#movement-unit').setValue('7')
+    await wrapper.get('#movement-part').setValue('21')
+    await flushPromises()
+
+    expect(fetchState).toHaveBeenCalledWith('/inventory/stock-state?unit_kerja_id=7&spare_part_id=21', expect.objectContaining({ headers: { Accept: 'application/json' } }))
+    expect(wrapper.find('#movement-type option[value="opening"]').exists()).toBe(true)
+    expect(wrapper.find('#movement-type option[value="out"]').exists()).toBe(false)
+    await wrapper.get('#movement-type').setValue('opening')
+    await wrapper.get('form').trigger('submit')
+    expect(inertia.post).toHaveBeenCalledWith('/inventory/movements', expect.any(Object))
   })
 
   it('does not infer a zero balance or offer OUT for a stock row outside the current page', async () => {
@@ -144,6 +168,56 @@ describe('MovementDialog', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await wrapper.vm.$nextTick()
     expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  it('requires discard confirmation for dirty close button, backdrop, and Escape attempts', async () => {
+    const wrapper = mountDialog()
+    await wrapper.get('#movement-quantity').setValue('2')
+
+    await wrapper.get('[data-close-dialog]').trigger('click')
+    expect(wrapper.emitted('close')).toBeUndefined()
+    expect(wrapper.find('[data-discard-confirmation]').exists()).toBe(true)
+    await wrapper.get('[data-discard-cancel]').trigger('click')
+
+    await wrapper.get('[data-dialog-backdrop]').trigger('click')
+    expect(wrapper.find('[data-discard-confirmation]').exists()).toBe(true)
+    await wrapper.get('[data-discard-cancel]').trigger('click')
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-discard-confirmation]').exists()).toBe(true)
+    await wrapper.get('[data-confirm-discard]').trigger('click')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  it('links every server field error and focuses the first invalid control', async () => {
+    const wrapper = mountDialog({}, { attachTo: document.body })
+    await wrapper.get('#movement-unit').setValue('7')
+    await wrapper.get('#movement-part').setValue('21')
+    await wrapper.get('form').trigger('submit')
+    const form = inertia.forms[0]
+    form.errors = {
+      unit_kerja_id: 'Pilih unit.', spare_part_id: 'Pilih barang.', type: 'Pilih jenis.',
+      reference_number: 'Referensi salah.', quantity: 'Jumlah salah.', movement_date: 'Tanggal salah.', notes: 'Catatan salah.',
+    }
+    const options = inertia.post.mock.calls.at(-1)[1]
+    options.onError()
+    await wrapper.vm.$nextTick()
+
+    for (const id of ['movement-unit', 'movement-part', 'movement-type', 'movement-reference', 'movement-quantity', 'movement-date', 'movement-notes']) {
+      expect(wrapper.get(`#${id}`).attributes('aria-invalid')).toBe('true')
+      expect(wrapper.get(`#${id}`).attributes('aria-describedby')).toBeTruthy()
+    }
+    expect(document.activeElement).toBe(wrapper.get('#movement-unit').element)
+    wrapper.unmount()
+  })
+
+  it('adds modal scrolling and form metadata without ASCII ellipsis placeholders', () => {
+    const wrapper = mountDialog()
+    expect(wrapper.get('[role="dialog"]').classes()).toContain('overscroll-contain')
+    expect(wrapper.get('form').attributes('name')).toBe('stock-movement')
+    expect(wrapper.get('form').attributes('autocomplete')).toBe('off')
+    expect(wrapper.findAll('[placeholder]').every((field) => !field.attributes('placeholder').includes('...'))).toBe(true)
   })
 
   it('returns focus to the movement dialog when an OUT confirmation closes', async () => {
@@ -210,5 +284,17 @@ describe('MovementDialog', () => {
 
     expect(wrapper.get('[data-stock-error]').text()).toContain('Maksimal 5 buah')
     expect(inertia.post).not.toHaveBeenCalled()
+  })
+
+  it('links correction-only direction errors to the direction control', async () => {
+    const source = {
+      id: 41, quantity: 3, current_stock: 5, direction: 'in', type: 'in', movement_date: '2026-07-29',
+      spare_part: part, unit,
+    }
+    const wrapper = mountDialog({ correction: source, initialPart: null })
+    inertia.forms[0].errors = { direction: 'Pilih arah koreksi.' }
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('#movement-direction').attributes('aria-invalid')).toBe('true')
+    expect(wrapper.get('#movement-direction').attributes('aria-describedby')).toBe('movement-direction-error')
   })
 })

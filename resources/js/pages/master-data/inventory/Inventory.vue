@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
 import { AlertCircle, ArrowRightLeft, Building2, PackagePlus, Pencil, RefreshCw, Warehouse } from 'lucide-vue-next'
 import MainLayout from '@/layouts/MainLayout.vue'
@@ -36,6 +36,9 @@ const movementDialogKey = ref(0)
 const partOpen = ref(false)
 const editedPart = ref(null)
 const partDialogKey = ref(0)
+const movementOpener = ref(null)
+const partOpener = ref(null)
+const masterPage = ref(1)
 let searchTimer
 
 watch(() => props.filters, (filters) => Object.assign(filterState, normalizedFilters(filters)), { deep: true })
@@ -56,6 +59,10 @@ const hasActiveFilters = computed(() => Boolean(
   || (activeTab.value === 'stock' && filterState.stock_status !== 'all')
   || (activeTab.value === 'history' && (filterState.movement_type || filterState.date_from || filterState.date_to)),
 ))
+const masterPageSize = 50
+const masterPageCount = computed(() => Math.max(1, Math.ceil(props.spareParts.length / masterPageSize)))
+const masterPageParts = computed(() => props.spareParts.slice((masterPage.value - 1) * masterPageSize, masterPage.value * masterPageSize))
+watch(() => [props.spareParts, props.filters], () => { masterPage.value = 1 }, { deep: true })
 
 const requestFilters = (overrides = {}) => ({ ...filterState, ...overrides })
 const visit = (overrides = {}) => {
@@ -89,6 +96,7 @@ const switchTab = (tab) => {
 }
 
 const openMovement = (stock = null) => {
+  movementOpener.value = document.activeElement instanceof HTMLElement ? document.activeElement : null
   movementStock.value = stock
   movementPart.value = stock?.spare_part ?? null
   correctionSource.value = null
@@ -96,6 +104,7 @@ const openMovement = (stock = null) => {
   movementOpen.value = true
 }
 const openCorrection = (movement) => {
+  movementOpener.value = document.activeElement instanceof HTMLElement ? document.activeElement : null
   movementStock.value = props.stocks.data.find((stock) =>
     String(stock.unit_kerja_id) === String(movement.unit_kerja_id)
     && String(stock.spare_part_id) === String(movement.spare_part_id)) ?? null
@@ -105,9 +114,18 @@ const openCorrection = (movement) => {
   movementOpen.value = true
 }
 const openPart = (part = null) => {
+  partOpener.value = document.activeElement instanceof HTMLElement ? document.activeElement : null
   editedPart.value = part
   partDialogKey.value += 1
   partOpen.value = true
+}
+const closeMovement = () => {
+  movementOpen.value = false
+  nextTick(() => movementOpener.value?.focus())
+}
+const closePart = () => {
+  partOpen.value = false
+  nextTick(() => partOpener.value?.focus())
 }
 
 const unregisterStart = router.on?.('start', () => { loading.value = true })
@@ -140,7 +158,7 @@ const masterCategory = (part) => part.category
             </div>
             <div class="flex flex-col gap-3 sm:flex-row">
               <button v-if="can.manage_master" data-add-part type="button" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#2d2a70] bg-white px-4 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-indigo-50 focus:ring-2 focus:ring-[#2d2a70] focus:ring-offset-2" @click="openPart()"><PackagePlus :size="18" aria-hidden="true" /> Tambah suku cadang</button>
-              <button v-if="can.record_movement" type="button" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#f26522] px-4 text-sm font-semibold text-white outline-none hover:bg-[#d95418] focus:ring-2 focus:ring-[#f26522] focus:ring-offset-2" @click="openMovement()"><ArrowRightLeft :size="18" aria-hidden="true" /> Catat IN/OUT</button>
+              <button v-if="can.record_movement" data-record-movement type="button" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#f26522] px-4 text-sm font-semibold text-white outline-none hover:bg-[#d95418] focus-visible:ring-2 focus-visible:ring-[#f26522] focus-visible:ring-offset-2" @click="openMovement()"><ArrowRightLeft :size="18" aria-hidden="true" /> Catat IN/OUT</button>
             </div>
           </div>
         </div>
@@ -170,17 +188,25 @@ const masterCategory = (part) => part.category
         <div v-else-if="loading" data-master-loading class="space-y-3 p-4" aria-label="Memuat master suku cadang" aria-busy="true">
           <div v-for="index in 6" :key="index" class="h-14 animate-pulse rounded-lg bg-slate-100 motion-reduce:animate-none" />
         </div>
-        <div v-else-if="spareParts.length" class="overflow-x-auto">
+        <div v-else-if="spareParts.length" data-master-desktop class="hidden overflow-x-auto lg:block">
           <table class="w-full min-w-[900px] text-left text-sm">
             <thead class="border-b border-slate-200 text-sm font-semibold uppercase tracking-[0.12em] text-slate-500"><tr><th class="px-5 py-3">Kode / nama</th><th class="px-4 py-3">Kategori</th><th class="px-4 py-3">Satuan</th><th class="px-4 py-3 text-right">Safety / reorder</th><th class="px-4 py-3">Status</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
-            <tbody class="divide-y divide-slate-100"><tr v-for="part in spareParts" :key="part.id" class="hover:bg-slate-50"><td class="px-5 py-3"><p class="font-mono text-sm font-semibold text-[#2d2a70]">{{ part.code }}</p><p class="mt-1 font-semibold text-slate-900">{{ part.detail_equipment }}</p><p v-if="part.equipment" class="mt-0.5 text-sm text-slate-500">{{ part.equipment }}</p></td><td class="max-w-80 px-4 py-3 text-sm leading-5 text-slate-600">{{ masterCategory(part) }}</td><td class="px-4 py-3 text-slate-700">{{ part.unit_of_measure }}</td><td class="px-4 py-3 text-right font-mono tabular-nums text-slate-700">{{ part.safety_stock ?? '—' }} / {{ part.reorder_point ?? '—' }}</td><td class="px-4 py-3"><span class="rounded-full border px-2.5 py-1 text-sm font-semibold" :class="part.is_active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'">{{ part.is_active ? 'Aktif' : 'Nonaktif' }}</span></td><td class="px-5 py-3 text-right"><button type="button" class="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-indigo-50 focus:ring-2 focus:ring-[#2d2a70]" :aria-label="`Ubah suku cadang ${part.detail_equipment}`" @click="openPart(part)"><Pencil :size="16" aria-hidden="true" /> Ubah</button></td></tr></tbody>
+            <tbody class="divide-y divide-slate-100"><tr v-for="part in masterPageParts" :key="part.id" class="hover:bg-slate-50"><td class="px-5 py-3"><p class="font-mono text-sm font-semibold text-[#2d2a70]">{{ part.code }}</p><p class="mt-1 font-semibold text-slate-900">{{ part.detail_equipment }}</p><p v-if="part.equipment" class="mt-0.5 text-sm text-slate-500">{{ part.equipment }}</p></td><td class="max-w-80 px-4 py-3 text-sm leading-5 text-slate-600">{{ masterCategory(part) }}</td><td class="px-4 py-3 text-slate-700">{{ part.unit_of_measure }}</td><td class="px-4 py-3 text-right font-mono tabular-nums text-slate-700">{{ part.safety_stock ?? '—' }} / {{ part.reorder_point ?? '—' }}</td><td class="px-4 py-3"><span class="rounded-full border px-2.5 py-1 text-sm font-semibold" :class="part.is_active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'">{{ part.is_active ? 'Aktif' : 'Nonaktif' }}</span></td><td class="px-5 py-3 text-right"><button type="button" class="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70]" :aria-label="`Ubah suku cadang ${part.detail_equipment}`" @click="openPart(part)"><Pencil :size="16" aria-hidden="true" /> Ubah</button></td></tr></tbody>
           </table>
         </div>
-        <div v-else class="px-5 py-12 text-center"><PackagePlus :size="34" class="mx-auto text-slate-300" aria-hidden="true" /><h3 class="mt-3 text-sm font-semibold text-slate-900">{{ hasActiveFilters ? 'Tidak ada suku cadang sesuai filter' : 'Belum ada master suku cadang' }}</h3><p class="mt-1 text-sm text-slate-500">{{ hasActiveFilters ? 'Hapus filter untuk melihat data master lainnya.' : 'Tambahkan identitas suku cadang pertama untuk mulai mencatat stok.' }}</p><button v-if="hasActiveFilters" data-master-reset type="button" class="mt-4 min-h-11 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-slate-50 focus:ring-2 focus:ring-[#2d2a70]" @click="resetFilters">Hapus filter master</button><button v-else data-master-create type="button" class="mt-4 min-h-11 rounded-lg bg-[#f26522] px-4 text-sm font-semibold text-white outline-none hover:bg-[#d95418] focus:ring-2 focus:ring-[#f26522] focus:ring-offset-2" @click="openPart()">Tambah suku cadang</button></div>
+        <div v-if="!loading && !loadError && spareParts.length" data-master-mobile class="space-y-3 bg-slate-50 p-3 lg:hidden">
+          <article v-for="part in masterPageParts" :key="part.id" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="font-mono text-sm font-semibold text-[#2d2a70]">{{ part.code }}</p><h3 class="mt-1 font-semibold text-slate-950">{{ part.detail_equipment }}</h3><p v-if="part.equipment" class="mt-1 text-sm text-slate-500">{{ part.equipment }}</p></div><span class="shrink-0 rounded-full border px-2.5 py-1 text-sm font-semibold" :class="part.is_active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'">{{ part.is_active ? 'Aktif' : 'Nonaktif' }}</span></div>
+            <dl class="mt-4 grid grid-cols-2 gap-3 border-y border-slate-100 py-3 text-sm"><div class="col-span-2"><dt class="text-slate-500">Kategori</dt><dd class="mt-1 text-slate-700">{{ masterCategory(part) }}</dd></div><div><dt class="text-slate-500">Satuan</dt><dd class="mt-1 font-medium text-slate-800">{{ part.unit_of_measure }}</dd></div><div class="text-right"><dt class="text-slate-500">Safety / reorder</dt><dd class="mt-1 font-mono text-slate-800">{{ part.safety_stock ?? '—' }} / {{ part.reorder_point ?? '—' }}</dd></div></dl>
+            <div class="mt-3 flex justify-end"><button type="button" class="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70]" :aria-label="`Ubah suku cadang ${part.detail_equipment}`" @click="openPart(part)"><Pencil :size="16" aria-hidden="true" /> Ubah</button></div>
+          </article>
+        </div>
+        <nav v-if="!loading && !loadError && spareParts.length && masterPageCount > 1" data-master-pagination class="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-3" aria-label="Paginasi master suku cadang"><p class="text-sm text-slate-500">Halaman {{ masterPage }} dari {{ masterPageCount }}</p><div class="flex gap-2"><button type="button" :disabled="masterPage === 1" class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70] disabled:cursor-not-allowed disabled:opacity-40" @click="masterPage -= 1">Sebelumnya</button><button data-master-next type="button" :disabled="masterPage === masterPageCount" class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70] disabled:cursor-not-allowed disabled:opacity-40" @click="masterPage += 1">Berikutnya</button></div></nav>
+        <div v-if="!loadError && !loading && !spareParts.length" class="px-5 py-12 text-center"><PackagePlus :size="34" class="mx-auto text-slate-300" aria-hidden="true" /><h3 class="mt-3 text-sm font-semibold text-slate-900">{{ hasActiveFilters ? 'Tidak ada suku cadang sesuai filter' : 'Belum ada master suku cadang' }}</h3><p class="mt-1 text-sm text-slate-500">{{ hasActiveFilters ? 'Hapus filter untuk melihat data master lainnya.' : 'Tambahkan identitas suku cadang pertama untuk mulai mencatat stok.' }}</p><button v-if="hasActiveFilters" data-master-reset type="button" class="mt-4 min-h-11 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70]" @click="resetFilters">Hapus filter master</button><button v-else data-master-create type="button" class="mt-4 min-h-11 rounded-lg bg-[#f26522] px-4 text-sm font-semibold text-white outline-none hover:bg-[#d95418] focus-visible:ring-2 focus-visible:ring-[#f26522] focus-visible:ring-offset-2" @click="openPart()">Tambah suku cadang</button></div>
       </section>
     </div>
 
-    <MovementDialog v-if="movementOpen" :key="movementDialogKey" :open="movementOpen" :spare-parts="spareParts" :stocks="stocks.data" :units="units" :can-choose-unit="can.choose_unit" :initial-part="movementPart" :initial-stock="movementStock" :correction="correctionSource" @close="movementOpen = false" />
-    <SparePartDialog v-if="can.manage_master && partOpen" :key="partDialogKey" :open="partOpen" :part="editedPart" :categories="categories" @close="partOpen = false" />
+    <MovementDialog v-if="movementOpen" :key="movementDialogKey" :open="movementOpen" :spare-parts="spareParts" :stocks="stocks.data" :units="units" :can-choose-unit="can.choose_unit" :initial-part="movementPart" :initial-stock="movementStock" :correction="correctionSource" @close="closeMovement" />
+    <SparePartDialog v-if="can.manage_master && partOpen" :key="partDialogKey" :open="partOpen" :part="editedPart" :categories="categories" @close="closePart" />
   </MainLayout>
 </template>

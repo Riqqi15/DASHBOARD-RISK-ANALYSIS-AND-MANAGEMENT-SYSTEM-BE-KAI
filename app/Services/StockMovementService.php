@@ -73,6 +73,15 @@ class StockMovementService
                     return $this->resolveIdempotentMovement($existingAfterLock, $authoritativeUnit, $authoritativePart, $authoritativeActor, $type, $direction, $quantity, $movementDate, $referenceNumber, $notes, $authoritativeReverses);
                 }
 
+                if ($type === StockMovementType::Opening && ($stock->quantity !== 0 || StockMovement::query()
+                    ->where('unit_kerja_id', $authoritativeUnit->id)
+                    ->where('spare_part_id', $authoritativePart->id)
+                    ->exists())) {
+                    throw ValidationException::withMessages([
+                        'type' => 'Saldo awal hanya dapat dicatat sebagai transaksi pertama.',
+                    ]);
+                }
+
                 $before = $stock->quantity;
                 $after = $direction->apply($before, $quantity);
                 if ($after < 0) {

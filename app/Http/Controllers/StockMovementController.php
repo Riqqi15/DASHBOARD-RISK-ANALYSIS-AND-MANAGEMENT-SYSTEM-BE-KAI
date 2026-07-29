@@ -5,18 +5,47 @@ namespace App\Http\Controllers;
 use App\Enums\StockDirection;
 use App\Enums\StockMovementType;
 use App\Http\Requests\CorrectStockMovementRequest;
+use App\Http\Requests\ShowInventoryStockStateRequest;
 use App\Http\Requests\StoreStockMovementRequest;
 use App\Models\InventoryStock;
 use App\Models\SparePart;
+use App\Models\StockMovement;
 use App\Models\UnitKerja;
 use App\Services\StockMovementService;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 
 class StockMovementController extends Controller
 {
     public function __construct(private readonly StockMovementService $movements) {}
+
+    public function state(ShowInventoryStockStateRequest $request): JsonResponse
+    {
+        $user = $request->user();
+        $unitId = $user->isPusat()
+            ? (int) $request->validated('unit_kerja_id')
+            : (int) $user->unit_kerja_id;
+        $partId = (int) $request->validated('spare_part_id');
+        $stock = InventoryStock::query()
+            ->visibleTo($user)
+            ->where('unit_kerja_id', $unitId)
+            ->where('spare_part_id', $partId)
+            ->first();
+        $quantity = (int) ($stock?->quantity ?? 0);
+        $hasMovement = StockMovement::query()
+            ->visibleTo($user)
+            ->where('unit_kerja_id', $unitId)
+            ->where('spare_part_id', $partId)
+            ->exists();
+
+        return response()->json([
+            'quantity' => $quantity,
+            'can_open' => $quantity === 0 && ! $hasMovement,
+            'can_out' => $stock !== null && $quantity > 0,
+        ]);
+    }
 
     public function store(StoreStockMovementRequest $request): RedirectResponse
     {

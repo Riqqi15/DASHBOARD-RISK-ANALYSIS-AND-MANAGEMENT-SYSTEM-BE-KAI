@@ -48,7 +48,7 @@ const pageLabel = (label) => label.includes('Previous') ? 'Sebelumnya' : label.i
       <div v-for="index in 5" :key="index" class="h-14 animate-pulse rounded-lg bg-slate-100 motion-reduce:animate-none" />
     </div>
 
-    <div v-else-if="movements.data.length" class="overflow-x-auto">
+    <div v-else-if="movements.data.length" data-history-desktop class="hidden overflow-x-auto lg:block">
       <table class="w-full min-w-[1180px] border-collapse text-left text-sm">
         <thead class="border-b border-slate-200 text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">
           <tr>
@@ -73,6 +73,22 @@ const pageLabel = (label) => label.includes('Previous') ? 'Sebelumnya' : label.i
       </table>
     </div>
 
+    <div v-if="!loading && !error && movements.data.length" data-history-mobile class="space-y-3 bg-slate-50 p-3 lg:hidden">
+      <article v-for="row in movements.data" :key="row.id" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0"><p class="font-mono text-sm font-semibold text-[#2d2a70]">{{ row.spare_part.code }}</p><h3 class="mt-1 font-semibold text-slate-950">{{ row.spare_part.detail_equipment }}</h3></div>
+          <span class="shrink-0 rounded-full border px-2.5 py-1 text-sm font-semibold" :class="meta(row).class">{{ meta(row).label }}</span>
+        </div>
+        <dl class="mt-4 grid grid-cols-2 gap-3 border-y border-slate-100 py-3 text-sm">
+          <div><dt class="text-slate-500">Tanggal</dt><dd class="mt-1 font-medium text-slate-800">{{ formatDate(row.movement_date) }}</dd><dd class="mt-1 font-mono text-sm text-slate-500">Diposting {{ formatTime(row.posted_at) }}</dd></div>
+          <div class="text-right"><dt class="text-slate-500">Jumlah / ledger</dt><dd class="mt-1 font-mono font-semibold" :class="row.direction === 'out' ? 'text-red-700' : 'text-emerald-700'">{{ signedQuantity(row) }}</dd><dd class="mt-1 font-mono text-slate-700">{{ row.stock_before }} → {{ row.stock_after }}</dd></div>
+          <div v-if="showUnit"><dt class="text-slate-500">Unit kerja</dt><dd class="mt-1 font-mono font-semibold text-slate-800">{{ row.unit.code }}</dd></div>
+          <div :class="showUnit ? 'text-right' : ''"><dt class="text-slate-500">Pelaksana</dt><dd class="mt-1 font-medium text-slate-800">{{ row.actor?.name ?? 'Sistem' }}</dd></div>
+        </dl>
+        <div class="mt-3 flex items-end justify-between gap-3"><div class="min-w-0"><p class="text-slate-500">Referensi</p><p class="mt-1 truncate font-mono text-sm text-slate-700">{{ row.reference_number ?? '—' }}</p><p v-if="row.reverses_movement_id" class="mt-1 text-sm font-semibold text-amber-800">Koreksi #{{ row.reverses_movement_id }}</p></div><button v-if="canCorrect(row)" type="button" class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70]" :aria-label="`Koreksi transaksi ${row.id}`" @click="$emit('correct', row)"><RotateCcw :size="16" aria-hidden="true" /> Koreksi</button></div>
+      </article>
+    </div>
+
     <div v-else class="px-5 py-12 text-center">
       <History :size="34" class="mx-auto text-slate-300" aria-hidden="true" />
       <h3 class="mt-3 text-sm font-semibold text-slate-900">Belum ada transaksi stok</h3>
@@ -84,7 +100,7 @@ const pageLabel = (label) => label.includes('Previous') ? 'Sebelumnya' : label.i
       <p class="text-sm text-slate-500">{{ movements.from ?? 0 }}–{{ movements.to ?? 0 }} dari {{ movements.total ?? 0 }}</p>
       <div class="flex gap-1">
         <template v-for="link in movements.links" :key="link.label">
-          <Link v-if="link.url" :href="link.url" preserve-state preserve-scroll class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border px-3 text-sm font-semibold" :class="link.active ? 'border-[#2d2a70] bg-[#2d2a70] text-white' : 'border-slate-200 text-slate-600'">{{ pageLabel(link.label) }}</Link>
+          <Link v-if="link.url" :href="link.url" preserve-state preserve-scroll class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border px-3 text-sm font-semibold outline-none hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70] focus-visible:ring-offset-2" :class="link.active ? 'border-[#2d2a70] bg-[#2d2a70] text-white hover:bg-[#171650]' : 'border-slate-200 text-slate-600'">{{ pageLabel(link.label) }}</Link>
           <span v-else class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-100 px-3 text-sm text-slate-300">{{ pageLabel(link.label) }}</span>
         </template>
       </div>

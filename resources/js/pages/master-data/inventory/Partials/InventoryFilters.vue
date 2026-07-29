@@ -13,15 +13,20 @@ const props = defineProps({
 
 const emit = defineEmits(['change', 'reset'])
 
-const subsystems = computed(() => props.categories.flatMap((group) =>
+const subsystems = computed(() => props.categories
+  .filter((group) => String(group.id) === String(props.filters.asset_group_id))
+  .flatMap((group) =>
   (group.systems ?? []).flatMap((system) => (system.subsystems ?? []).map((subsystem) => ({
     ...subsystem,
-    groupId: group.id,
-    label: `${group.name} / ${system.name} / ${subsystem.name}`,
+    label: `${system.name} / ${subsystem.name}`,
   }))),
 ))
 
 const update = (key, event) => emit('change', { key, value: event.target.value })
+const updateGroup = (event) => {
+  update('asset_group_id', event)
+  if (props.filters.asset_subsystem_id) emit('change', { key: 'asset_subsystem_id', value: '' })
+}
 const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10'
 </script>
 
@@ -36,7 +41,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
             id="inventory-search"
             type="search"
             :value="filters.search"
-            placeholder="Kode, nama, kategori, unit, atau referensi"
+            placeholder="Kode, nama, kategori, unit, atau referensi…"
             :class="[inputClass, 'pl-10']"
             @input="update('search', $event)"
           />
@@ -53,7 +58,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
 
       <div>
         <label for="inventory-group" class="mb-1.5 block text-sm font-semibold text-slate-700">Kelompok aset</label>
-        <select id="inventory-group" :value="filters.asset_group_id" :class="inputClass" @change="update('asset_group_id', $event)">
+        <select id="inventory-group" :value="filters.asset_group_id" :class="inputClass" @change="updateGroup">
           <option value="">Semua kelompok</option>
           <option v-for="group in categories" :key="group.id" :value="String(group.id)">{{ group.name }}</option>
         </select>
@@ -61,7 +66,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
 
       <div>
         <label for="inventory-subsystem" class="mb-1.5 block text-sm font-semibold text-slate-700">Subsystem</label>
-        <select id="inventory-subsystem" :value="filters.asset_subsystem_id" :class="inputClass" @change="update('asset_subsystem_id', $event)">
+        <select id="inventory-subsystem" :value="filters.asset_subsystem_id" :class="inputClass" :disabled="!filters.asset_group_id" @change="update('asset_subsystem_id', $event)">
           <option value="">Semua subsystem</option>
           <option v-for="subsystem in subsystems" :key="subsystem.id" :value="String(subsystem.id)">{{ subsystem.label }}</option>
         </select>

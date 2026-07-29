@@ -119,6 +119,66 @@ class InventoryManagementTest extends TestCase
         ]);
     }
 
+    public function test_first_opening_creates_an_absent_stock_row_and_stock_state_is_authoritative(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $user = User::factory()->unit($unit)->create();
+        $part = SparePart::factory()->create();
+
+        $this->actingAs($user)
+            ->getJson(route('stock-movements.state', ['spare_part_id' => $part->id]))
+            ->assertOk()
+            ->assertExactJson(['quantity' => 0, 'can_open' => true, 'can_out' => false]);
+
+        $this->actingAs($user)
+            ->post(route('stock-movements.store'), $this->storePayload($part, [
+                'type' => 'opening',
+                'direction' => 'in',
+                'quantity' => 6,
+            ]))
+            ->assertRedirect('/inventory');
+
+        $this->assertDatabaseHas('inventory_stocks', [
+            'unit_kerja_id' => $unit->id,
+            'spare_part_id' => $part->id,
+            'quantity' => 6,
+        ]);
+        $this->actingAs($user)
+            ->getJson(route('stock-movements.state', ['spare_part_id' => $part->id]))
+            ->assertExactJson(['quantity' => 6, 'can_open' => false, 'can_out' => true]);
+    }
+
+    public function test_stock_state_requires_pusat_unit_scope_and_never_leaks_another_regional_unit(): void
+    {
+        $ownUnit = UnitKerja::factory()->create();
+        $otherUnit = UnitKerja::factory()->create();
+        $part = SparePart::factory()->create();
+        InventoryStock::factory()->for($otherUnit)->for($part)->create(['quantity' => 9]);
+        $regional = User::factory()->unit($ownUnit)->create();
+        $pusat = User::factory()->pusat()->create();
+
+        $regionalResponse = $this->actingAs($regional)
+            ->getJson(route('stock-movements.state', [
+                'unit_kerja_id' => $otherUnit->id,
+                'spare_part_id' => $part->id,
+            ]));
+        $this->assertSame(422, $regionalResponse->getStatusCode());
+        $this->assertStringContainsString('unit_kerja_id', $regionalResponse->getContent());
+
+        $pusatResponse = $this->actingAs($pusat)
+            ->getJson(route('stock-movements.state', ['spare_part_id' => $part->id]));
+        $this->assertSame(422, $pusatResponse->getStatusCode());
+        $this->assertStringContainsString('unit_kerja_id', $pusatResponse->getContent());
+
+        $this->actingAs($pusat)
+            ->getJson(route('stock-movements.state', [
+                'unit_kerja_id' => $otherUnit->id,
+                'spare_part_id' => $part->id,
+            ]))
+            ->assertOk()
+            ->assertExactJson(['quantity' => 9, 'can_open' => false, 'can_out' => true]);
+    }
+
     public function test_store_rejects_invalid_domains_future_dates_and_oversized_text(): void
     {
         $user = User::factory()->unit()->create();

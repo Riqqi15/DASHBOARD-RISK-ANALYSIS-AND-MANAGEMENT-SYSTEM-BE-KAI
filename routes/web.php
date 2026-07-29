@@ -42,6 +42,7 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         ]);
     Route::get('/risk-matrix', fn () => Inertia::render('dashboard/RiskMatrix'))->name('risk-matrix');
     Route::get('/inventory', InventoryController::class)->name('inventory');
+    Route::get('/inventory/stock-state', [StockMovementController::class, 'state'])->name('stock-movements.state');
     Route::post('/inventory/movements', [StockMovementController::class, 'store'])->name('stock-movements.store');
     Route::post('/inventory/movements/{movement}/corrections', [StockMovementController::class, 'correct'])->name('stock-movements.correct');
     Route::redirect('/reorder-stock', '/inventory?tab=master')->name('reorder-stock');

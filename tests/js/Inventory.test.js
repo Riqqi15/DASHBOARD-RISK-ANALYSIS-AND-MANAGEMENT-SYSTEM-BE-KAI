@@ -99,17 +99,18 @@ const props = {
   can: { choose_unit: true, manage_master: true, record_movement: true },
 }
 
-const mountPage = (overrides = {}) => mount(Inventory, {
+const mountPage = (overrides = {}, options = {}) => mount(Inventory, {
   props: { ...props, ...overrides },
   global: {
     stubs: {
       MainLayout: { template: '<main><slot /></main>' },
-      MovementDialog: { props: ['open'], template: '<section v-if="open" role="dialog">Dialog transaksi</section>' },
-      SparePartDialog: { props: ['open'], template: '<section v-if="open" role="dialog">Dialog suku cadang</section>' },
+      MovementDialog: { props: ['open'], emits: ['close'], template: '<section v-if="open" role="dialog">Dialog transaksi<button data-close-movement @click="$emit(\'close\')">Tutup</button></section>' },
+      SparePartDialog: { props: ['open'], emits: ['close'], template: '<section v-if="open" role="dialog">Dialog suku cadang<button data-close-part @click="$emit(\'close\')">Tutup</button></section>' },
       Teleport: true,
       transition: false,
     },
   },
+  ...options,
 })
 
 describe('Inventory', () => {
@@ -180,6 +181,7 @@ describe('Inventory', () => {
   it('switches tabs through Inertia and keeps backend pagination links', async () => {
     const wrapper = mountPage()
     expect(wrapper.get('[aria-label="Paginasi stok"]').text()).toContain('Berikutnya')
+    expect(wrapper.get('[aria-label="Paginasi stok"] a').classes()).toEqual(expect.arrayContaining(['hover:bg-indigo-50', 'focus-visible:ring-2']))
     await wrapper.get('[data-tab="history"]').trigger('click')
 
     expect(inertia.get).toHaveBeenCalledWith('/inventory', expect.objectContaining({ tab: 'history' }), expect.objectContaining({
@@ -243,6 +245,43 @@ describe('Inventory', () => {
     expect(empty.find('[role="dialog"]').exists()).toBe(true)
   })
 
+  it('renders responsive master cards and paginates more than 50 filtered parts locally', async () => {
+    const manyParts = Array.from({ length: 51 }, (_, index) => ({
+      ...part,
+      id: index + 1,
+      code: `SP-${String(index + 1).padStart(3, '0')}`,
+      detail_equipment: `Suku cadang ${index + 1}`,
+    }))
+    const wrapper = mountPage({ spareParts: manyParts, filters: { ...props.filters, tab: 'master', search: 'suku' } })
+
+    expect(wrapper.get('[data-master-desktop]').text()).toContain('SP-001')
+    expect(wrapper.get('[data-master-mobile]').text()).toContain('Suku cadang 1')
+    expect(wrapper.get('[data-master-mobile]').text()).not.toContain('Suku cadang 51')
+    expect(wrapper.get('[data-master-next]').classes()).toEqual(expect.arrayContaining(['hover:bg-slate-50', 'focus-visible:ring-2']))
+    await wrapper.get('[data-master-next]').trigger('click')
+    expect(wrapper.get('[data-master-mobile]').text()).toContain('Suku cadang 51')
+    expect(wrapper.get('#inventory-search').element.value).toBe('suku')
+    expect(inertia.get).not.toHaveBeenCalled()
+  })
+
+  it('restores focus to the exact movement and master dialog openers after unmount', async () => {
+    const wrapper = mountPage({}, { attachTo: document.body })
+    const movementOpener = wrapper.get('[data-record-movement]')
+    movementOpener.element.focus()
+    await movementOpener.trigger('click')
+    await wrapper.get('[data-close-movement]').trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(document.activeElement).toBe(movementOpener.element)
+
+    const partOpener = wrapper.get('[data-add-part]')
+    partOpener.element.focus()
+    await partOpener.trigger('click')
+    await wrapper.get('[data-close-part]').trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(document.activeElement).toBe(partOpener.element)
+    wrapper.unmount()
+  })
+
   it('keeps all operational inventory copy at a comfortable 14px minimum', () => {
     const files = [
       '../../resources/js/pages/master-data/inventory/Inventory.vue',
@@ -257,5 +296,10 @@ describe('Inventory', () => {
     const source = files.map((file) => readFileSync(new URL(file, import.meta.url), 'utf8')).join('\n')
 
     expect(source).not.toMatch(/\btext-xs\b|text-\[(?:10|11|12|13)px\]/)
+    expect(source).not.toMatch(/placeholder="[^"]*\.\.\./)
+
+    const layoutPath = '../../resources/js/layouts/MainLayout.vue'
+    const layout = readFileSync(new URL(layoutPath, import.meta.url), 'utf8')
+    expect(layout).not.toContain('aria-label="Cari data"')
   })
 })

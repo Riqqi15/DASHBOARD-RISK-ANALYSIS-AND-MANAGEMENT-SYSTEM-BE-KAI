@@ -106,7 +106,7 @@ const pageLabel = (label) => label.includes('Previous') ? 'Sebelumnya' : label.i
       <p class="text-sm text-slate-500">{{ stocks.from ?? 0 }}–{{ stocks.to ?? 0 }} dari {{ stocks.total ?? 0 }}</p>
       <div class="flex flex-wrap gap-1">
         <template v-for="link in stocks.links" :key="link.label">
-          <Link v-if="link.url" :href="link.url" preserve-state preserve-scroll class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border px-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#2d2a70]" :class="link.active ? 'border-[#2d2a70] bg-[#2d2a70] text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'">{{ pageLabel(link.label) }}</Link>
+          <Link v-if="link.url" :href="link.url" preserve-state preserve-scroll class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border px-3 text-sm font-semibold outline-none hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-[#2d2a70] focus-visible:ring-offset-2" :class="link.active ? 'border-[#2d2a70] bg-[#2d2a70] text-white hover:bg-[#171650]' : 'border-slate-200 bg-white text-slate-600'">{{ pageLabel(link.label) }}</Link>
           <span v-else class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-100 px-3 text-sm text-slate-300">{{ pageLabel(link.label) }}</span>
         </template>
       </div>

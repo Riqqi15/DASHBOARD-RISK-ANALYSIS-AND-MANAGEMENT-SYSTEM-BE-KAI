@@ -123,11 +123,73 @@ describe('SparePartDialog', () => {
     }))
   })
 
+  it('disables deactivation while processing and exposes progress text to prevent repeats', async () => {
+    const wrapper = mountDialog({ part })
+    await wrapper.get('[data-deactivate-part]').trigger('click')
+    const deactivateForm = inertia.forms[1]
+    deactivateForm.processing = true
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get('[data-confirm-deactivate]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-confirm-deactivate]').text()).toBe('Menonaktifkan…')
+    await wrapper.get('[data-confirm-deactivate]').trigger('click')
+    expect(inertia.delete).not.toHaveBeenCalled()
+  })
+
   it('closes from Escape for keyboard users', async () => {
     const wrapper = mountDialog()
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await wrapper.vm.$nextTick()
     expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  it('requires discard confirmation for dirty close, backdrop, and Escape attempts', async () => {
+    const wrapper = mountDialog()
+    await wrapper.get('#part-code').setValue('SP-DIRTY')
+
+    await wrapper.get('[data-close-dialog]').trigger('click')
+    expect(wrapper.emitted('close')).toBeUndefined()
+    expect(wrapper.find('[data-discard-confirmation]').exists()).toBe(true)
+    await wrapper.get('[data-discard-cancel]').trigger('click')
+
+    await wrapper.get('[data-dialog-backdrop]').trigger('click')
+    expect(wrapper.find('[data-discard-confirmation]').exists()).toBe(true)
+    await wrapper.get('[data-discard-cancel]').trigger('click')
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-discard-confirmation]').exists()).toBe(true)
+    await wrapper.get('[data-confirm-discard]').trigger('click')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  it('links all server errors to controls and focuses the first invalid field', async () => {
+    const wrapper = mountDialog({ part }, { attachTo: document.body })
+    const form = inertia.forms[0]
+    form.errors = Object.fromEntries([
+      'asset_subsystem_id', 'code', 'unit_of_measure', 'equipment', 'detail_equipment', 'severity',
+      'max_yearly_failure', 'average_yearly_failure', 'max_lead_time_months', 'average_lead_time_months',
+      'safety_stock', 'lead_time_demand', 'reorder_point',
+    ].map((field) => [field, `${field} salah`]))
+    await wrapper.get('form').trigger('submit')
+    const options = inertia.put.mock.calls.at(-1)[1]
+    options.onError()
+    await wrapper.vm.$nextTick()
+
+    for (const id of ['asset-subsystem-id', 'part-code', 'part-unit', 'part-equipment', 'part-name', 'part-severity', 'part-failure-max', 'part-failure-average', 'part-lead-max', 'part-lead-average', 'part-safety', 'part-demand', 'part-reorder']) {
+      expect(wrapper.get(`#${id}`).attributes('aria-invalid')).toBe('true')
+      expect(wrapper.get(`#${id}`).attributes('aria-describedby')).toBeTruthy()
+    }
+    expect(document.activeElement).toBe(wrapper.get('#asset-subsystem-id').element)
+    wrapper.unmount()
+  })
+
+  it('adds modal scrolling and form metadata without ASCII ellipsis placeholders', () => {
+    const wrapper = mountDialog()
+    expect(wrapper.get('[role="dialog"]').classes()).toContain('overscroll-contain')
+    expect(wrapper.get('form').attributes('name')).toBe('spare-part')
+    expect(wrapper.get('form').attributes('autocomplete')).toBe('off')
+    expect(wrapper.findAll('[placeholder]').every((field) => !field.attributes('placeholder').includes('...'))).toBe(true)
   })
 
   it('returns focus to the master dialog when deactivate confirmation closes', async () => {
