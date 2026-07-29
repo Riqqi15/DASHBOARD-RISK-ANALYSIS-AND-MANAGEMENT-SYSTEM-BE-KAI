@@ -1,13 +1,20 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import Inventory from '@/pages/master-data/inventory/Inventory.vue'
 
-const inertia = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), delete: vi.fn() }))
+const inertia = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), delete: vi.fn(), handlers: {} }))
 
 vi.mock('@inertiajs/vue3', () => ({
   Head: { template: '<div />' },
   Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
-  router: inertia,
+  router: {
+    ...inertia,
+    on: vi.fn((event, callback) => {
+      inertia.handlers[event] = callback
+      return vi.fn()
+    }),
+  },
   usePage: () => ({
     url: '/inventory',
     props: { auth: { user: { id: 1, name: 'Operator Pusat', role: 'pusat' } }, flash: {} },
@@ -97,6 +104,8 @@ const mountPage = (overrides = {}) => mount(Inventory, {
   global: {
     stubs: {
       MainLayout: { template: '<main><slot /></main>' },
+      MovementDialog: { props: ['open'], template: '<section v-if="open" role="dialog">Dialog transaksi</section>' },
+      SparePartDialog: { props: ['open'], template: '<section v-if="open" role="dialog">Dialog suku cadang</section>' },
       Teleport: true,
       transition: false,
     },
@@ -108,6 +117,7 @@ describe('Inventory', () => {
     inertia.get.mockReset()
     inertia.post.mockReset()
     inertia.delete.mockReset()
+    inertia.handlers = {}
     vi.useRealTimers()
   })
 
@@ -123,6 +133,10 @@ describe('Inventory', () => {
     expect(wrapper.text()).not.toMatch(/Generate Forecast|Prediksi Defisit|Dalam Pengiriman|Purchase Order/i)
     expect(wrapper.get('[data-inventory-desktop]').text()).toContain('Batas reorder')
     expect(wrapper.get('[data-inventory-mobile]').text()).toContain('Relay 24 VDC')
+    expect(wrapper.get('[data-tab="stock"]').text()).toContain('Stok Saat Ini')
+    expect(wrapper.get('[data-tab="history"]').text()).toContain('Riwayat Transaksi')
+    expect(wrapper.get('[data-tab="master"]').text()).toContain('Master Suku Cadang')
+    expect(wrapper.findAll('button').some((button) => button.text() === 'Catat IN/OUT')).toBe(true)
   })
 
   it('exposes master controls only to Pusat and normalizes a regional master URL', async () => {
@@ -172,5 +186,76 @@ describe('Inventory', () => {
       preserveState: true,
       replace: true,
     }))
+  })
+
+  it('shows stock errors without stale rows and provides a retry action', async () => {
+    const wrapper = mountPage()
+
+    inertia.handlers.invalid()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get('[data-stock-error]').text()).toContain('Data stok tidak dapat dimuat')
+    expect(wrapper.text()).not.toContain('Relay 24 VDC')
+    await wrapper.get('[data-stock-retry]').trigger('click')
+    expect(inertia.get).toHaveBeenCalledWith('/inventory', expect.objectContaining({ tab: 'stock' }), expect.any(Object))
+  })
+
+  it('gives stock empty states a filter or transaction recovery action', async () => {
+    const emptyStocks = { data: [], links: [], from: null, to: null, total: 0 }
+    const filtered = mountPage({
+      stocks: emptyStocks,
+      filters: { ...props.filters, search: 'tidak-ada' },
+    })
+
+    await filtered.get('[data-stock-reset]').trigger('click')
+    expect(inertia.get).toHaveBeenCalledWith('/inventory', expect.objectContaining({ search: '' }), expect.any(Object))
+
+    const empty = mountPage({ stocks: emptyStocks })
+    await empty.get('[data-stock-record]').trigger('click')
+    expect(empty.get('[role="dialog"]').text()).toContain('Dialog transaksi')
+  })
+
+  it('shows master loading and error recovery without stale rows', async () => {
+    const wrapper = mountPage({ filters: { ...props.filters, tab: 'master' } })
+
+    inertia.handlers.start()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-master-loading]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('Relay 24 VDC')
+
+    inertia.handlers.invalid()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('[data-master-error]').text()).toContain('Data master tidak dapat dimuat')
+    expect(wrapper.get('[data-master-retry]').text()).toBe('Coba lagi')
+    expect(wrapper.text()).not.toContain('SP-TC-001')
+  })
+
+  it('gives master empty states a filter or creation recovery action', async () => {
+    const filtered = mountPage({
+      spareParts: [],
+      filters: { ...props.filters, tab: 'master', search: 'tidak-ada' },
+    })
+    await filtered.get('[data-master-reset]').trigger('click')
+    expect(inertia.get).toHaveBeenCalledWith('/inventory', expect.objectContaining({ search: '' }), expect.any(Object))
+
+    const empty = mountPage({ spareParts: [], filters: { ...props.filters, tab: 'master' } })
+    await empty.get('[data-master-create]').trigger('click')
+    expect(empty.find('[role="dialog"]').exists()).toBe(true)
+  })
+
+  it('keeps all operational inventory copy at a comfortable 14px minimum', () => {
+    const files = [
+      '../../resources/js/pages/master-data/inventory/Inventory.vue',
+      '../../resources/js/pages/master-data/inventory/Partials/InventoryStats.vue',
+      '../../resources/js/pages/master-data/inventory/Partials/InventoryFilters.vue',
+      '../../resources/js/pages/master-data/inventory/Partials/InventoryTable.vue',
+      '../../resources/js/pages/master-data/inventory/Partials/InventoryCard.vue',
+      '../../resources/js/pages/master-data/inventory/Partials/MovementHistory.vue',
+      '../../resources/js/pages/master-data/inventory/Partials/MovementDialog.vue',
+      '../../resources/js/pages/master-data/inventory/Partials/SparePartDialog.vue',
+    ]
+    const source = files.map((file) => readFileSync(new URL(file, import.meta.url), 'utf8')).join('\n')
+
+    expect(source).not.toMatch(/\btext-xs\b|text-\[(?:10|11|12|13)px\]/)
   })
 })

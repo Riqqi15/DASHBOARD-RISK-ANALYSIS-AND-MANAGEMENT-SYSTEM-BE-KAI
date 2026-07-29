@@ -39,7 +39,7 @@ const correction = {
   notes: 'Koreksi salah jumlah',
 }
 
-const mountHistory = (data = [source, correction]) => mount(MovementHistory, {
+const mountHistory = (data = [source, correction], overrides = {}) => mount(MovementHistory, {
   props: {
     movements: {
       data,
@@ -49,6 +49,9 @@ const mountHistory = (data = [source, correction]) => mount(MovementHistory, {
       total: data.length,
     },
     showUnit: true,
+    error: '',
+    canReset: false,
+    ...overrides,
   },
   global: {
     stubs: { Link: { props: ['href'], template: '<a :href="href"><slot /></a>' } },
@@ -87,5 +90,21 @@ describe('MovementHistory', () => {
 
     expect(wrapper.text()).toContain('Belum ada transaksi stok')
     expect(wrapper.find('tbody tr').exists()).toBe(false)
+  })
+
+  it('renders independent loading, error, and recovery states without stale ledger rows', async () => {
+    const loading = mountHistory([source], { loading: true })
+    expect(loading.find('[data-history-loading]').exists()).toBe(true)
+    expect(loading.text()).not.toContain('Relay 24 VDC')
+
+    const error = mountHistory([source], { error: 'Koneksi terputus.' })
+    expect(error.get('[data-history-error]').text()).toContain('Riwayat transaksi tidak dapat dimuat')
+    expect(error.text()).not.toContain('BAST-17')
+    await error.get('[data-history-retry]').trigger('click')
+    expect(error.emitted('retry')).toHaveLength(1)
+
+    const empty = mountHistory([], { canReset: true })
+    await empty.get('[data-history-reset]').trigger('click')
+    expect(empty.emitted('reset')).toHaveLength(1)
   })
 })

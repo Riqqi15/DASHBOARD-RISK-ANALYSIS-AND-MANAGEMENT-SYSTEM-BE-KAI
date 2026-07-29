@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
-import { ArrowRightLeft, Building2, PackagePlus, Pencil, Warehouse } from 'lucide-vue-next'
+import { AlertCircle, ArrowRightLeft, Building2, PackagePlus, Pencil, RefreshCw, Warehouse } from 'lucide-vue-next'
 import MainLayout from '@/layouts/MainLayout.vue'
 import InventoryStats from './Partials/InventoryStats.vue'
 import InventoryFilters from './Partials/InventoryFilters.vue'
@@ -42,9 +42,9 @@ watch(() => props.filters, (filters) => Object.assign(filterState, normalizedFil
 
 const activeTab = computed(() => filterState.tab)
 const tabs = computed(() => [
-  { key: 'stock', label: 'Stok', count: props.stocks.total ?? props.stocks.data.length },
-  { key: 'history', label: 'Riwayat', count: props.movements.total ?? props.movements.data.length },
-  ...(props.can.manage_master ? [{ key: 'master', label: 'Master', count: props.spareParts.length }] : []),
+  { key: 'stock', label: 'Stok Saat Ini', count: props.stocks.total ?? props.stocks.data.length },
+  { key: 'history', label: 'Riwayat Transaksi', count: props.movements.total ?? props.movements.data.length },
+  ...(props.can.manage_master ? [{ key: 'master', label: 'Master Suku Cadang', count: props.spareParts.length }] : []),
 ])
 const selectedUnit = computed(() => props.units.find((unit) => String(unit.id) === String(filterState.unit_kerja_id)))
 const scopedUnit = computed(() => props.stocks.data[0]?.unit ?? props.movements.data[0]?.unit)
@@ -134,42 +134,49 @@ const masterCategory = (part) => part.category
         <div class="border-l-4 border-[#f26522] px-5 py-5 sm:px-6">
           <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div class="min-w-0">
-              <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[#2d2a70]">Operasional / ledger persediaan</p>
+              <p class="font-mono text-sm font-semibold uppercase tracking-[0.18em] text-[#2d2a70]">Operasional / ledger persediaan</p>
               <h1 class="mt-2 text-2xl font-semibold tracking-tight text-[#171650]">Inventori Suku Cadang</h1>
               <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Periksa kondisi stok dan catat setiap pergerakan dengan jejak audit yang tetap utuh.</p>
             </div>
             <div class="flex flex-col gap-3 sm:flex-row">
               <button v-if="can.manage_master" data-add-part type="button" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#2d2a70] bg-white px-4 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-indigo-50 focus:ring-2 focus:ring-[#2d2a70] focus:ring-offset-2" @click="openPart()"><PackagePlus :size="18" aria-hidden="true" /> Tambah suku cadang</button>
-              <button v-if="can.record_movement" type="button" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#f26522] px-4 text-sm font-semibold text-white outline-none hover:bg-[#d95418] focus:ring-2 focus:ring-[#f26522] focus:ring-offset-2" @click="openMovement()"><ArrowRightLeft :size="18" aria-hidden="true" /> Catat transaksi</button>
+              <button v-if="can.record_movement" type="button" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#f26522] px-4 text-sm font-semibold text-white outline-none hover:bg-[#d95418] focus:ring-2 focus:ring-[#f26522] focus:ring-offset-2" @click="openMovement()"><ArrowRightLeft :size="18" aria-hidden="true" /> Catat IN/OUT</button>
             </div>
           </div>
         </div>
         <div class="flex items-center gap-3 border-t border-slate-200 bg-slate-50 px-5 py-3 sm:px-6">
           <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#171650] text-white"><Building2 v-if="can.choose_unit" :size="17" aria-hidden="true" /><Warehouse v-else :size="17" aria-hidden="true" /></span>
-          <div class="min-w-0"><p class="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Konteks unit</p><p class="truncate text-sm font-semibold text-slate-800">{{ unitContext }}</p></div>
+          <div class="min-w-0"><p class="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">Konteks unit</p><p class="truncate text-sm font-semibold text-slate-800">{{ unitContext }}</p></div>
         </div>
       </header>
 
       <InventoryStats :stats="stats" />
 
       <nav class="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm" aria-label="Bagian inventori">
-        <button v-for="tab in tabs" :key="tab.key" :data-tab="tab.key" type="button" class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-semibold outline-none transition focus:ring-2 focus:ring-[#2d2a70]" :class="activeTab === tab.key ? 'bg-[#171650] text-white' : 'text-slate-600 hover:bg-slate-50'" :aria-current="activeTab === tab.key ? 'page' : undefined" @click="switchTab(tab.key)">{{ tab.label }} <span class="rounded px-1.5 py-0.5 font-mono text-[10px]" :class="activeTab === tab.key ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-500'">{{ tab.count }}</span></button>
+        <button v-for="tab in tabs" :key="tab.key" :data-tab="tab.key" type="button" class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-semibold outline-none transition focus:ring-2 focus:ring-[#2d2a70]" :class="activeTab === tab.key ? 'bg-[#171650] text-white' : 'text-slate-600 hover:bg-slate-50'" :aria-current="activeTab === tab.key ? 'page' : undefined" @click="switchTab(tab.key)">{{ tab.label }} <span class="rounded px-1.5 py-0.5 font-mono text-sm" :class="activeTab === tab.key ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-500'">{{ tab.count }}</span></button>
       </nav>
 
       <InventoryFilters :filters="filterState" :categories="categories" :units="units" :show-unit="can.choose_unit" :active-tab="activeTab" :can-reset="hasActiveFilters" @change="changeFilter" @reset="resetFilters" />
 
-      <InventoryTable v-if="activeTab === 'stock'" :stocks="stocks" :show-unit="can.choose_unit" :loading="loading" :error="loadError" @movement="openMovement" />
-      <MovementHistory v-else-if="activeTab === 'history'" :movements="movements" :show-unit="can.choose_unit" :loading="loading" @correct="openCorrection" />
+      <InventoryTable v-if="activeTab === 'stock'" :stocks="stocks" :show-unit="can.choose_unit" :loading="loading" :error="loadError" :can-reset="hasActiveFilters" :can-record="can.record_movement" @movement="openMovement" @retry="visit()" @reset="resetFilters" @record="openMovement()" />
+      <MovementHistory v-else-if="activeTab === 'history'" :movements="movements" :show-unit="can.choose_unit" :loading="loading" :error="loadError" :can-reset="hasActiveFilters" @correct="openCorrection" @retry="visit()" @reset="resetFilters" />
 
       <section v-else-if="activeTab === 'master' && can.manage_master" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="master-parts-title">
-        <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3"><div><h2 id="master-parts-title" class="text-sm font-semibold text-slate-950">Master suku cadang global</h2><p class="mt-0.5 text-xs text-slate-500">{{ spareParts.length }} identitas barang dalam hasil filter</p></div><span class="font-mono text-[10px] uppercase tracking-wider text-slate-400">Pusat</span></div>
-        <div v-if="spareParts.length" class="overflow-x-auto">
+        <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3"><div><h2 id="master-parts-title" class="text-sm font-semibold text-slate-950">Master suku cadang global</h2><p class="mt-0.5 text-sm text-slate-500">{{ spareParts.length }} identitas barang dalam hasil filter</p></div><span class="font-mono text-sm uppercase tracking-wider text-slate-400">Pusat</span></div>
+        <div v-if="loadError" data-master-error class="m-4 rounded-xl border border-red-200 bg-red-50 p-5" role="alert">
+          <div class="flex items-start gap-3 text-red-800"><AlertCircle :size="20" class="mt-0.5 shrink-0" aria-hidden="true" /><div><p class="font-semibold">Data master tidak dapat dimuat</p><p class="mt-1 text-sm">{{ loadError }}</p></div></div>
+          <button data-master-retry type="button" class="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 outline-none hover:bg-red-100 focus:ring-2 focus:ring-red-600" @click="visit()"><RefreshCw :size="17" aria-hidden="true" /> Coba lagi</button>
+        </div>
+        <div v-else-if="loading" data-master-loading class="space-y-3 p-4" aria-label="Memuat master suku cadang" aria-busy="true">
+          <div v-for="index in 6" :key="index" class="h-14 animate-pulse rounded-lg bg-slate-100 motion-reduce:animate-none" />
+        </div>
+        <div v-else-if="spareParts.length" class="overflow-x-auto">
           <table class="w-full min-w-[900px] text-left text-sm">
-            <thead class="border-b border-slate-200 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500"><tr><th class="px-5 py-3">Kode / nama</th><th class="px-4 py-3">Kategori</th><th class="px-4 py-3">Satuan</th><th class="px-4 py-3 text-right">Safety / reorder</th><th class="px-4 py-3">Status</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
-            <tbody class="divide-y divide-slate-100"><tr v-for="part in spareParts" :key="part.id" class="hover:bg-slate-50"><td class="px-5 py-3"><p class="font-mono text-xs font-semibold text-[#2d2a70]">{{ part.code }}</p><p class="mt-1 font-semibold text-slate-900">{{ part.detail_equipment }}</p><p v-if="part.equipment" class="mt-0.5 text-xs text-slate-500">{{ part.equipment }}</p></td><td class="max-w-80 px-4 py-3 text-xs leading-5 text-slate-600">{{ masterCategory(part) }}</td><td class="px-4 py-3 text-slate-700">{{ part.unit_of_measure }}</td><td class="px-4 py-3 text-right font-mono tabular-nums text-slate-700">{{ part.safety_stock ?? '—' }} / {{ part.reorder_point ?? '—' }}</td><td class="px-4 py-3"><span class="rounded-full border px-2.5 py-1 text-[11px] font-semibold" :class="part.is_active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'">{{ part.is_active ? 'Aktif' : 'Nonaktif' }}</span></td><td class="px-5 py-3 text-right"><button type="button" class="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-indigo-50 focus:ring-2 focus:ring-[#2d2a70]" :aria-label="`Ubah suku cadang ${part.detail_equipment}`" @click="openPart(part)"><Pencil :size="16" aria-hidden="true" /> Ubah</button></td></tr></tbody>
+            <thead class="border-b border-slate-200 text-sm font-semibold uppercase tracking-[0.12em] text-slate-500"><tr><th class="px-5 py-3">Kode / nama</th><th class="px-4 py-3">Kategori</th><th class="px-4 py-3">Satuan</th><th class="px-4 py-3 text-right">Safety / reorder</th><th class="px-4 py-3">Status</th><th class="px-5 py-3 text-right">Aksi</th></tr></thead>
+            <tbody class="divide-y divide-slate-100"><tr v-for="part in spareParts" :key="part.id" class="hover:bg-slate-50"><td class="px-5 py-3"><p class="font-mono text-sm font-semibold text-[#2d2a70]">{{ part.code }}</p><p class="mt-1 font-semibold text-slate-900">{{ part.detail_equipment }}</p><p v-if="part.equipment" class="mt-0.5 text-sm text-slate-500">{{ part.equipment }}</p></td><td class="max-w-80 px-4 py-3 text-sm leading-5 text-slate-600">{{ masterCategory(part) }}</td><td class="px-4 py-3 text-slate-700">{{ part.unit_of_measure }}</td><td class="px-4 py-3 text-right font-mono tabular-nums text-slate-700">{{ part.safety_stock ?? '—' }} / {{ part.reorder_point ?? '—' }}</td><td class="px-4 py-3"><span class="rounded-full border px-2.5 py-1 text-sm font-semibold" :class="part.is_active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'">{{ part.is_active ? 'Aktif' : 'Nonaktif' }}</span></td><td class="px-5 py-3 text-right"><button type="button" class="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-indigo-50 focus:ring-2 focus:ring-[#2d2a70]" :aria-label="`Ubah suku cadang ${part.detail_equipment}`" @click="openPart(part)"><Pencil :size="16" aria-hidden="true" /> Ubah</button></td></tr></tbody>
           </table>
         </div>
-        <div v-else class="px-5 py-12 text-center"><PackagePlus :size="34" class="mx-auto text-slate-300" aria-hidden="true" /><h3 class="mt-3 text-sm font-semibold text-slate-900">Belum ada suku cadang sesuai filter</h3><p class="mt-1 text-sm text-slate-500">Hapus filter atau tambahkan identitas suku cadang baru.</p></div>
+        <div v-else class="px-5 py-12 text-center"><PackagePlus :size="34" class="mx-auto text-slate-300" aria-hidden="true" /><h3 class="mt-3 text-sm font-semibold text-slate-900">{{ hasActiveFilters ? 'Tidak ada suku cadang sesuai filter' : 'Belum ada master suku cadang' }}</h3><p class="mt-1 text-sm text-slate-500">{{ hasActiveFilters ? 'Hapus filter untuk melihat data master lainnya.' : 'Tambahkan identitas suku cadang pertama untuk mulai mencatat stok.' }}</p><button v-if="hasActiveFilters" data-master-reset type="button" class="mt-4 min-h-11 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-slate-50 focus:ring-2 focus:ring-[#2d2a70]" @click="resetFilters">Hapus filter master</button><button v-else data-master-create type="button" class="mt-4 min-h-11 rounded-lg bg-[#f26522] px-4 text-sm font-semibold text-white outline-none hover:bg-[#d95418] focus:ring-2 focus:ring-[#f26522] focus:ring-offset-2" @click="openPart()">Tambah suku cadang</button></div>
       </section>
     </div>
 

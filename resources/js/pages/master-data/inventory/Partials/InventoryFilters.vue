@@ -29,7 +29,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
   <section class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="Filter inventori">
     <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       <div class="md:col-span-2">
-        <label for="inventory-search" class="mb-1.5 block text-xs font-semibold text-slate-700">Cari suku cadang</label>
+        <label for="inventory-search" class="mb-1.5 block text-sm font-semibold text-slate-700">Cari suku cadang</label>
         <div class="relative">
           <Search :size="17" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           <input
@@ -44,7 +44,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
       </div>
 
       <div v-if="showUnit">
-        <label for="inventory-unit" class="mb-1.5 block text-xs font-semibold text-slate-700">Unit kerja</label>
+        <label for="inventory-unit" class="mb-1.5 block text-sm font-semibold text-slate-700">Unit kerja</label>
         <select id="inventory-unit" name="unit_kerja_id" :value="filters.unit_kerja_id" :class="inputClass" @change="update('unit_kerja_id', $event)">
           <option value="">Semua unit kerja</option>
           <option v-for="unit in units" :key="unit.id" :value="String(unit.id)">{{ unit.code }} — {{ unit.name }}</option>
@@ -52,7 +52,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
       </div>
 
       <div>
-        <label for="inventory-group" class="mb-1.5 block text-xs font-semibold text-slate-700">Kelompok aset</label>
+        <label for="inventory-group" class="mb-1.5 block text-sm font-semibold text-slate-700">Kelompok aset</label>
         <select id="inventory-group" :value="filters.asset_group_id" :class="inputClass" @change="update('asset_group_id', $event)">
           <option value="">Semua kelompok</option>
           <option v-for="group in categories" :key="group.id" :value="String(group.id)">{{ group.name }}</option>
@@ -60,7 +60,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
       </div>
 
       <div>
-        <label for="inventory-subsystem" class="mb-1.5 block text-xs font-semibold text-slate-700">Subsystem</label>
+        <label for="inventory-subsystem" class="mb-1.5 block text-sm font-semibold text-slate-700">Subsystem</label>
         <select id="inventory-subsystem" :value="filters.asset_subsystem_id" :class="inputClass" @change="update('asset_subsystem_id', $event)">
           <option value="">Semua subsystem</option>
           <option v-for="subsystem in subsystems" :key="subsystem.id" :value="String(subsystem.id)">{{ subsystem.label }}</option>
@@ -68,7 +68,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
       </div>
 
       <div v-if="activeTab === 'stock'">
-        <label for="inventory-status" class="mb-1.5 block text-xs font-semibold text-slate-700">Kondisi stok</label>
+        <label for="inventory-status" class="mb-1.5 block text-sm font-semibold text-slate-700">Kondisi stok</label>
         <select id="inventory-status" :value="filters.stock_status" :class="inputClass" @change="update('stock_status', $event)">
           <option value="all">Semua kondisi</option>
           <option value="available">Tersedia</option>
@@ -80,7 +80,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
 
       <template v-if="activeTab === 'history'">
         <div>
-          <label for="movement-type-filter" class="mb-1.5 block text-xs font-semibold text-slate-700">Jenis transaksi</label>
+          <label for="movement-type-filter" class="mb-1.5 block text-sm font-semibold text-slate-700">Jenis transaksi</label>
           <select id="movement-type-filter" :value="filters.movement_type" :class="inputClass" @change="update('movement_type', $event)">
             <option value="">Semua jenis</option>
             <option value="in">Masuk</option>
@@ -90,11 +90,11 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
           </select>
         </div>
         <div>
-          <label for="movement-date-from" class="mb-1.5 block text-xs font-semibold text-slate-700">Dari tanggal</label>
+          <label for="movement-date-from" class="mb-1.5 block text-sm font-semibold text-slate-700">Dari tanggal</label>
           <input id="movement-date-from" type="date" :value="filters.date_from" :class="inputClass" @change="update('date_from', $event)" />
         </div>
         <div>
-          <label for="movement-date-to" class="mb-1.5 block text-xs font-semibold text-slate-700">Sampai tanggal</label>
+          <label for="movement-date-to" class="mb-1.5 block text-sm font-semibold text-slate-700">Sampai tanggal</label>
           <input id="movement-date-to" type="date" :value="filters.date_to" :class="inputClass" @change="update('date_to', $event)" />
         </div>
       </template>

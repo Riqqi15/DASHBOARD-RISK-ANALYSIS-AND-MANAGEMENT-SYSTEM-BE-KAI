@@ -177,17 +177,17 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
       <section ref="dialogPanel" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="movement-dialog-title" class="max-h-[94vh] w-full overflow-y-auto rounded-t-2xl bg-white outline-none shadow-2xl sm:max-w-3xl sm:rounded-2xl">
         <header class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
           <div>
-            <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[#2d2a70]">{{ isCorrection ? `Ledger / sumber #${correction.id}` : 'Ledger / transaksi baru' }}</p>
-            <h2 id="movement-dialog-title" class="mt-1 text-lg font-semibold text-slate-950">{{ isCorrection ? `Koreksi transaksi #${correction.id}` : 'Catat transaksi stok' }}</h2>
-            <p class="mt-1 text-xs text-slate-500">{{ isCorrection ? 'Koreksi dicatat sebagai transaksi baru yang tertaut; transaksi sumber tidak diubah.' : 'Pastikan unit, barang, jumlah, dan tanggal operasional sudah tepat.' }}</p>
+            <p class="font-mono text-sm font-semibold uppercase tracking-[0.16em] text-[#2d2a70]">{{ isCorrection ? `Ledger / sumber #${correction.id}` : 'Ledger / transaksi baru' }}</p>
+            <h2 id="movement-dialog-title" class="mt-1 text-lg font-semibold text-slate-950">{{ isCorrection ? `Koreksi transaksi #${correction.id}` : 'Catat IN/OUT' }}</h2>
+            <p class="mt-1 text-sm text-slate-500">{{ isCorrection ? 'Koreksi dicatat sebagai transaksi baru yang tertaut; transaksi sumber tidak diubah.' : 'Pastikan unit, barang, jumlah, dan tanggal operasional sudah tepat.' }}</p>
           </div>
           <button ref="closeButton" type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 outline-none hover:bg-slate-100 focus:ring-2 focus:ring-[#2d2a70]" aria-label="Tutup dialog transaksi" @click="close"><X :size="20" aria-hidden="true" /></button>
         </header>
 
         <form class="space-y-5 p-5 sm:p-6" @submit.prevent="submit">
           <div v-if="isCorrection" class="rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <div class="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900"><span class="font-mono text-xs text-[#2d2a70]">{{ correction.spare_part.code }}</span><span>{{ correction.spare_part.detail_equipment }}</span></div>
-            <p class="mt-2 text-xs text-slate-600">{{ correction.unit.code }} · transaksi {{ correction.direction === 'out' ? 'keluar' : 'masuk' }} {{ correction.quantity }} {{ correction.spare_part.unit_of_measure }} pada {{ correction.movement_date }}</p>
+            <div class="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900"><span class="font-mono text-sm text-[#2d2a70]">{{ correction.spare_part.code }}</span><span>{{ correction.spare_part.detail_equipment }}</span></div>
+            <p class="mt-2 text-sm text-slate-600">{{ correction.unit.code }} · transaksi {{ correction.direction === 'out' ? 'keluar' : 'masuk' }} {{ correction.quantity }} {{ correction.spare_part.unit_of_measure }} pada {{ correction.movement_date }}</p>
           </div>
 
           <div v-else class="grid gap-4 sm:grid-cols-2">
@@ -226,7 +226,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
             </div>
             <div>
               <label for="movement-quantity" class="mb-1.5 block text-sm font-medium text-slate-800">Jumlah <span class="text-red-600">*</span></label>
-              <div class="relative"><input id="movement-quantity" v-model="form.quantity" type="number" min="1" step="1" :class="[inputClass, 'pr-20 font-mono tabular-nums']" required /><span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">{{ unitLabel }}</span></div>
+              <div class="relative"><input id="movement-quantity" v-model="form.quantity" type="number" min="1" step="1" :class="[inputClass, 'pr-20 font-mono tabular-nums']" required /><span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">{{ unitLabel }}</span></div>
               <p v-if="form.errors.quantity" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.quantity }}</p>
             </div>
             <div>
@@ -245,18 +245,18 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
           <section class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4" aria-label="Dampak transaksi">
             <p v-if="balanceKnown" class="sr-only">Stok setelah transaksi: {{ projectedStock }} {{ unitLabel }}</p>
             <p v-else class="sr-only">Saldo belum terverifikasi pada halaman ini</p>
-            <div data-stock-before><p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Sebelum</p><p class="mt-1 font-mono text-xl font-semibold tabular-nums text-slate-900">{{ balanceKnown ? stockBefore : '—' }} <span v-if="balanceKnown" class="text-xs font-normal text-slate-500">{{ unitLabel }}</span></p></div>
+            <div data-stock-before><p class="text-sm font-semibold uppercase tracking-wider text-slate-500">Sebelum</p><p class="mt-1 font-mono text-xl font-semibold tabular-nums text-slate-900">{{ balanceKnown ? stockBefore : '—' }} <span v-if="balanceKnown" class="text-sm font-normal text-slate-500">{{ unitLabel }}</span></p></div>
             <ArrowRight :size="18" class="text-slate-400" aria-hidden="true" />
-            <div class="text-right"><p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Setelah transaksi</p><p class="mt-1 font-mono text-xl font-semibold tabular-nums" :class="projectedStock < 0 ? 'text-red-700' : 'text-slate-900'">{{ balanceKnown ? projectedStock : '—' }} <span v-if="balanceKnown" class="text-xs font-normal text-slate-500">{{ unitLabel }}</span></p></div>
+            <div class="text-right"><p class="text-sm font-semibold uppercase tracking-wider text-slate-500">Setelah transaksi</p><p class="mt-1 font-mono text-xl font-semibold tabular-nums" :class="projectedStock < 0 ? 'text-red-700' : 'text-slate-900'">{{ balanceKnown ? projectedStock : '—' }} <span v-if="balanceKnown" class="text-sm font-normal text-slate-500">{{ unitLabel }}</span></p></div>
           </section>
-          <p v-if="!balanceKnown && selectedPart" class="text-xs text-slate-500">Saldo belum terverifikasi pada halaman ini. Untuk stok keluar atau saldo awal, mulai dari aksi pada baris stok.</p>
+          <p v-if="!balanceKnown && selectedPart" class="text-sm text-slate-500">Saldo belum terverifikasi pada halaman ini. Untuk stok keluar atau saldo awal, mulai dari aksi pada baris stok.</p>
 
           <p v-if="localError" data-stock-error class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700" role="alert">{{ localError }}</p>
           <p v-if="form.errors.idempotency_key" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">{{ form.errors.idempotency_key }}</p>
 
           <div class="flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
             <button type="button" class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 outline-none hover:bg-slate-50 focus:ring-2 focus:ring-[#2d2a70]" @click="close">Batal</button>
-            <button type="submit" :disabled="form.processing" class="min-h-11 rounded-lg bg-[#f26522] px-5 text-sm font-semibold text-white outline-none hover:bg-[#d95418] focus:ring-2 focus:ring-[#f26522] focus:ring-offset-2 disabled:opacity-50">{{ form.processing ? 'Menyimpan…' : isCorrection ? 'Catat koreksi' : 'Catat transaksi' }}</button>
+            <button type="submit" :disabled="form.processing" class="min-h-11 rounded-lg bg-[#f26522] px-5 text-sm font-semibold text-white outline-none hover:bg-[#d95418] focus:ring-2 focus:ring-[#f26522] focus:ring-offset-2 disabled:opacity-50">{{ form.processing ? 'Menyimpan…' : isCorrection ? 'Catat koreksi' : 'Catat IN/OUT' }}</button>
           </div>
         </form>
       </section>

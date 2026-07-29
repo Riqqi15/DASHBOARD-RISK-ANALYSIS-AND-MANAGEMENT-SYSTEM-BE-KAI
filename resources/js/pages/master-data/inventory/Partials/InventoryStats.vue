@@ -18,9 +18,9 @@ const formatNumber = (value) => new Intl.NumberFormat('id-ID').format(Number(val
     <article v-for="item in items" :key="item.key" class="bg-white p-4 sm:p-5">
       <div class="flex items-start justify-between gap-3">
         <div>
-          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{{ item.label }}</p>
+          <p class="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">{{ item.label }}</p>
           <p class="mt-3 font-mono text-2xl font-semibold tabular-nums text-slate-950">{{ formatNumber(stats[item.key]) }}</p>
-          <p class="mt-1 text-xs text-slate-500">{{ item.hint }}</p>
+          <p class="mt-1 text-sm text-slate-500">{{ item.hint }}</p>
         </div>
         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" :class="item.tone" aria-hidden="true">
           <component :is="item.icon" :size="19" :stroke-width="1.8" />
