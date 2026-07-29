@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AssetSubsystemController;
 use App\Http\Controllers\Admin\AssetSystemController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\RegionalAccountController;
+use App\Http\Controllers\Admin\SparePartController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Admin\UnitSubsystemOpeningController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -55,6 +56,7 @@ Route::middleware(['auth', 'active', 'pusat'])->prefix('admin')->name('admin.')-
     Route::resource('asset-systems', AssetSystemController::class)->only(['store', 'update', 'destroy']);
     Route::patch('asset-subsystems/{asset_subsystem}/status', [AssetSubsystemController::class, 'status'])->name('asset-subsystems.status');
     Route::resource('asset-subsystems', AssetSubsystemController::class)->only(['store', 'update', 'destroy']);
+    Route::resource('spare-parts', SparePartController::class)->only(['store', 'update', 'destroy']);
     Route::resource('units', UnitKerjaController::class)
         ->parameters(['units' => 'unit'])
         ->except(['show', 'destroy']);
