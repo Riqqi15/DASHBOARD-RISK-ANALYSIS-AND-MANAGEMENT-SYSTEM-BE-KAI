@@ -357,4 +357,24 @@ describe('MovementDialog', () => {
     expect(wrapper.get('#movement-direction').attributes('aria-invalid')).toBe('true')
     expect(wrapper.get('#movement-direction').attributes('aria-describedby')).toBe('movement-direction-error')
   })
+
+  it('announces and focuses a stale correction error returned by the server', async () => {
+    const source = {
+      id: 41, quantity: 3, current_stock: 5, direction: 'in', type: 'in', movement_date: '2026-07-29',
+      spare_part: part, unit,
+    }
+    const wrapper = mountDialog({ correction: source, initialPart: null }, { attachTo: document.body })
+    await wrapper.get('#movement-direction').setValue('in')
+    await wrapper.get('form').trigger('submit')
+    inertia.forms[0].errors = { movement: 'Transaksi sumber sudah pernah dikoreksi.' }
+    inertia.post.mock.calls.at(-1)[1].onError()
+    await wrapper.vm.$nextTick()
+
+    const alert = wrapper.get('#movement-error')
+    expect(alert.text()).toBe('Transaksi sumber sudah pernah dikoreksi.')
+    expect(alert.attributes('role')).toBe('alert')
+    expect(alert.attributes('tabindex')).toBe('-1')
+    expect(document.activeElement).toBe(alert.element)
+    wrapper.unmount()
+  })
 })

@@ -17,6 +17,8 @@ use Illuminate\Validation\ValidationException;
 
 class StockMovementService
 {
+    private const CORRECTION_UNIQUE_INDEX = 'stock_movements_one_correction_per_source';
+
     public function __construct(private readonly AuditLogger $auditLogger) {}
 
     public function record(
@@ -119,6 +121,11 @@ class StockMovementService
                 return $movement;
             }, 5);
         } catch (QueryException $exception) {
+            if ($this->isCorrectionCollision($exception)) {
+                throw ValidationException::withMessages([
+                    'movement' => 'Transaksi sumber sudah pernah dikoreksi.',
+                ]);
+            }
             if (! $this->isIdempotencyCollision($exception)) {
                 throw $exception;
             }
@@ -173,7 +180,7 @@ class StockMovementService
         }
         $authoritativePart = SparePart::query()
             ->whereKey($part->getKey())
-            ->when($type !== StockMovementType::Correction, fn ($query) => $query->where('is_active', true))
+            ->where('is_active', true)
             ->sharedLock()
             ->first();
         if (! $authoritativePart) {
@@ -198,7 +205,7 @@ class StockMovementService
                 ->where('idempotency_key', '<>', $idempotencyKey)
                 ->exists()) {
                 throw ValidationException::withMessages([
-                    'reverses_movement_id' => 'Transaksi sumber sudah pernah dikoreksi.',
+                    'movement' => 'Transaksi sumber sudah pernah dikoreksi.',
                 ]);
             }
         }
@@ -276,5 +283,11 @@ class StockMovementService
     {
         return ($exception->errorInfo[0] ?? null) === '23000'
             && str_contains(strtolower($exception->getMessage()), 'idempotency_key');
+    }
+
+    private function isCorrectionCollision(QueryException $exception): bool
+    {
+        return ($exception->errorInfo[0] ?? null) === '23000'
+            && str_contains(strtolower($exception->getMessage()), self::CORRECTION_UNIQUE_INDEX);
     }
 }

@@ -38,18 +38,19 @@ try {
         $unit = UnitKerja::factory()->create(['code' => 'RACE-'.substr(hash('sha256', $scope), 0, 12)]);
         $part = SparePart::factory()->create(['source_key' => 'race|'.$scope, 'code' => 'RACE-'.substr(hash('sha256', $scope), 0, 12)]);
         $actor = User::factory()->pusat()->create(['email' => "{$scope}@example.test"]);
+        $sourceId = null;
         if ($action === 'setup-out') {
             InventoryStock::factory()->for($unit)->for($part)->create(['quantity' => 5]);
-            StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
+            $sourceId = StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
                 'type' => StockMovementType::Opening,
                 'direction' => StockDirection::In,
                 'quantity' => 5,
                 'stock_before' => 0,
                 'stock_after' => 5,
                 'idempotency_key' => (string) Str::uuid(),
-            ]);
+            ])->id;
         }
-        echo json_encode(['unit_id' => $unit->id, 'part_id' => $part->id, 'actor_id' => $actor->id], JSON_THROW_ON_ERROR);
+        echo json_encode(['unit_id' => $unit->id, 'part_id' => $part->id, 'actor_id' => $actor->id, 'source_id' => $sourceId], JSON_THROW_ON_ERROR);
         exit(0);
     }
 
@@ -99,6 +100,7 @@ try {
     $idempotencyKey = $argv[8];
     $barrier = $argv[9];
     $worker = $argv[10];
+    $reversesId = (int) ($argv[11] ?? 0);
 
     file_put_contents("{$barrier}.{$worker}.ready", 'ready');
     $deadline = microtime(true) + 15;
@@ -121,10 +123,11 @@ try {
             null,
             null,
             $idempotencyKey,
+            $reversesId > 0 ? StockMovement::query()->findOrFail($reversesId) : null,
         );
         echo json_encode(['success' => true, 'movement_id' => $movement->id], JSON_THROW_ON_ERROR);
-    } catch (ValidationException) {
-        echo '{"success":false,"validation":true}';
+    } catch (ValidationException $exception) {
+        echo json_encode(['success' => false, 'validation' => true, 'errors' => $exception->errors()], JSON_THROW_ON_ERROR);
     }
     exit(0);
 } catch (Throwable $exception) {

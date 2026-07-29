@@ -288,12 +288,26 @@ class InventoryController extends Controller
             'movement_date' => $movement->movement_date->toDateString(),
             'posted_at' => $movement->created_at?->toIso8601String(),
             'current_stock' => (int) ($movement->getAttribute('current_stock') ?? 0),
-            'is_correctable' => $movement->type !== StockMovementType::Correction
-                && ! (bool) $movement->getAttribute('corrections_exists'),
+            'is_correctable' => $this->isMovementCorrectable($movement),
             'spare_part' => $this->partPayload($movement->sparePart),
             'unit' => $this->unitPayload($movement->unitKerja),
             'actor' => $movement->actor?->only(['id', 'name']),
         ];
+    }
+
+    private function isMovementCorrectable(StockMovement $movement): bool
+    {
+        $part = $movement->sparePart;
+        $unit = $movement->unitKerja;
+
+        return $movement->type !== StockMovementType::Correction
+            && ! (bool) $movement->getAttribute('corrections_exists')
+            && $part !== null
+            && $part->is_active
+            && ! $part->trashed()
+            && $unit !== null
+            && $unit->is_active
+            && ! $unit->trashed();
     }
 
     private function partPayload(SparePart $part): array

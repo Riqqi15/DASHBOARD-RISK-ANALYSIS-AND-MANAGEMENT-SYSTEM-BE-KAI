@@ -146,26 +146,48 @@ class InventoryIndexTest extends TestCase
 
     public function test_history_marks_only_uncorrected_original_movements_as_correctable(): void
     {
-        $unit = UnitKerja::factory()->create();
-        $user = User::factory()->unit($unit)->create();
-        $part = SparePart::factory()->create();
-        $corrected = StockMovement::factory()->for($unit)->for($part)->for($user, 'actor')->create();
-        $available = StockMovement::factory()->for($unit)->for($part)->for($user, 'actor')->create();
-        $correction = StockMovement::factory()->for($unit)->for($part)->for($user, 'actor')->create([
+        $user = User::factory()->pusat()->create();
+        $activeUnit = UnitKerja::factory()->create();
+        $activePart = SparePart::factory()->create();
+        $corrected = StockMovement::factory()->for($activeUnit)->for($activePart)->for($user, 'actor')->create();
+        $available = StockMovement::factory()->for($activeUnit)->for($activePart)->for($user, 'actor')->create();
+        $correction = StockMovement::factory()->for($activeUnit)->for($activePart)->for($user, 'actor')->create([
             'type' => StockMovementType::Correction,
             'reverses_movement_id' => $corrected->id,
         ]);
 
+        $inactivePart = SparePart::factory()->create();
+        $inactivePartMovement = StockMovement::factory()->for($activeUnit)->for($inactivePart)->for($user, 'actor')->create();
+        $inactivePart->update(['is_active' => false]);
+
+        $deletedPart = SparePart::factory()->create();
+        $deletedPartMovement = StockMovement::factory()->for($activeUnit)->for($deletedPart)->for($user, 'actor')->create();
+        $deletedPart->delete();
+
+        $inactiveUnit = UnitKerja::factory()->create();
+        $inactiveUnitMovement = StockMovement::factory()->for($inactiveUnit)->for($activePart)->for($user, 'actor')->create();
+        $inactiveUnit->update(['is_active' => false]);
+
+        $deletedUnit = UnitKerja::factory()->create();
+        $deletedUnitMovement = StockMovement::factory()->for($deletedUnit)->for($activePart)->for($user, 'actor')->create();
+        $deletedUnit->delete();
+
         $this->actingAs($user)->get('/inventory?tab=history')
             ->assertInertia(fn (Assert $page) => $page
-                ->where('movements.data', function ($rows) use ($corrected, $available, $correction): bool {
+                ->where('movements.data', function ($rows) use ($corrected, $available, $correction, $inactivePartMovement, $deletedPartMovement, $inactiveUnitMovement, $deletedUnitMovement): bool {
                     $eligibility = collect($rows)->mapWithKeys(
                         fn (array $row): array => [$row['id'] => $row['is_correctable'] ?? null],
                     );
 
                     return $eligibility->get($corrected->id) === false
                         && $eligibility->get($available->id) === true
-                        && $eligibility->get($correction->id) === false;
+                        && $eligibility->get($correction->id) === false
+                        && collect([
+                            $inactivePartMovement,
+                            $deletedPartMovement,
+                            $inactiveUnitMovement,
+                            $deletedUnitMovement,
+                        ])->every(fn (StockMovement $movement): bool => $eligibility->get($movement->id) === false);
                 }));
     }
 

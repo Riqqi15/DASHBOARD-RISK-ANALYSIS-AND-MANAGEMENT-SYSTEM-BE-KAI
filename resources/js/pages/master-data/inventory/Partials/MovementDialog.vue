@@ -268,11 +268,17 @@ const fieldIds = {
 }
 const invalid = (field) => form.errors[field] ? 'true' : undefined
 const describedBy = (field) => form.errors[field] ? `${fieldIds[field]}-error` : undefined
-const focusFirstError = () => Object.keys(fieldIds).find((field) => {
-  if (!form.errors[field]) return false
-  document.getElementById(fieldIds[field])?.focus()
-  return true
-})
+const focusFirstError = () => {
+  if (form.errors.movement) {
+    document.getElementById('movement-error')?.focus()
+    return
+  }
+  Object.keys(fieldIds).find((field) => {
+    if (!form.errors[field]) return false
+    document.getElementById(fieldIds[field])?.focus()
+    return true
+  })
+}
 </script>
 
 <template>
@@ -358,6 +364,7 @@ const focusFirstError = () => Object.keys(fieldIds).find((field) => {
           <p v-else-if="!balanceKnown && selectedPart" class="text-sm text-slate-500">Saldo belum terverifikasi. Stok keluar tetap tidak tersedia sampai server mengonfirmasi saldo.</p>
 
           <p v-if="localError" data-stock-error class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700" role="alert">{{ localError }}</p>
+          <p v-if="form.errors.movement" id="movement-error" tabindex="-1" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700 outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2" role="alert">{{ form.errors.movement }}</p>
           <p v-if="form.errors.idempotency_key" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">{{ form.errors.idempotency_key }}</p>
 
           <div class="flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">

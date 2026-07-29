@@ -368,14 +368,12 @@ class StockMovementServiceTest extends TestCase
         $this->assertSame(2, InventoryStock::query()->whereBelongsTo($unit)->whereBelongsTo($part)->value('quantity'));
     }
 
-    public function test_correction_allows_inactive_historical_part_but_rejects_a_second_adjustment_to_original(): void
+    public function test_correction_rejects_a_second_adjustment_to_original_with_a_dialog_visible_error(): void
     {
         $unit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
         $actor = User::factory()->pusat()->create();
         $original = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 10, (string) Str::uuid());
-        SparePart::query()->whereKey($part->id)->update(['is_active' => false]);
-
         $first = $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::Out, 2, Carbon::parse('2026-07-28'), null, 'Koreksi pertama', (string) Str::uuid(), $original);
 
         try {
@@ -384,7 +382,7 @@ class StockMovementServiceTest extends TestCase
         } catch (ValidationException $exception) {
             $this->assertSame(
                 'Transaksi sumber sudah pernah dikoreksi.',
-                $exception->errors()['reverses_movement_id'][0] ?? null,
+                $exception->errors()['movement'][0] ?? null,
             );
         }
 
@@ -392,6 +390,25 @@ class StockMovementServiceTest extends TestCase
         $this->assertSame(8, InventoryStock::query()->whereBelongsTo($unit)->whereBelongsTo($part)->value('quantity'));
         $this->assertSame(1, StockMovement::query()->where('reverses_movement_id', $original->id)->count());
         $this->assertLedgerMatchesStock($unit, $part);
+    }
+
+    public function test_correction_rejects_an_inactive_historical_part(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $part = SparePart::factory()->create();
+        $actor = User::factory()->pusat()->create();
+        $original = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 10, (string) Str::uuid());
+        SparePart::query()->whereKey($part->id)->update(['is_active' => false]);
+
+        try {
+            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::Out, 2, Carbon::parse('2026-07-28'), null, 'Koreksi', (string) Str::uuid(), $original);
+            $this->fail('Expected inactive historical part validation failure.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('spare_part_id', $exception->errors());
+        }
+
+        $this->assertDatabaseCount('stock_movements', 1);
+        $this->assertSame(10, InventoryStock::query()->whereBelongsTo($unit)->whereBelongsTo($part)->value('quantity'));
     }
 
     public function test_correction_rejects_trashed_part_dirty_missing_and_unsaved_source(): void
@@ -541,6 +558,40 @@ class StockMovementServiceTest extends TestCase
         }
     }
 
+    public function test_concurrent_corrections_create_one_adjustment_and_return_a_dialog_visible_error(): void
+    {
+        $scope = 'movement-correction-'.Str::lower((string) Str::uuid());
+        $barrier = storage_path("framework/testing/{$scope}");
+        $processes = [];
+
+        try {
+            $setup = $this->setupConcurrencyFixture('setup-out', $scope);
+            foreach ([1, 2] as $worker) {
+                $process = $this->movementProcess([
+                    'record', (string) $setup['unit_id'], (string) $setup['part_id'], (string) $setup['actor_id'],
+                    'correction', 'out', '1', (string) Str::uuid(), $barrier, (string) $worker, (string) $setup['source_id'],
+                ]);
+                $process->start();
+                $processes[(string) $worker] = $process;
+            }
+
+            $this->releaseBarrier($barrier, $processes);
+            $results = $this->waitForProcesses($processes);
+
+            $this->assertSame(1, collect($results)->where('success', true)->count());
+            $rejected = collect($results)->firstWhere('validation', true);
+            $this->assertSame(
+                'Transaksi sumber sudah pernah dikoreksi.',
+                $rejected['errors']['movement'][0] ?? null,
+            );
+            $this->assertSame(4, InventoryStock::query()->where('unit_kerja_id', $setup['unit_id'])->where('spare_part_id', $setup['part_id'])->value('quantity'));
+            $this->assertSame(1, StockMovement::query()->where('reverses_movement_id', $setup['source_id'])->count());
+            $this->assertLedgerMatchesStockIds($setup['unit_id'], $setup['part_id']);
+        } finally {
+            $this->cleanupConcurrencyFixture($scope, $barrier, $processes);
+        }
+    }
+
     private function service(): StockMovementService
     {
         return app(StockMovementService::class);
@@ -565,7 +616,7 @@ class StockMovementServiceTest extends TestCase
         $this->assertSame($ledger, $stock);
     }
 
-    /** @return array{unit_id: int, part_id: int, actor_id: int} */
+    /** @return array{unit_id: int, part_id: int, actor_id: int, source_id: int|null} */
     private function setupConcurrencyFixture(string $action, string $scope): array
     {
         $process = $this->movementProcess([$action, $scope]);
@@ -613,7 +664,7 @@ class StockMovementServiceTest extends TestCase
     }
 
     /** @param array<string, Process> $processes
-     * @return array<string, array{success: bool, validation?: bool, movement_id?: int}>
+     * @return array<string, array{success: bool, validation?: bool, movement_id?: int, errors?: array<string, list<string>>}>
      */
     private function waitForProcesses(array $processes): array
     {

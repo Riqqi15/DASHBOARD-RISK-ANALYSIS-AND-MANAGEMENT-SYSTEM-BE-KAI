@@ -255,7 +255,7 @@ class InventoryManagementTest extends TestCase
         $this->assertSame(5, InventoryStock::query()->sole()->quantity);
     }
 
-    public function test_correction_copies_source_scope_and_supports_an_inactive_historical_part(): void
+    public function test_correction_copies_source_scope_is_idempotent_and_rejects_a_second_correction(): void
     {
         $unit = UnitKerja::factory()->create();
         $user = User::factory()->unit($unit)->create();
@@ -273,8 +273,6 @@ class InventoryManagementTest extends TestCase
                 'stock_after' => 10,
             ]);
         $sourceAttributes = (array) DB::table('stock_movements')->where('id', $source->id)->first();
-        $part->update(['is_active' => false]);
-
         $this->actingAs($user)
             ->from('/inventory')
             ->post(route('stock-movements.correct', $source), array_replace($this->correctionPayload(), [

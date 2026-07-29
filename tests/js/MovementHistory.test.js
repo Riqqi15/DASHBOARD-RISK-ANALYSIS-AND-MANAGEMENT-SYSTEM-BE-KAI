@@ -92,6 +92,19 @@ describe('MovementHistory', () => {
     expect(corrected.find('[aria-label="Koreksi transaksi 42"]').exists()).toBe(false)
   })
 
+  it('does not offer correction when the backend marks historical master data ineligible', () => {
+    const inactivePartSource = {
+      ...source,
+      id: 43,
+      is_correctable: false,
+      spare_part: { ...part, is_active: false },
+    }
+    const wrapper = mountHistory([inactivePartSource])
+
+    expect(wrapper.text()).toContain('Relay 24 VDC')
+    expect(wrapper.find('[aria-label="Koreksi transaksi 43"]').exists()).toBe(false)
+  })
+
   it('shows a directed empty state without inventing history rows', () => {
     const wrapper = mountHistory([])
 
