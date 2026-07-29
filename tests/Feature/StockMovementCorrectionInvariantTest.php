@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class StockMovementCorrectionInvariantTest extends TestCase
@@ -46,5 +47,28 @@ class StockMovementCorrectionInvariantTest extends TestCase
 
         $this->assertSame(3, StockMovement::query()->whereNull('reverses_movement_id')->count());
         $this->assertSame(1, StockMovement::query()->where('reverses_movement_id', $source->id)->count());
+    }
+
+    public function test_migration_down_and_up_cycles_preserve_the_foreign_key_lookup_index(): void
+    {
+        $migration = require database_path('migrations/2026_07_28_000008_enforce_single_stock_correction.php');
+
+        foreach (range(1, 2) as $cycle) {
+            $migration->down();
+
+            $this->assertFalse(Schema::hasIndex('stock_movements', 'stock_movements_one_correction_per_source'));
+            $this->assertTrue(
+                Schema::hasIndex('stock_movements', 'stock_movements_reverses_movement_lookup'),
+                "Fallback foreign-key index is missing after down cycle {$cycle}.",
+            );
+
+            $migration->up();
+
+            $this->assertTrue(Schema::hasIndex('stock_movements', 'stock_movements_one_correction_per_source', 'unique'));
+            $this->assertFalse(
+                Schema::hasIndex('stock_movements', 'stock_movements_reverses_movement_lookup'),
+                "Fallback foreign-key index remains after up cycle {$cycle}.",
+            );
+        }
     }
 }
