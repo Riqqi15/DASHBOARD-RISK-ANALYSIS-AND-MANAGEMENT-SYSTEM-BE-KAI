@@ -25,6 +25,8 @@ class InventoryController extends Controller
 
     private const TABS = ['stock', 'history', 'master'];
 
+    private const MAX_PAGE = 1_000_000;
+
     public function __invoke(Request $request): Response
     {
         Gate::authorize('viewAny', InventoryStock::class);
@@ -37,9 +39,7 @@ class InventoryController extends Controller
 
         $stocks = (clone $stockQuery)
             ->with([
-                'sparePart' => fn ($query) => $query
-                    ->withTrashed()
-                    ->with('assetSubsystem.assetSystem.assetGroup'),
+                'sparePart' => fn ($query) => $this->withHistoricalCategory($query),
                 'unitKerja' => fn ($query) => $query->withTrashed(),
             ])
             ->orderBy('spare_parts.code')
@@ -50,9 +50,7 @@ class InventoryController extends Controller
 
         $movements = (clone $movementQuery)
             ->with([
-                'sparePart' => fn ($query) => $query
-                    ->withTrashed()
-                    ->with('assetSubsystem.assetSystem.assetGroup'),
+                'sparePart' => fn ($query) => $this->withHistoricalCategory($query),
                 'unitKerja' => fn ($query) => $query->withTrashed(),
                 'actor:id,name',
             ])
@@ -172,11 +170,11 @@ class InventoryController extends Controller
             )
             ->when(
                 $filters['date_from'] !== '',
-                fn (Builder $filtered): Builder => $filtered->whereDate('stock_movements.movement_date', '>=', $filters['date_from']),
+                fn (Builder $filtered): Builder => $filtered->where('stock_movements.movement_date', '>=', $filters['date_from']),
             )
             ->when(
                 $filters['date_to'] !== '',
-                fn (Builder $filtered): Builder => $filtered->whereDate('stock_movements.movement_date', '<=', $filters['date_to']),
+                fn (Builder $filtered): Builder => $filtered->where('stock_movements.movement_date', '<=', $filters['date_to']),
             );
     }
 
@@ -316,6 +314,17 @@ class InventoryController extends Controller
         ];
     }
 
+    private function withHistoricalCategory($query)
+    {
+        return $query->withTrashed()->with([
+            'assetSubsystem' => fn ($subsystem) => $subsystem->withTrashed()->with([
+                'assetSystem' => fn ($system) => $system->withTrashed()->with([
+                    'assetGroup' => fn ($group) => $group->withTrashed(),
+                ]),
+            ]),
+        ]);
+    }
+
     private function unitPayload(UnitKerja $unit): array
     {
         return $unit->only(['id', 'code', 'name']);
@@ -416,7 +425,22 @@ class InventoryController extends Controller
     {
         $value = $this->scalarString($value);
 
-        return ctype_digit($value) && (int) $value > 0 ? (int) $value : 1;
+        if (! ctype_digit($value)) {
+            return 1;
+        }
+
+        $value = ltrim($value, '0');
+        if ($value === '') {
+            return 1;
+        }
+
+        $maximum = (string) self::MAX_PAGE;
+        if (strlen($value) > strlen($maximum)
+            || (strlen($value) === strlen($maximum) && strcmp($value, $maximum) > 0)) {
+            return self::MAX_PAGE;
+        }
+
+        return (int) $value;
     }
 
     private function stockStatusSql(): string

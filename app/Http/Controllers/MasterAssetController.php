@@ -34,7 +34,7 @@ class MasterAssetController extends Controller
 
         $search = $request->string('search')->trim()->toString();
         $status = $request->string('status')->toString();
-        $unitId = $request->filled('unit_kerja_id') ? $request->integer('unit_kerja_id') : null;
+        $unitId = $this->selectedUnitId($request);
         $query = $this->filteredQuery($request, $search, $status, $unitId);
         $hierarchyProps = $this->hierarchyProps($request, $query, $unitId);
 
@@ -225,6 +225,27 @@ class MasterAssetController extends Controller
             ->where('is_active', true)
             ->orderBy('code')
             ->get(['id', 'code', 'name']);
+    }
+
+    private function selectedUnitId(Request $request): ?int
+    {
+        $value = $request->input('unit_kerja_id');
+        if (! $request->user()->isPusat() || (! is_int($value) && ! is_string($value))) {
+            return null;
+        }
+
+        $unitId = filter_var($value, FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1],
+        ]);
+
+        if ($unitId === false) {
+            return null;
+        }
+
+        return UnitKerja::query()
+            ->where('is_active', true)
+            ->whereKey($unitId)
+            ->value('id');
     }
 
     private function statusOptions(): array

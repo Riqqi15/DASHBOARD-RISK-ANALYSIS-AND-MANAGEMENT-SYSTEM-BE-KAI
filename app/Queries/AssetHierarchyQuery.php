@@ -3,6 +3,7 @@
 namespace App\Queries;
 
 use App\Models\AssetSubsystem;
+use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -16,7 +17,9 @@ class AssetHierarchyQuery
      */
     public function forUser(User $user, ?int $unitId = null, ?array $subsystemIds = null): Collection
     {
-        $effectiveUnitId = $user->isUnit() ? $user->unit_kerja_id : $unitId;
+        $effectiveUnitId = $user->isUnit()
+            ? $user->unit_kerja_id
+            : UnitKerja::query()->where('is_active', true)->whereKey($unitId)->value('id');
 
         $ledger = fn (string $direction) => DB::table('stock_movements')
             ->join('spare_parts', 'spare_parts.id', '=', 'stock_movements.spare_part_id')

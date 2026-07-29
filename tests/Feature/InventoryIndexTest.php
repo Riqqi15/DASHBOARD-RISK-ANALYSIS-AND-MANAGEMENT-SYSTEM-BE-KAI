@@ -14,8 +14,11 @@ use App\Models\StockMovement;
 use App\Models\UnitKerja;
 use App\Models\UnitSubsystemOpening;
 use App\Models\User;
+use App\Queries\AssetHierarchyQuery;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -65,6 +68,40 @@ class InventoryIndexTest extends TestCase
                 ->where('spareParts.0.code', 'SP-OTHER')
                 ->has('categories')
                 ->has('units', 0));
+    }
+
+    public function test_stock_and_history_keep_soft_deleted_category_breadcrumbs_at_every_level(): void
+    {
+        $unit = UnitKerja::factory()->create();
+        $user = User::factory()->unit($unit)->create();
+        $expected = [];
+
+        foreach (['group', 'system', 'subsystem'] as $level) {
+            [$group, $system, $subsystem] = $this->categoryPath(
+                "Deleted group {$level}",
+                "Deleted system {$level}",
+                "Deleted subsystem {$level}",
+            );
+            $part = SparePart::factory()->for($subsystem)->create(['code' => "HISTORY-{$level}"]);
+            InventoryStock::factory()->for($unit)->for($part)->create();
+            StockMovement::factory()->for($unit)->for($part)->for($user, 'actor')->create();
+            match ($level) {
+                'group' => $group->delete(),
+                'system' => $system->delete(),
+                'subsystem' => $subsystem->delete(),
+            };
+            $expected[$part->code] = [
+                'group' => $group->name,
+                'system' => $system->name,
+                'subsystem' => $subsystem->name,
+            ];
+        }
+
+        $this->actingAs($user)->get('/inventory')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('stocks.data', fn ($rows): bool => $this->hasHistoricalBreadcrumbs($rows, $expected))
+                ->where('movements.data', fn ($rows): bool => $this->hasHistoricalBreadcrumbs($rows, $expected)));
     }
 
     public function test_pusat_selected_unit_scopes_stocks_history_stats_and_all_units_are_available_without_selection(): void
@@ -238,6 +275,20 @@ class InventoryIndexTest extends TestCase
                 ->where('movements.prev_page_url', fn (string $url): bool => str_contains($url, 'movement_page=1')));
     }
 
+    public function test_oversized_pagination_values_are_clamped_safely(): void
+    {
+        $user = User::factory()->unit()->create();
+        $huge = str_repeat('9', 300);
+
+        $this->actingAs($user)->get('/inventory?'.http_build_query([
+            'page' => $huge,
+            'movement_page' => $huge,
+        ]))->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('stocks.current_page', 1_000_000)
+                ->where('movements.current_page', 1_000_000));
+    }
+
     public function test_history_filters_by_type_date_and_selected_unit(): void
     {
         $unit = UnitKerja::factory()->create();
@@ -275,6 +326,22 @@ class InventoryIndexTest extends TestCase
             ->where('movements.data.0.id', $matching->id)
             ->where('filters.tab', 'history')
             ->where('filters.movement_type', 'out'));
+    }
+
+    public function test_history_date_filters_use_sargable_date_column_comparisons(): void
+    {
+        $user = User::factory()->unit()->create();
+        $queries = collect();
+        DB::listen(fn (QueryExecuted $query) => $queries->push(strtolower($query->sql)));
+
+        $this->actingAs($user)->get('/inventory?date_from=2026-07-01&date_to=2026-07-31')->assertOk();
+
+        $movementSql = $queries
+            ->filter(fn (string $sql): bool => str_contains($sql, 'stock_movements'))
+            ->implode(' ');
+        $this->assertStringNotContainsString('date(`stock_movements`.`movement_date`)', $movementSql);
+        $this->assertStringContainsString('`stock_movements`.`movement_date` >= ?', $movementSql);
+        $this->assertStringContainsString('`stock_movements`.`movement_date` <= ?', $movementSql);
     }
 
     public function test_access_policy_reorder_redirect_and_props_contain_no_dummy_metrics(): void
@@ -339,6 +406,41 @@ class InventoryIndexTest extends TestCase
                 ->where('hierarchy.0.sparepart_out', 6));
     }
 
+    public function test_invalid_pusat_hierarchy_unit_selection_is_normalized_to_all_units(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $firstUnit = UnitKerja::factory()->create();
+        $secondUnit = UnitKerja::factory()->create();
+        $inactiveUnit = UnitKerja::factory()->create(['is_active' => false]);
+        [, , $subsystem] = $this->categoryPath('Signal all', 'System all', 'Subsystem all');
+        Asset::factory()->for($firstUnit)->for($subsystem, 'assetSubsystem')->create(['jumlah_unit' => 4]);
+        Asset::factory()->for($secondUnit)->for($subsystem, 'assetSubsystem')->create(['jumlah_unit' => 6]);
+        UnitSubsystemOpening::factory()->for($firstUnit)->for($subsystem, 'assetSubsystem')->create([
+            'sparepart_in' => 2,
+            'sparepart_out' => 1,
+        ]);
+        UnitSubsystemOpening::factory()->for($secondUnit)->for($subsystem, 'assetSubsystem')->create([
+            'sparepart_in' => 3,
+            'sparepart_out' => 2,
+        ]);
+
+        foreach ([$inactiveUnit->id, 999_999] as $invalidUnitId) {
+            $row = app(AssetHierarchyQuery::class)->forUser($pusat, $invalidUnitId, [$subsystem->id])->sole();
+            $this->assertSame(10, $row->total);
+            $this->assertSame(5, $row->sparepart_in);
+            $this->assertSame(3, $row->sparepart_out);
+
+            $this->actingAs($pusat)->get('/master-asset?unit_kerja_id='.$invalidUnitId)
+                ->assertOk()
+                ->assertInertia(fn (Assert $page) => $page
+                    ->where('filters.unit_kerja_id', '')
+                    ->has('assets.data', 2)
+                    ->where('hierarchy.0.total', 10)
+                    ->where('hierarchy.0.sparepart_in', 5)
+                    ->where('hierarchy.0.sparepart_out', 3));
+        }
+    }
+
     /** @return array{AssetGroup, AssetSystem, AssetSubsystem} */
     private function categoryPath(string $groupName, string $systemName, string $subsystemName): array
     {
@@ -347,5 +449,20 @@ class InventoryIndexTest extends TestCase
         $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => $subsystemName]);
 
         return [$group, $system, $subsystem];
+    }
+
+    /** @param array<string, array<string, string>> $expected */
+    private function hasHistoricalBreadcrumbs($rows, array $expected): bool
+    {
+        $byCode = collect($rows)->keyBy('spare_part.code');
+
+        return collect($expected)->every(function (array $names, string $code) use ($byCode): bool {
+            $category = $byCode->get($code)['spare_part']['category'] ?? null;
+
+            return $category !== null
+                && $category['group']['name'] === $names['group']
+                && $category['system']['name'] === $names['system']
+                && $category['subsystem']['name'] === $names['subsystem'];
+        });
     }
 }
