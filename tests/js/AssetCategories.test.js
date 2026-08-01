@@ -309,6 +309,7 @@ describe('AssetCategories', () => {
     const pusat = mount(MainLayout, { global: { stubs: { Teleport: true } } })
     const adminLinks = pusat.findAll('a').filter((link) => link.attributes('href')?.startsWith('/admin/'))
     expect(adminLinks.map((link) => link.text())).toEqual(expect.arrayContaining(['Kategori Aset', 'Unit Kerja']))
+    expect(adminLinks.map((link) => link.text())).not.toEqual(expect.arrayContaining(['Akun Wilayah', 'Audit Log']))
     expect(adminLinks.findIndex((link) => link.text().includes('Kategori Aset'))).toBeLessThan(adminLinks.findIndex((link) => link.text().includes('Unit Kerja')))
 
     inertia.page = {

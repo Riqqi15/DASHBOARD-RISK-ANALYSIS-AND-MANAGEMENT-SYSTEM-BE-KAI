@@ -24,6 +24,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'safety_stock',
     'lead_time_demand',
     'reorder_point',
+    'reorder_calculation_status',
+    'reorder_formula_version',
+    'reorder_calculated_at',
     'severity',
     'unit_of_measure',
     'is_active',
@@ -48,6 +51,16 @@ class SparePart extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    public function failureLogs(): HasMany
+    {
+        return $this->hasMany(FailureLog::class);
+    }
+
+    public function unitPolicies(): HasMany
+    {
+        return $this->hasMany(UnitSparePartPolicy::class);
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
@@ -63,6 +76,7 @@ class SparePart extends Model
             'safety_stock' => 'integer',
             'lead_time_demand' => 'integer',
             'reorder_point' => 'integer',
+            'reorder_calculated_at' => 'immutable_datetime',
             'is_active' => 'boolean',
         ];
     }

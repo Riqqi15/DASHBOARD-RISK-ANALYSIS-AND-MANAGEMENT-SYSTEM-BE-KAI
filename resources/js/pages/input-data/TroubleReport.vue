@@ -10,12 +10,8 @@
           <p class="text-sm text-slate-500 mt-1">Formulir Laporan Gangguan (Trouble Report) dan Ringkasan Keandalan</p>
         </div>
         <div class="flex items-center gap-3">
-          <input type="file" ref="excelFileInput" class="hidden" accept=".xlsx, .xls, .csv, .xlsm" @change="handleExcelUpload" />
-          <BaseButton variant="secondary" @click="router.visit('/dashboard')">Kembali</BaseButton>
-          <button @click="triggerExcelUpload" class="px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-semibold hover:bg-emerald-100 flex items-center gap-2 transition shadow-sm">
-            <UploadIcon class="w-4 h-4" /> Upload Excel
-          </button>
-          <BaseButton variant="primary" @click="isModalOpen = true" class="shadow-md shadow-blue-500/20 flex items-center gap-2">
+          <BaseButton variant="secondary" @click="backToDashboard">Kembali</BaseButton>
+          <BaseButton :disabled="assets.length === 0" variant="primary" @click="isModalOpen = true" class="shadow-md shadow-blue-500/20 flex items-center gap-2">
             <PlusIcon class="w-4 h-4" /> Input Manual
           </BaseButton>
         </div>
@@ -114,10 +110,7 @@
                     <AlertTriangleIcon class="w-8 h-8 text-slate-300 mb-2" />
                     <p>Belum ada data kejadian kegagalan untuk subsystem ini di unit kerja Anda.</p>
                     <div class="mt-4 flex gap-3 justify-center items-center">
-                      <button @click="triggerExcelUpload" class="px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-semibold hover:bg-emerald-100 flex items-center gap-2 transition">
-                        <UploadIcon class="w-4 h-4" /> Upload Excel
-                      </button>
-                      <button @click="isModalOpen = true" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 flex items-center gap-2 transition">
+                      <button v-if="assets.length > 0" @click="isModalOpen = true" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 flex items-center gap-2 transition">
                         <PlusIcon class="w-4 h-4" /> Input Manual
                       </button>
                     </div>
@@ -178,7 +171,7 @@
                 </td>
               </tr>
               <tr v-for="(log, idx) in sparepartLogs" :key="'sp-'+idx" class="hover:bg-amber-50/50 transition-colors">
-                <td class="p-3 font-medium text-slate-700">{{ log.tanggal_kejadian }}</td>
+                <td class="p-3 font-medium text-slate-700">{{ log.tanggal_jam_kejadian }}</td>
                 <td class="p-3">{{ log.lokasi }} <br><span class="text-[10px] text-slate-500">{{ log.resor }}</span></td>
                 <td class="p-3">{{ log.failure_event }}</td>
                 <td class="p-3">{{ log.tindakan }}</td>
@@ -193,6 +186,7 @@
       <TroubleReportModal
         :is-open="isModalOpen"
         :subsystem-name="subsystemName"
+        :spare-parts="spare_parts"
         @close="isModalOpen = false"
         @save="handleSaveLog"
       />
@@ -201,47 +195,43 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
-import { useAuth } from '@/application/composables/useAuth'
-import { DummyRamsRepository } from '@/infrastructure/repositories/dummy-rams.repository'
 import MainLayout from '@/layouts/MainLayout.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
-import { ActivityIcon, AlertTriangleIcon, UploadIcon, PlusIcon, SettingsIcon } from 'lucide-vue-next'
+import { ActivityIcon, AlertTriangleIcon, PlusIcon, SettingsIcon } from 'lucide-vue-next'
 import TroubleReportModal from '@/components/trouble-report/TroubleReportModal.vue'
 
 const props = defineProps({
-  subsystem: {
-    type: String,
-    default: 'Subsystem Tidak Diketahui',
-  },
+  selected_area: { type: String, default: null },
+  subsystem: { type: String, default: 'Subsystem Tidak Diketahui' },
+  assets: { type: Array, default: () => [] },
+  reliability: { type: Array, default: () => [] },
+  failure_logs: { type: Array, default: () => [] },
+  spare_parts: { type: Array, default: () => [] },
 })
 
-const { currentUser, currentArea } = useAuth()
-const repository = new DummyRamsRepository()
-
-const subsystemName = ref(props.subsystem || 'Subsystem Tidak Diketahui')
-const summaryData = ref(null)
-const failureLogs = ref([])
 const isModalOpen = ref(false)
-const excelFileInput = ref(null)
+const subsystemName = computed(() => props.subsystem || 'Subsystem Tidak Diketahui')
+const failureLogs = computed(() => props.failure_logs)
+const totalUnits = computed(() => props.assets.reduce((total, asset) => total + Number(asset.jumlah_unit || 0), 0))
+const summaryData = computed(() => {
+  const summary = props.reliability[0]
+  if (!summary && props.assets.length === 0) return null
 
-const triggerExcelUpload = () => {
-  if (excelFileInput.value) {
-    excelFileInput.value.click()
+  return {
+    jumlah_unit: totalUnits.value,
+    total_operating_hour: summary?.total_operating_hour ?? 0,
+    total_uptime: summary?.total_uptime ?? 0,
+    total_downtime: summary?.total_downtime ?? 0,
+    jumlah_failure: summary?.jumlah_failure ?? props.failure_logs.length,
+    mttf: summary?.mttf ?? 0,
+    mtbf: summary?.mtbf ?? 0,
+    failure_rate: summary?.failure_rate ?? 0,
+    reliability: summary?.reliability ?? 0,
+    availability: summary?.availability ?? 0,
   }
-}
-
-const handleExcelUpload = (event) => {
-  const file = event.target.files[0]
-  if (!file) return
-
-  // Simulasi upload Excel
-  alert(`File Excel "${file.name}" siap diproses!\n\n(Catatan: Di versi produksi, file ini akan dikirim ke Backend server untuk dibaca baris per barisnya, lalu datanya akan disimpan ke database dan ditampilkan di sini).`)
-  
-  // Reset input file
-  event.target.value = ''
-}
+})
 
 // Formatting helpers
 const formatNumber = (num) => num ? Number(num).toFixed(2).replace(/\.00$/, '') : '0'
@@ -250,99 +240,33 @@ const formatPercent = (num) => num ? (Number(num) * 100).toFixed(2) + '%' : '0%'
 
 // Auto-calculate "COUNTIF" based on loaded logs
 const calculatedSparepart = computed(() => {
-  return failureLogs.value.filter(log => log.penggantian_sparepart === 'Y' || log.penggantian_sparepart === 'Ya').length
+  return failureLogs.value.filter(log => log.penggantian_sparepart === 'Y').length
 })
 
 const calculatedVandalism = computed(() => {
-  return failureLogs.value.filter(log => log.tindak_vandalisme === 'Y' || log.tindak_vandalisme === 'Ya').length
+  return failureLogs.value.filter(log => log.tindak_vandalisme === 'Y').length
 })
 
 // Output Report: Filter only logs with Sparepart Replacements
 const sparepartLogs = computed(() => {
-  return failureLogs.value.filter(log => log.penggantian_sparepart === 'Y' || log.penggantian_sparepart === 'Ya')
+  return failureLogs.value.filter(log => log.penggantian_sparepart === 'Y')
 })
-
-const loadData = async () => {
-  try {
-    // Ambil data assets untuk user/area ini
-    const unitKerjaId = currentArea.value
-    const assets = await repository.getAssets(unitKerjaId)
-    
-    // Cari aset yang memiliki subsystem sesuai dengan query URL (case insensitive)
-    const matchingAssets = assets.filter(a => 
-      a.subsystem?.toLowerCase() === subsystemName.value.toLowerCase() ||
-      a.system?.toLowerCase() === subsystemName.value.toLowerCase() // Fallback ke system
-    )
-
-    if (matchingAssets.length > 0) {
-      // Ambil reliability data
-      const reliabilities = await repository.getReliabilityData(unitKerjaId)
-      
-      // Filter reliability untuk aset-aset yang cocok
-      const matchingAssetIds = matchingAssets.map(a => a.id)
-      const relData = reliabilities.find(r => matchingAssetIds.includes(r.aset_id))
-      
-      if (relData) {
-        summaryData.value = relData
-        
-        // Ambil logs untuk reliability ini
-        const logs = await repository.getFailureLogs(relData.id)
-        failureLogs.value = logs
-      } else {
-        // Jika tidak ada data keandalan spesifik, buat ringkasan kosong
-        createEmptySummary(matchingAssets)
-      }
-    } else {
-      createEmptySummary([])
-    }
-  } catch (error) {
-    console.error("Gagal memuat data", error)
-  }
-}
-
-const createEmptySummary = (assets) => {
-  const totalUnit = assets.reduce((sum, a) => sum + (a.jumlah_unit || 0), 0)
-  summaryData.value = {
-    jumlah_unit: totalUnit,
-    total_operating_hour: 0,
-    total_uptime: 0,
-    total_downtime: 0,
-    jumlah_failure: 0,
-    mttf: 0,
-    mtbf: 0,
-    failure_rate: 0,
-    reliability: 1,
-    availability: 1, // Set default availability to 100% when no failure
-  }
-  failureLogs.value = []
-}
 
 const handleSaveLog = (newLog) => {
-  // Push to local array for instant UI update
-  failureLogs.value.unshift(newLog)
-  
-  // Update summary data dynamically
-  if (summaryData.value) {
-    summaryData.value.jumlah_failure += 1
-    summaryData.value.total_downtime += newLog.downtime_jam
-    
-    // Recalculate simple MTBF & Availability dynamically for demo
-    if (summaryData.value.jumlah_failure > 0) {
-      summaryData.value.mtbf = summaryData.value.total_operating_hour / summaryData.value.jumlah_failure
-      summaryData.value.failure_rate = 1 / summaryData.value.mtbf
-    }
-    const uptime = summaryData.value.total_operating_hour - summaryData.value.total_downtime
-    summaryData.value.total_uptime = uptime > 0 ? uptime : 0
-    if (summaryData.value.total_operating_hour > 0) {
-      summaryData.value.availability = summaryData.value.total_uptime / summaryData.value.total_operating_hour
-    }
-  }
+  const asset = props.assets[0]
+  if (!asset) return
 
-  isModalOpen.value = false
-  alert("Data Laporan Kegagalan berhasil disimpan!")
+  router.post('/trouble-report', {
+    ...newLog,
+    asset_id: asset.id,
+    idempotency_key: crypto.randomUUID(),
+  }, {
+    preserveScroll: true,
+    onSuccess: () => { isModalOpen.value = false },
+  })
 }
 
-onMounted(() => {
-  loadData()
-})
+const backToDashboard = () => {
+  router.get('/dashboard', props.selected_area ? { area: props.selected_area } : {})
+}
 </script>

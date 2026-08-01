@@ -7,6 +7,7 @@ use App\Models\Asset;
 use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
+use App\Models\PredictiveAssetSnapshot;
 use App\Models\UnitKerja;
 use App\Models\UnitSubsystemOpening;
 use Carbon\CarbonImmutable;
@@ -34,13 +35,32 @@ class MasterAssetWorkbookImporter
         'tanggal pemasangan' => 'installed_at',
     ];
 
+    /** @var array<string, string> */
+    private const OPTIONAL_PREDICTIVE_HEADERS = [
+        'criteria function' => 'function_criterion',
+        'criteria production impact' => 'production_impact',
+        'lead time (month)' => 'lead_time_months',
+        'price' => 'price_category',
+        'average usage in 2021' => 'average_yearly_usage',
+        'sla' => 'sla',
+        'safety stock based on failure' => 'failure_safety_stock',
+        'comsumable/ sparepart' => 'item_classification',
+        'repairable (y/n)' => 'repairable',
+        'lifetime (years)' => 'lifetime_years',
+        'jumlah vandalisme' => 'vandalism_count',
+        'likelihood' => 'likelihood',
+        'consequences' => 'consequence',
+    ];
+
     public function __construct(
         private readonly AuditLogger $auditLogger,
         private readonly AssetCategoryResolver $categoryResolver,
+        private readonly PredictiveInventoryCalculator $predictiveInventoryCalculator,
+        private readonly RiskAssessmentCalculator $riskAssessmentCalculator,
     ) {}
 
     /**
-     * @return array{created: int, updated: int, skipped: int, openings_created: int, openings_updated: int}
+     * @return array{created: int, updated: int, skipped: int, openings_created: int, openings_updated: int, predictive_snapshots: int}
      */
     public function import(string $workbookPath, UnitKerja $unit): array
     {
@@ -50,6 +70,9 @@ class MasterAssetWorkbookImporter
 
         $reader = IOFactory::createReaderForFile($workbookPath);
         $reader->setReadDataOnly(true);
+        $reader->setLoadSheetsOnly([self::SHEET]);
+        $reader->setReadEmptyCells(false);
+        $reader->setIgnoreRowsWithNoCells(true);
         $spreadsheet = $reader->load($workbookPath);
 
         try {
@@ -61,11 +84,17 @@ class MasterAssetWorkbookImporter
 
             $columns = $this->headerColumns($sheet);
 
+            $workbookHash = hash_file('sha256', $workbookPath);
+            if ($workbookHash === false) {
+                throw new RuntimeException("Fingerprint workbook gagal dibuat: {$workbookPath}");
+            }
+
             return DB::transaction(fn (): array => $this->importRows(
                 $sheet,
                 $columns,
                 $unit,
                 basename($workbookPath),
+                $workbookHash,
             ));
         } finally {
             $spreadsheet->disconnectWorksheets();
@@ -85,8 +114,9 @@ class MasterAssetWorkbookImporter
             $header = $this->text($sheet->getCell([$column, 2])->getValue());
             $key = mb_strtolower($header);
 
-            if (isset(self::REQUIRED_HEADERS[$key])) {
-                $columns[self::REQUIRED_HEADERS[$key]] = $column;
+            $headers = [...self::REQUIRED_HEADERS, ...self::OPTIONAL_PREDICTIVE_HEADERS];
+            if (isset($headers[$key])) {
+                $columns[$headers[$key]] = $column;
             }
         }
 
@@ -101,16 +131,22 @@ class MasterAssetWorkbookImporter
 
     /**
      * @param  array<string, int>  $columns
-     * @return array{created: int, updated: int, skipped: int, openings_created: int, openings_updated: int}
+     * @return array{created: int, updated: int, skipped: int, openings_created: int, openings_updated: int, predictive_snapshots: int}
      */
-    private function importRows(Worksheet $sheet, array $columns, UnitKerja $unit, string $workbookName): array
-    {
+    private function importRows(
+        Worksheet $sheet,
+        array $columns,
+        UnitKerja $unit,
+        string $workbookName,
+        string $workbookHash,
+    ): array {
         $result = [
             'created' => 0,
             'updated' => 0,
             'skipped' => 0,
             'openings_created' => 0,
             'openings_updated' => 0,
+            'predictive_snapshots' => 0,
         ];
         $currentGroup = '';
         $currentSystem = '';
@@ -264,9 +300,104 @@ class MasterAssetWorkbookImporter
                 $workbookName,
                 $result,
             );
+            $result['predictive_snapshots'] += $this->importPredictiveSnapshot(
+                $sheet,
+                $columns,
+                $row,
+                $asset,
+                $sourceValues,
+                $workbookName,
+                $workbookHash,
+            );
         }
 
         return $result;
+    }
+
+    /**
+     * @param  array<string, int>  $columns
+     * @param  array<string, mixed>  $assetValues
+     */
+    private function importPredictiveSnapshot(
+        Worksheet $sheet,
+        array $columns,
+        int $row,
+        Asset $asset,
+        array $assetValues,
+        string $workbookName,
+        string $workbookHash,
+    ): int {
+        $required = array_values(self::OPTIONAL_PREDICTIVE_HEADERS);
+        if (array_diff($required, array_keys($columns)) !== []) {
+            return 0;
+        }
+
+        $functionCriterion = $this->integerValue($sheet, $columns['function_criterion'], $row, 'Criteria Function');
+        $productionImpact = $this->integerValue($sheet, $columns['production_impact'], $row, 'Criteria Production Impact');
+        $leadTimeMonths = $this->decimalValue($sheet, $columns['lead_time_months'], $row, 'Lead Time (Month)');
+        $priceCategory = $this->cellText($sheet, $columns['price_category'], $row);
+        $averageYearlyUsage = $this->decimalValue($sheet, $columns['average_yearly_usage'], $row, 'Average Usage');
+        $rawSla = $this->decimalValue($sheet, $columns['sla'], $row, 'SLA');
+        $slaPercentage = $rawSla <= 1 ? $rawSla * 100 : $rawSla;
+        $failureSafetyStock = $this->decimalValue($sheet, $columns['failure_safety_stock'], $row, 'Safety Stock Based on Failure');
+        $sparepartIn = $this->quantity($sheet->getCell([$columns['sparepart_in'], $row])->getCalculatedValue(), $workbookName, $row, 'Sparepart IN');
+        $sparepartOut = $this->quantity($sheet->getCell([$columns['sparepart_out'], $row])->getCalculatedValue(), $workbookName, $row, 'Sparepart OUT');
+        $currentStock = max(0, $sparepartIn - $sparepartOut - (int) ceil($failureSafetyStock));
+        $installedAt = $assetValues['tanggal_pemasangan'];
+        $lifetimeYears = $this->nullableDecimalValue($sheet, $columns['lifetime_years'], $row, 'Lifetime (Years)');
+        $vandalismCount = $this->integerValue($sheet, $columns['vandalism_count'], $row, 'Jumlah Vandalisme');
+        $likelihood = $this->nullableIntegerValue($sheet, $columns['likelihood'], $row, 'Likelihood');
+        $consequence = $this->nullableIntegerValue($sheet, $columns['consequence'], $row, 'Consequences');
+        $calculation = $this->predictiveInventoryCalculator->calculate([
+            'function_criterion' => $functionCriterion,
+            'production_impact' => $productionImpact,
+            'lead_time_months' => $leadTimeMonths,
+            'price_category' => $priceCategory,
+            'current_stock' => $currentStock,
+            'total_assets' => (int) $assetValues['jumlah_unit'],
+            'average_yearly_usage' => $averageYearlyUsage,
+            'sla_percentage' => $slaPercentage,
+            'failure_safety_stock' => $failureSafetyStock,
+            'installed_at' => $installedAt ? CarbonImmutable::parse($installedAt) : null,
+            'lifetime_years' => $lifetimeYears,
+        ], now());
+        $risk = $likelihood !== null && $consequence !== null
+            ? $this->riskAssessmentCalculator->calculate($likelihood, $consequence)
+            : ['rating' => null, 'level' => null];
+        $sourceKey = hash('sha256', implode('|', [$workbookHash, self::SHEET, $row]));
+
+        PredictiveAssetSnapshot::query()->updateOrCreate(
+            ['source_key' => $sourceKey],
+            [
+                'asset_id' => $asset->id,
+                'workbook_hash' => $workbookHash,
+                'workbook_name' => $workbookName,
+                'sheet_name' => self::SHEET,
+                'source_row' => $row,
+                'function_criterion' => $functionCriterion,
+                'production_impact' => $productionImpact,
+                'lead_time_months' => $leadTimeMonths,
+                'price_category' => $priceCategory,
+                'current_stock' => $currentStock,
+                'total_assets' => (int) $assetValues['jumlah_unit'],
+                'average_yearly_usage' => $averageYearlyUsage,
+                'sla_percentage' => $slaPercentage,
+                'failure_safety_stock' => $failureSafetyStock,
+                'item_classification' => $this->nullableText($sheet, $columns['item_classification'], $row),
+                'repairable' => $this->yesNoValue($sheet, $columns['repairable'], $row),
+                'installed_at' => $installedAt,
+                'lifetime_years' => $lifetimeYears,
+                'vandalism_count' => $vandalismCount,
+                'likelihood' => $likelihood,
+                'consequence' => $consequence,
+                ...$calculation,
+                'risk_rating' => $risk['rating'],
+                'risk_level' => $risk['level'],
+                'calculated_at' => now(),
+            ],
+        );
+
+        return 1;
     }
 
     private function lockAndRevalidateCategories(
@@ -293,7 +424,7 @@ class MasterAssetWorkbookImporter
 
     /**
      * @param  array<string, int>  $columns
-     * @param  array{created: int, updated: int, skipped: int, openings_created: int, openings_updated: int}  $result
+     * @param  array{created: int, updated: int, skipped: int, openings_created: int, openings_updated: int, predictive_snapshots: int}  $result
      */
     private function importOpening(
         Worksheet $sheet,
@@ -395,6 +526,74 @@ class MasterAssetWorkbookImporter
     private function cellText(Worksheet $sheet, int $column, int $row): string
     {
         return $this->text($sheet->getCell([$column, $row])->getCalculatedValue());
+    }
+
+    private function decimalValue(Worksheet $sheet, int $column, int $row, string $header): float
+    {
+        $value = $this->cachedCellValue($sheet, $column, $row);
+        if (! is_numeric($value) || ! is_finite((float) $value) || (float) $value < 0) {
+            throw new RuntimeException("Nilai {$header} tidak valid pada sheet ".self::SHEET.", row {$row}.");
+        }
+
+        return (float) $value;
+    }
+
+    private function nullableDecimalValue(Worksheet $sheet, int $column, int $row, string $header): ?float
+    {
+        $value = $this->cachedCellValue($sheet, $column, $row);
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        return $this->decimalValue($sheet, $column, $row, $header);
+    }
+
+    private function integerValue(Worksheet $sheet, int $column, int $row, string $header): int
+    {
+        $value = $this->decimalValue($sheet, $column, $row, $header);
+        if (floor($value) !== $value || $value > 4294967295) {
+            throw new RuntimeException("Nilai {$header} harus bilangan bulat pada sheet ".self::SHEET.", row {$row}.");
+        }
+
+        return (int) $value;
+    }
+
+    private function nullableIntegerValue(Worksheet $sheet, int $column, int $row, string $header): ?int
+    {
+        $value = $this->cachedCellValue($sheet, $column, $row);
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        return $this->integerValue($sheet, $column, $row, $header);
+    }
+
+    private function nullableText(Worksheet $sheet, int $column, int $row): ?string
+    {
+        $value = $this->text($this->cachedCellValue($sheet, $column, $row));
+
+        return $value === '' ? null : $value;
+    }
+
+    private function yesNoValue(Worksheet $sheet, int $column, int $row): ?bool
+    {
+        $value = mb_strtoupper($this->text($this->cachedCellValue($sheet, $column, $row)));
+
+        return match ($value) {
+            '' => null,
+            'Y', 'YES', 'YA' => true,
+            'N', 'NO', 'TIDAK' => false,
+            default => throw new RuntimeException(
+                'Repairable harus Y/N pada sheet '.self::SHEET.", row {$row}.",
+            ),
+        };
+    }
+
+    private function cachedCellValue(Worksheet $sheet, int $column, int $row): mixed
+    {
+        $cell = $sheet->getCell([$column, $row]);
+
+        return $cell->isFormula() ? $cell->getOldCalculatedValue() : $cell->getValue();
     }
 
     private function legacyCellText(Worksheet $sheet, int $column, int $row): string

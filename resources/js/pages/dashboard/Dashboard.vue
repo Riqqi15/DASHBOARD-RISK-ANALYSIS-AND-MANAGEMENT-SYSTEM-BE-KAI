@@ -1,6 +1,6 @@
 <template>
   <MainLayout>
-    <AreaSelectorBanner />
+    <AreaSelectorBanner :units="units" :selected-area="selected_area" />
     <div class="space-y-8 pb-10">
       <div class="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-200 pb-5 gap-4">
         <div>
@@ -166,46 +166,25 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watchEffect } from 'vue'
 import { router } from '@inertiajs/vue3'
-import { useAuth } from '@/application/composables/useAuth'
-import { DummyRamsRepository } from '@/infrastructure/repositories/dummy-rams.repository'
 import MainLayout from '@/layouts/MainLayout.vue'
 import AreaSelectorBanner from '@/components/dashboard/AreaSelectorBanner.vue'
-import { 
-  TrainTrackIcon, SettingsIcon, GitMergeIcon,
-  VideoIcon, ActivityIcon, PhoneIcon, BellIcon, RouterIcon
-} from 'lucide-vue-next'
-
-const { currentUser, currentArea } = useAuth()
-const repository = new DummyRamsRepository()
-
-const assets = ref([])
-
-const loadAssets = async () => {
-  try {
-    const unitKerjaId = currentArea.value
-    assets.value = await repository.getAssets(unitKerjaId)
-  } catch (error) {
-    console.error("Failed to load assets", error)
-  }
-}
-
-onMounted(() => {
-  loadAssets()
-})
-
-// Auto reload assets if currentArea changes
-watchEffect(() => {
-  if (currentArea.value !== undefined) {
-    loadAssets()
-  }
+const props = defineProps({
+  units: {
+    type: Array,
+    default: () => [],
+  },
+  selected_area: {
+    type: String,
+    default: null,
+  },
 })
 
 const goToTroubleReport = (subsystemName) => {
-  // Navigate to trouble report view with the subsystem name as a query/param
-  // We use query parameter here for simplicity and to handle spaces easily
-  router.visit(`/trouble-report?subsystem=${encodeURIComponent(subsystemName)}`)
+  router.get('/trouble-report', {
+    subsystem: subsystemName,
+    ...(props.selected_area ? { area: props.selected_area } : {}),
+  })
 }
 </script>
 

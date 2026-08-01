@@ -2,8 +2,8 @@
 import { Link, useForm } from '@inertiajs/vue3'
 import BaseButton from '@/components/base/BaseButton.vue'
 
-const props = defineProps({ account: { type: Object, default: null }, units: { type: Array, required: true }, submitLabel: { type: String, required: true } })
-const form = useForm({ name: props.account?.name ?? '', username: props.account?.username ?? '', email: props.account?.email ?? '', unit_kerja_id: props.account?.unit_kerja_id ?? '', password: '', password_confirmation: '' })
+const props = defineProps({ account: { type: Object, default: null }, units: { type: Array, required: true }, selectedUnitId: { type: Number, default: null }, submitLabel: { type: String, required: true } })
+const form = useForm({ name: props.account?.name ?? '', username: props.account?.username ?? '', email: props.account?.email ?? '', unit_kerja_id: props.account?.unit_kerja_id ?? props.selectedUnitId ?? '', password: '', password_confirmation: '' })
 const submit = () => props.account ? form.put(`/admin/accounts/${props.account.id}`) : form.post('/admin/accounts')
 const input = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm outline-none focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10'
 </script>
@@ -19,6 +19,6 @@ const input = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 te
       <div><label for="password" class="mb-2 block text-sm font-medium">Kata sandi</label><input id="password" v-model="form.password" type="password" :class="input" minlength="12" required autocomplete="new-password"><p class="mt-1 text-xs text-slate-500">Minimal 12 karakter.</p><p v-if="form.errors.password" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.password }}</p></div>
       <div><label for="confirmation" class="mb-2 block text-sm font-medium">Konfirmasi kata sandi</label><input id="confirmation" v-model="form.password_confirmation" type="password" :class="input" minlength="12" required autocomplete="new-password"></div>
     </div>
-    <div class="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end"><Link href="/admin/accounts" class="inline-flex h-11 items-center justify-center rounded-lg border border-slate-300 px-5 text-sm font-medium hover:bg-slate-50">Batal</Link><BaseButton type="submit" variant="primary" class="h-11 rounded-lg" :loading="form.processing">{{ submitLabel }}</BaseButton></div>
+    <div class="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end"><Link href="/admin/units" class="inline-flex h-11 items-center justify-center rounded-lg border border-slate-300 px-5 text-sm font-medium hover:bg-slate-50">Batal</Link><BaseButton type="submit" variant="primary" class="h-11 rounded-lg" :loading="form.processing">{{ submitLabel }}</BaseButton></div>
   </form>
 </template>

@@ -24,7 +24,7 @@ class RegionalAccountManagementTest extends TestCase
             'unit_kerja_id' => $unit->id,
             'password' => 'long-secret-password',
             'password_confirmation' => 'long-secret-password',
-        ])->assertRedirect('/admin/accounts');
+        ])->assertRedirect('/admin/units');
 
         $this->assertDatabaseHas('users', [
             'username' => 'daop1.operator',
@@ -42,12 +42,12 @@ class RegionalAccountManagementTest extends TestCase
 
         $this->actingAs($pusat)->patch("/admin/accounts/{$account->id}/status", [
             'is_active' => false,
-        ])->assertRedirect('/admin/accounts');
+        ])->assertRedirect('/admin/units');
 
         $this->actingAs($pusat)->put("/admin/accounts/{$account->id}/password", [
             'password' => 'replacement-password',
             'password_confirmation' => 'replacement-password',
-        ])->assertRedirect('/admin/accounts');
+        ])->assertRedirect('/admin/units');
 
         $this->assertFalse($account->fresh()->is_active);
         $this->assertTrue(Hash::check('replacement-password', $account->fresh()->password));
@@ -84,7 +84,7 @@ class RegionalAccountManagementTest extends TestCase
     {
         $user = User::factory()->unit()->create();
 
-        $this->actingAs($user)->get('/admin/accounts')->assertForbidden();
+        $this->actingAs($user)->get('/admin/accounts/create')->assertForbidden();
         $this->actingAs($user)->post('/admin/accounts', [])->assertForbidden();
     }
 
@@ -109,7 +109,7 @@ class RegionalAccountManagementTest extends TestCase
             'username' => 'operator.updated',
             'email' => 'updated@example.test',
             'unit_kerja_id' => $unit->id,
-        ])->assertRedirect('/admin/accounts');
+        ])->assertRedirect('/admin/units');
 
         $this->assertDatabaseHas('users', [
             'id' => $account->id,
@@ -117,5 +117,13 @@ class RegionalAccountManagementTest extends TestCase
             'username' => 'operator.updated',
             'unit_kerja_id' => $unit->id,
         ]);
+    }
+
+    public function test_standalone_account_and_audit_log_indexes_are_not_exposed(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+
+        $this->actingAs($pusat)->get('/admin/accounts')->assertMethodNotAllowed();
+        $this->actingAs($pusat)->get('/admin/audit-logs')->assertNotFound();
     }
 }

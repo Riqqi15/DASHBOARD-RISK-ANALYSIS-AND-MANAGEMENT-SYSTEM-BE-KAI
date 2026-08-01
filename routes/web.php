@@ -4,17 +4,17 @@ use App\Http\Controllers\Admin\AssetCategoryController;
 use App\Http\Controllers\Admin\AssetGroupController;
 use App\Http\Controllers\Admin\AssetSubsystemController;
 use App\Http\Controllers\Admin\AssetSystemController;
-use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\RegionalAccountController;
 use App\Http\Controllers\Admin\SparePartController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Admin\UnitSubsystemOpeningController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\FailureLogController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MasterAssetController;
+use App\Http\Controllers\RamsDashboardController;
 use App\Http\Controllers\StockMovementController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::middleware('guest')->group(function (): void {
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -24,11 +24,10 @@ Route::middleware('guest')->group(function (): void {
 Route::middleware(['auth', 'active'])->group(function (): void {
     Route::redirect('/', '/dashboard');
 
-    Route::get('/dashboard', fn () => Inertia::render('dashboard/Dashboard'))->name('dashboard');
-    Route::get('/overview', fn () => Inertia::render('dashboard/Overview'))->name('overview');
-    Route::get('/trouble-report', fn () => Inertia::render('input-data/TroubleReport', [
-        'subsystem' => request()->query('subsystem', 'Subsystem Tidak Diketahui'),
-    ]))->name('trouble-report');
+    Route::get('/dashboard', [RamsDashboardController::class, 'dashboard'])->name('dashboard');
+    Route::get('/overview', [RamsDashboardController::class, 'overview'])->name('overview');
+    Route::get('/trouble-report', [RamsDashboardController::class, 'troubleReport'])->name('trouble-report');
+    Route::post('/trouble-report', [FailureLogController::class, 'store'])->name('failure-logs.store');
     Route::resource('master-asset', MasterAssetController::class)
         ->parameters(['master-asset' => 'asset'])
         ->except(['show'])
@@ -40,7 +39,7 @@ Route::middleware(['auth', 'active'])->group(function (): void {
             'update' => 'master-assets.update',
             'destroy' => 'master-assets.destroy',
         ]);
-    Route::get('/risk-matrix', fn () => Inertia::render('dashboard/RiskMatrix'))->name('risk-matrix');
+    Route::get('/risk-matrix', [RamsDashboardController::class, 'riskMatrix'])->name('risk-matrix');
     Route::get('/inventory', InventoryController::class)->name('inventory');
     Route::get('/inventory/stock-state', [StockMovementController::class, 'state'])->name('stock-movements.state');
     Route::post('/inventory/movements', [StockMovementController::class, 'store'])->name('stock-movements.store');
@@ -62,11 +61,10 @@ Route::middleware(['auth', 'active', 'pusat'])->prefix('admin')->name('admin.')-
     Route::resource('units', UnitKerjaController::class)
         ->parameters(['units' => 'unit'])
         ->except(['show', 'destroy']);
-    Route::resource('accounts', RegionalAccountController::class)->except(['show', 'destroy']);
+    Route::resource('accounts', RegionalAccountController::class)->except(['index', 'show', 'destroy']);
     Route::patch('accounts/{account}/status', [RegionalAccountController::class, 'status'])->name('accounts.status');
     Route::get('accounts/{account}/password', [RegionalAccountController::class, 'editPassword'])->name('accounts.password.edit');
     Route::put('accounts/{account}/password', [RegionalAccountController::class, 'updatePassword'])->name('accounts.password.update');
-    Route::get('audit-logs', AuditLogController::class)->name('audit-logs.index');
     Route::put('unit-subsystem-openings/{opening}', [UnitSubsystemOpeningController::class, 'update'])
         ->name('unit-subsystem-openings.update');
 });

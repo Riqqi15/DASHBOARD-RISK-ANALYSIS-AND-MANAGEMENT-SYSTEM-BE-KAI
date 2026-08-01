@@ -116,6 +116,7 @@ class AssetCategoryImportTest extends TestCase
             'skipped' => 0,
             'openings_created' => 2,
             'openings_updated' => 0,
+            'predictive_snapshots' => 0,
         ], $first);
         $group = AssetGroup::query()->sole();
         $system = AssetSystem::query()->sole();
@@ -171,6 +172,7 @@ class AssetCategoryImportTest extends TestCase
             'skipped' => 0,
             'openings_created' => 0,
             'openings_updated' => 0,
+            'predictive_snapshots' => 0,
         ], $unchanged);
         $this->artisan('rams:import-master-assets', ['workbook' => $path, '--unit' => 'DAOP-1'])
             ->expectsOutputToContain('Dibuat: 0')

@@ -7,7 +7,10 @@ use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
 use App\Models\SparePart;
+use App\Models\UnitKerja;
+use App\Models\UnitSparePartPolicy;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -34,21 +37,33 @@ class SparePartWorkbookImporter
         'Severity Equipment',
     ];
 
-    public function __construct(private readonly AssetCategoryResolver $categoryResolver) {}
+    public function __construct(
+        private readonly AssetCategoryResolver $categoryResolver,
+        private readonly ReorderStockCalculator $reorderStockCalculator,
+    ) {}
 
     /**
      * @return array{created: int, updated: int, unchanged: int, skipped: int}
      */
-    public function import(string $workbookPath, bool $bootstrapCategories = false): array
-    {
+    public function import(
+        string $workbookPath,
+        bool $bootstrapCategories = false,
+        ?UnitKerja $unit = null,
+    ): array {
         if (! is_file($workbookPath)) {
             throw new RuntimeException("File workbook tidak ditemukan: {$workbookPath}");
         }
 
         $workbookName = basename($workbookPath);
+        $workbookHash = hash_file('sha256', $workbookPath);
+        if ($workbookHash === false) {
+            throw new RuntimeException("Fingerprint workbook gagal dibuat: {$workbookPath}");
+        }
         $reader = IOFactory::createReaderForFile($workbookPath);
         $reader->setReadDataOnly(true);
         $reader->setLoadSheetsOnly([self::SHEET]);
+        $reader->setReadEmptyCells(false);
+        $reader->setIgnoreRowsWithNoCells(true);
         $spreadsheet = $reader->load($workbookPath);
 
         try {
@@ -62,7 +77,13 @@ class SparePartWorkbookImporter
             $this->assertHeaders($sheet, $workbookName);
 
             return DB::transaction(
-                fn (): array => $this->importRows($sheet, $workbookName, $bootstrapCategories),
+                fn (): array => $this->importRows(
+                    $sheet,
+                    $workbookName,
+                    $bootstrapCategories,
+                    $unit,
+                    $workbookHash,
+                ),
                 3,
             );
         } finally {
@@ -89,8 +110,13 @@ class SparePartWorkbookImporter
     /**
      * @return array{created: int, updated: int, unchanged: int, skipped: int}
      */
-    private function importRows(Worksheet $sheet, string $workbookName, bool $bootstrapCategories): array
-    {
+    private function importRows(
+        Worksheet $sheet,
+        string $workbookName,
+        bool $bootstrapCategories,
+        ?UnitKerja $unit,
+        string $workbookHash,
+    ): array {
         $result = ['created' => 0, 'updated' => 0, 'unchanged' => 0, 'skipped' => 0];
         $currentGroup = '';
         $currentSystem = '';
@@ -146,17 +172,19 @@ class SparePartWorkbookImporter
                 $row,
                 $bootstrapCategories,
             );
-            $sourceValues = [
-                'asset_subsystem_id' => $subsystem->id,
-                'equipment' => $currentEquipment,
-                'detail_equipment' => $detailEquipment,
+            $reorderInputs = [
                 'max_yearly_failure' => $this->nullableDecimal($sheet, 5, $row, $workbookName, self::HEADERS[4]),
                 'average_yearly_failure' => $this->nullableDecimal($sheet, 6, $row, $workbookName, self::HEADERS[5]),
                 'max_lead_time_months' => $this->nullableDecimal($sheet, 7, $row, $workbookName, self::HEADERS[6]),
                 'average_lead_time_months' => $this->nullableDecimal($sheet, 8, $row, $workbookName, self::HEADERS[7]),
-                'safety_stock' => $this->nullableQuantity($sheet, 9, $row, $workbookName, self::HEADERS[8]),
-                'lead_time_demand' => $this->nullableQuantity($sheet, 10, $row, $workbookName, self::HEADERS[9]),
-                'reorder_point' => $this->nullableQuantity($sheet, 11, $row, $workbookName, self::HEADERS[10]),
+            ];
+            $reorderValues = $this->calculateReorderValues($reorderInputs);
+            $sourceValues = [
+                'asset_subsystem_id' => $subsystem->id,
+                'equipment' => $currentEquipment,
+                'detail_equipment' => $detailEquipment,
+                ...$reorderInputs,
+                ...$reorderValues,
                 'severity' => $this->nullableBoundedText(
                     $this->cellValue($sheet, 12, $row, $workbookName, self::HEADERS[11], false),
                     255,
@@ -166,11 +194,26 @@ class SparePartWorkbookImporter
                 ),
             ];
 
-            /** @var SparePart|null $part */
-            $part = SparePart::withTrashed()
-                ->where('source_key', $sourceKey)
+            $matchingParts = SparePart::withTrashed()
+                ->where(function ($query) use ($sourceKey, $subsystem, $detailEquipment): void {
+                    $query->where('source_key', $sourceKey)
+                        ->orWhere(function ($legacy) use ($subsystem, $detailEquipment): void {
+                            $legacy->where('asset_subsystem_id', $subsystem->id)
+                                ->where('detail_equipment', $detailEquipment);
+                        });
+                })
                 ->lockForUpdate()
-                ->first();
+                ->get();
+            if ($matchingParts->count() > 1) {
+                throw $this->rowError(
+                    $workbookName,
+                    $row,
+                    'Detail Equipment',
+                    'lebih dari satu master sparepart cocok; rekonsiliasi manual diperlukan.',
+                );
+            }
+            /** @var SparePart|null $part */
+            $part = $matchingParts->first();
 
             if ($part?->trashed()) {
                 $result['skipped']++;
@@ -179,25 +222,31 @@ class SparePartWorkbookImporter
             }
 
             if ($part) {
+                $part->source_key = $sourceKey;
                 $part->fill($sourceValues);
                 if ($part->isDirty()) {
+                    $part->reorder_calculated_at = $part->reorder_calculation_status === 'calculated' ? now() : null;
                     $part->save();
                     $result['updated']++;
                 } else {
                     $result['unchanged']++;
                 }
 
+                $this->syncUnitPolicy($unit, $part, $sourceValues, $workbookName, $workbookHash, $row);
+
                 continue;
             }
 
             try {
-                SparePart::query()->create([
+                $part = SparePart::query()->create([
                     ...$sourceValues,
+                    'reorder_calculated_at' => $sourceValues['reorder_calculation_status'] === 'calculated' ? now() : null,
                     'source_key' => $sourceKey,
                     'code' => 'SP-'.strtoupper(substr($sourceKey, 0, 10)),
                     'unit_of_measure' => 'unit',
                     'is_active' => true,
                 ]);
+                $this->syncUnitPolicy($unit, $part, $sourceValues, $workbookName, $workbookHash, $row);
                 $result['created']++;
             } catch (UniqueConstraintViolationException $exception) {
                 $concurrent = SparePart::withTrashed()
@@ -215,15 +264,89 @@ class SparePartWorkbookImporter
 
                 $concurrent->fill($sourceValues);
                 if ($concurrent->isDirty()) {
+                    $concurrent->reorder_calculated_at = $concurrent->reorder_calculation_status === 'calculated' ? now() : null;
                     $concurrent->save();
                     $result['updated']++;
                 } else {
                     $result['unchanged']++;
                 }
+                $this->syncUnitPolicy($unit, $concurrent, $sourceValues, $workbookName, $workbookHash, $row);
             }
         }
 
         return $result;
+    }
+
+    /** @param array<string, mixed> $sourceValues */
+    private function syncUnitPolicy(
+        ?UnitKerja $unit,
+        SparePart $part,
+        array $sourceValues,
+        string $workbookName,
+        string $workbookHash,
+        int $row,
+    ): void {
+        if (! $unit) {
+            return;
+        }
+
+        $policy = UnitSparePartPolicy::query()->firstOrNew([
+            'unit_kerja_id' => $unit->id,
+            'spare_part_id' => $part->id,
+        ]);
+        $policy->fill([
+            'source_key' => hash('sha256', "unit={$unit->id}|spare_part={$part->id}"),
+            'workbook_hash' => $workbookHash,
+            'workbook_name' => $workbookName,
+            'source_row' => $row,
+            'max_yearly_failure' => $sourceValues['max_yearly_failure'],
+            'average_yearly_failure' => $sourceValues['average_yearly_failure'],
+            'max_lead_time_months' => $sourceValues['max_lead_time_months'],
+            'average_lead_time_months' => $sourceValues['average_lead_time_months'],
+            'safety_stock' => $sourceValues['safety_stock'],
+            'lead_time_demand' => $sourceValues['lead_time_demand'],
+            'reorder_point' => $sourceValues['reorder_point'],
+            'severity' => $sourceValues['severity'],
+            'calculation_status' => $sourceValues['reorder_calculation_status'],
+            'formula_version' => $sourceValues['reorder_formula_version'],
+        ]);
+        if ($policy->isDirty()) {
+            $policy->calculated_at = $policy->calculation_status === 'calculated' ? now() : null;
+            $policy->save();
+        }
+    }
+
+    /**
+     * @param  array{max_yearly_failure: ?string, average_yearly_failure: ?string, max_lead_time_months: ?string, average_lead_time_months: ?string}  $inputs
+     * @return array<string, int|string|null|Carbon>
+     */
+    private function calculateReorderValues(array $inputs): array
+    {
+        if (in_array(null, $inputs, true)) {
+            return [
+                'safety_stock' => null,
+                'lead_time_demand' => null,
+                'reorder_point' => null,
+                'reorder_calculation_status' => 'insufficient_data',
+                'reorder_formula_version' => ReorderStockCalculator::FORMULA_VERSION,
+                'reorder_calculated_at' => null,
+            ];
+        }
+
+        $calculation = $this->reorderStockCalculator->calculate(
+            (float) $inputs['max_yearly_failure'],
+            (float) $inputs['average_yearly_failure'],
+            (float) $inputs['max_lead_time_months'],
+            (float) $inputs['average_lead_time_months'],
+        );
+
+        return [
+            'safety_stock' => $calculation['safety_stock'],
+            'lead_time_demand' => $calculation['lead_time_demand'],
+            'reorder_point' => $calculation['reorder_point'],
+            'reorder_calculation_status' => $calculation['calculation_status'],
+            'reorder_formula_version' => $calculation['formula_version'],
+        ];
     }
 
     private function resolveSubsystem(

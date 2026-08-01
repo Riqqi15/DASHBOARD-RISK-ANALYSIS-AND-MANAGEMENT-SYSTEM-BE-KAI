@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\UnitType;
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreUnitKerjaRequest;
 use App\Http\Requests\Admin\UpdateUnitKerjaRequest;
@@ -23,16 +24,39 @@ class UnitKerjaController extends Controller
         $search = $request->string('search')->trim()->toString();
 
         $units = UnitKerja::query()
+            ->with(['users' => fn ($query) => $query
+                ->where('role', UserRole::Unit)
+                ->orderBy('name')
+                ->select(['id', 'unit_kerja_id', 'name', 'username', 'email', 'is_active'])])
             ->when($search, fn ($query, $value) => $query
                 ->where(fn ($nested) => $nested
                     ->where('code', 'like', "%{$value}%")
-                    ->orWhere('name', 'like', "%{$value}%")))
+                    ->orWhere('name', 'like', "%{$value}%")
+                    ->orWhereHas('users', fn ($accounts) => $accounts
+                        ->where('role', UserRole::Unit)
+                        ->where(fn ($account) => $account
+                            ->where('name', 'like', "%{$value}%")
+                            ->orWhere('username', 'like', "%{$value}%")))))
             ->when($request->filled('type'), fn ($query) => $query->where('type', $request->string('type')->toString()))
             ->when($request->filled('status'), fn ($query) => $query->where('is_active', $request->boolean('status')))
             ->orderBy('type')
             ->orderBy('code')
             ->paginate(15)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(fn (UnitKerja $unit): array => [
+                'id' => $unit->id,
+                'code' => $unit->code,
+                'name' => $unit->name,
+                'type' => $unit->type->value,
+                'is_active' => $unit->is_active,
+                'accounts' => $unit->users->map(fn ($account): array => $account->only([
+                    'id',
+                    'name',
+                    'username',
+                    'email',
+                    'is_active',
+                ]))->all(),
+            ]);
 
         return Inertia::render('Admin/Units/Index', [
             'units' => $units,

@@ -32,6 +32,11 @@ class User extends Authenticatable
         return $this->hasMany(StockMovement::class, 'actor_id');
     }
 
+    public function failureLogsCreated(): HasMany
+    {
+        return $this->hasMany(FailureLog::class, 'created_by');
+    }
+
     public function isPusat(): bool
     {
         return $this->role === UserRole::Pusat;

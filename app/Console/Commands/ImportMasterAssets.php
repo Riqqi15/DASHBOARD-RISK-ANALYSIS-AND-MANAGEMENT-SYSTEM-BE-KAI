@@ -45,6 +45,7 @@ class ImportMasterAssets extends Command
             $this->line("Dilewati: {$result['skipped']}");
             $this->line("Pembukaan dibuat: {$result['openings_created']}");
             $this->line("Pembukaan diperbarui: {$result['openings_updated']}");
+            $this->line("Snapshot predictive: {$result['predictive_snapshots']}");
 
             return self::SUCCESS;
         } catch (Throwable $exception) {

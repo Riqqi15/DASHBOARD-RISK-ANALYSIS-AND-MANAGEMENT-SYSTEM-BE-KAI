@@ -69,18 +69,17 @@
               <div v-if="form.penggantian_sparepart === 'Ya'" class="grid grid-cols-3 gap-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <div class="col-span-2">
                   <label class="block text-xs font-semibold text-amber-900 mb-1">Nama Sparepart Diganti</label>
-                  <input 
-                    list="sparepart-list" 
-                    v-model="form.nama_sparepart" 
-                    type="text" 
-                    placeholder="Ketik atau pilih sparepart..." 
+                  <select
+                    v-model.number="form.spare_part_id"
                     class="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none" 
                     required 
-                  />
-                  <datalist id="sparepart-list">
-                    <option v-for="sp in availableSpareparts" :key="sp.name" :value="sp.name"></option>
-                  </datalist>
-                  <p v-if="form.nama_sparepart && currentSparepartStock !== null" class="mt-1 text-[10px] font-semibold" :class="currentSparepartStock < 5 ? 'text-rose-600' : 'text-emerald-600'">
+                  >
+                    <option :value="null" disabled>Pilih sparepart</option>
+                    <option v-for="sp in availableSpareparts" :key="sp.spare_part_id" :value="sp.spare_part_id">
+                      {{ sp.code }} - {{ sp.name }} (stok {{ sp.quantity }})
+                    </option>
+                  </select>
+                  <p v-if="form.spare_part_id && currentSparepartStock !== null" class="mt-1 text-[10px] font-semibold" :class="currentSparepartStock < 5 ? 'text-rose-600' : 'text-emerald-600'">
                     Stock Tersedia: {{ currentSparepartStock }} unit
                   </p>
                 </div>
@@ -181,50 +180,15 @@ const props = defineProps({
   subsystemName: {
     type: String,
     default: 'Subsystem'
+  },
+  spareParts: {
+    type: Array,
+    default: () => []
   }
 })
 
 const emit = defineEmits(['close', 'save'])
-
-// Dictionary Sparepart beserta simulasi stok saat ini (Kategori)
-const sparepartDictionary = {
-  'Track Circuit': [
-    { name: 'Relay Track', stock: 12 }, { name: 'Kabel Konektor', stock: 45 }, { name: 'Isolasi Rel', stock: 8 }, { name: 'Resistor', stock: 120 }, { name: 'Kapasitor', stock: 3 }
-  ],
-  'Axle Counter': [
-    { name: 'Sensor Roda', stock: 5 }, { name: 'Modul Evaluator', stock: 2 }, { name: 'Kabel Transmisi', stock: 30 }, { name: 'Surge Protector', stock: 15 }
-  ],
-  'Interlocking Mekanik': [
-    { name: 'Kawat Tarik', stock: 50 }, { name: 'Handle Mekanik', stock: 4 }, { name: 'Roda Gigi', stock: 8 }, { name: 'Rantai', stock: 12 }, { name: 'Tuas Sentral', stock: 2 }, { name: 'Bandul', stock: 6 }
-  ],
-  'Interlocking Elektrik': [
-    { name: 'Modul CPU', stock: 1 }, { name: 'Relay 24V', stock: 25 }, { name: 'Power Supply', stock: 3 }, { name: 'Konektor I/O', stock: 40 }, { name: 'Fuse', stock: 100 }
-  ],
-  'Penggerak Wesel Mekanik': [
-    { name: 'Kawat Tarik', stock: 50 }, { name: 'Roda Kawat', stock: 15 }, { name: 'Pena Wesel', stock: 7 }, { name: 'Pelumas', stock: 20 }
-  ],
-  'Penggerak Wesel Elektrik': [
-    { name: 'Motor Point', stock: 2 }, { name: 'Kontak Wesel', stock: 10 }, { name: 'Kabel Motor', stock: 25 }, { name: 'Limit Switch', stock: 14 }
-  ],
-  'Peraga Sinyal Utama': [
-    { name: 'Lampu LED Sinyal', stock: 35 }, { name: 'Lensa Sinyal', stock: 18 }, { name: 'Kabel Sinyal', stock: 60 }, { name: 'Tiang Sinyal', stock: 2 }
-  ],
-  'Peraga Sinyal Pembantu': [
-    { name: 'Lampu LED', stock: 40 }, { name: 'Kabel', stock: 60 }, { name: 'Reflektor', stock: 22 }
-  ],
-  'Pengaman wesel setempat': [
-    { name: 'Gembok Wesel', stock: 15 }, { name: 'Rantai', stock: 12 }, { name: 'Kunci Sentral', stock: 4 }
-  ],
-  'Kontak Deteksi': [
-    { name: 'Limit Switch', stock: 14 }, { name: 'Kabel Kontak', stock: 25 }, { name: 'Tuas Kontak', stock: 8 }
-  ]
-}
-
-const availableSpareparts = computed(() => {
-  // Ambil sparepart berdasarkan subsystem.
-  const key = Object.keys(sparepartDictionary).find(k => props.subsystemName.toLowerCase().includes(k.toLowerCase()))
-  return key ? sparepartDictionary[key] : []
-})
+const availableSpareparts = computed(() => props.spareParts.filter(part => Number(part.quantity) > 0))
 
 const getTodayDate = () => {
   const d = new Date()
@@ -244,15 +208,14 @@ const form = ref({
   tanggal_penanganan: getTodayDate(),
   mulai: '00:00',
   selesai: '00:00',
-  nama_sparepart: '',
+  spare_part_id: null,
   jumlah_sparepart: 1
 })
 
 const currentSparepartStock = computed(() => {
-  if (!form.value.nama_sparepart) return null
-  const parts = availableSpareparts.value
-  const found = parts.find(p => p.name.toLowerCase() === form.value.nama_sparepart.toLowerCase())
-  return found ? found.stock : null // return null jika custom input (tidak ada di list)
+  if (!form.value.spare_part_id) return null
+  const found = availableSpareparts.value.find(part => Number(part.spare_part_id) === Number(form.value.spare_part_id))
+  return found ? Number(found.quantity) : null
 })
 
 const stockWarningMessage = ref('')
@@ -270,7 +233,7 @@ const validateStockAmount = () => {
 }
 
 // Reset jumlah saat ganti sparepart
-watch(() => form.value.nama_sparepart, () => {
+watch(() => form.value.spare_part_id, () => {
   form.value.jumlah_sparepart = 1
   stockWarningMessage.value = ''
 })
@@ -292,7 +255,9 @@ watch(() => props.isOpen, (newVal) => {
       tanggal_kejadian: getTodayDate(),
       tanggal_penanganan: getTodayDate(),
       mulai: '00:00',
-      selesai: '00:00'
+      selesai: '00:00',
+      spare_part_id: null,
+      jumlah_sparepart: 1
     }
   }
 })
@@ -317,7 +282,6 @@ const calculateDowntime = () => {
   const start = new Date(`${form.value.tanggal_kejadian}T${form.value.mulai}`)
   const end = new Date(`${form.value.tanggal_penanganan}T${form.value.selesai}`)
   const diffMs = end - start
-  if (diffMs < 0) return 0 // Invalid time travel
   return diffMs / (1000 * 60) // in minutes
 }
 
@@ -329,21 +293,34 @@ const close = () => {
 }
 
 const submitForm = () => {
-  if (!form.value.lokasi || !form.value.failure_event || !form.value.tanggal_kejadian) {
-    alert("Mohon lengkapi field yang wajib (Lokasi, Failure Event, Tanggal)")
+  if (!form.value.lokasi || !form.value.failure_event || !form.value.penyebab || !form.value.tindakan) {
+    alert('Mohon lengkapi semua field wajib.')
     return
   }
 
-  // Construct final object
-  const newLog = {
-    ...form.value,
-    tahun_kejadian: computedTahun.value,
-    tanggal_jam_kejadian: computedTglJamKejadian.value,
-    tanggal_jam_penanganan: computedTglJamPenanganan.value,
-    downtime_jam: Number(computedDowntimeJam.value),
-    downtime_menit: computedDowntimeMenit.value,
+  if (form.value.penggantian_sparepart === 'Ya' && !form.value.spare_part_id) {
+    alert('Pilih suku cadang yang diganti.')
+    return
   }
 
-  emit('save', newLog)
+  if (computedDowntimeMenit.value < 0) {
+    alert('Waktu penanganan tidak boleh lebih awal dari waktu kejadian.')
+    return
+  }
+
+  emit('save', {
+    location: form.value.lokasi,
+    resort: form.value.resor || null,
+    qc: form.value.qc || null,
+    failure_event: form.value.failure_event,
+    cause: form.value.penyebab,
+    action_taken: form.value.tindakan,
+    spare_part_replaced: form.value.penggantian_sparepart === 'Ya',
+    spare_part_id: form.value.penggantian_sparepart === 'Ya' ? form.value.spare_part_id : null,
+    spare_part_quantity: form.value.penggantian_sparepart === 'Ya' ? Number(form.value.jumlah_sparepart) : null,
+    vandalism: form.value.tindak_vandalisme === 'Ya',
+    started_at: computedTglJamKejadian.value,
+    resolved_at: computedTglJamPenanganan.value,
+  })
 }
 </script>

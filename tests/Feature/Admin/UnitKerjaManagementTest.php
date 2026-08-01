@@ -95,4 +95,23 @@ class UnitKerjaManagementTest extends TestCase
                 ->has('units.data', 1)
                 ->where('units.data.0.code', 'DAOP-SEARCH'));
     }
+
+    public function test_index_includes_only_regional_accounts_for_each_unit(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-ACCOUNT']);
+        $regional = User::factory()->unit($unit)->create([
+            'name' => 'Operator Wilayah',
+            'username' => 'operator.wilayah',
+        ]);
+        $this->actingAs($pusat)->get('/admin/units?search=operator.wilayah')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/Units/Index')
+                ->has('units.data', 1)
+                ->where('units.data.0.id', $unit->id)
+                ->has('units.data.0.accounts', 1)
+                ->where('units.data.0.accounts.0.id', $regional->id)
+                ->where('units.data.0.accounts.0.username', 'operator.wilayah'));
+    }
 }

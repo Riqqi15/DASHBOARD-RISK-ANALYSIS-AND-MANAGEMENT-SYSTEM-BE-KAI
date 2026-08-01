@@ -1,7 +1,7 @@
 <script setup>
 import { reactive } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
-import { Building2, Pencil, Plus, Search, X } from 'lucide-vue-next'
+import { Building2, KeyRound, Pencil, Plus, Search, UserPlus, UsersRound, X } from 'lucide-vue-next'
 import MainLayout from '@/layouts/MainLayout.vue'
 
 const props = defineProps({
@@ -23,6 +23,15 @@ const clearFilters = () => {
   applyFilters()
 }
 
+const toggleAccount = (account) => {
+  const action = account.is_active ? 'Nonaktifkan' : 'Aktifkan'
+  if (window.confirm(`${action} akun ${account.name}?`)) {
+    router.patch(`/admin/accounts/${account.id}/status`, {
+      is_active: !account.is_active,
+    }, { preserveScroll: true })
+  }
+}
+
 const typeLabel = (type) => type === 'daop' ? 'Daop' : 'Divre'
 const paginationLabel = (label) => label
   .replace('&laquo; Previous', 'Sebelumnya')
@@ -36,7 +45,7 @@ const paginationLabel = (label) => label
       <div>
         <p class="text-sm font-medium text-orange-600">Administrasi organisasi</p>
         <h2 class="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Unit Kerja</h2>
-        <p class="mt-2 text-sm text-slate-600">Kelola referensi Daop dan Divre untuk pembatasan akses wilayah.</p>
+        <p class="mt-2 text-sm text-slate-600">Kelola Daop/Divre dan akun akses wilayah dari satu tempat.</p>
       </div>
       <Link href="/admin/units/create" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#ea580c] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#c2410c]">
         <Plus :size="18" aria-hidden="true" />
@@ -49,7 +58,7 @@ const paginationLabel = (label) => label
         <label class="relative">
           <span class="sr-only">Cari unit</span>
           <Search :size="17" class="pointer-events-none absolute left-3 top-3 text-slate-400" aria-hidden="true" />
-          <input v-model="filters.search" type="search" class="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-sm outline-none focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" placeholder="Cari kode atau nama…" />
+          <input v-model="filters.search" type="search" class="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-sm outline-none focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" placeholder="Cari unit atau username…" />
         </label>
         <select v-model="filters.type" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#2d2a70]" aria-label="Filter jenis unit">
           <option value="">Semua jenis</option>
@@ -72,13 +81,14 @@ const paginationLabel = (label) => label
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div v-if="units.data.length" class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200">
+        <table class="min-w-[1120px] divide-y divide-slate-200">
           <thead class="bg-slate-50">
             <tr>
               <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Kode</th>
               <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Nama unit</th>
               <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Jenis</th>
               <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Akun akses</th>
               <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Aksi</th>
             </tr>
           </thead>
@@ -92,6 +102,28 @@ const paginationLabel = (label) => label
                   <span class="h-1.5 w-1.5 rounded-full" :class="unit.is_active ? 'bg-emerald-500' : 'bg-slate-400'" aria-hidden="true" />
                   {{ unit.is_active ? 'Aktif' : 'Nonaktif' }}
                 </span>
+              </td>
+              <td class="min-w-[26rem] px-5 py-4">
+                <div class="space-y-2">
+                  <div v-for="account in unit.accounts" :key="account.id" class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                    <div class="flex min-w-0 items-center gap-3">
+                      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-[#2d2a70] shadow-sm"><UsersRound :size="16" aria-hidden="true" /></span>
+                      <span class="min-w-0">
+                        <span class="block truncate text-sm font-medium text-slate-900">{{ account.name }}</span>
+                        <span class="block truncate text-xs text-slate-500">@{{ account.username }}</span>
+                      </span>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-1">
+                      <button type="button" class="rounded-full px-2 py-1 text-[11px] font-medium" :class="account.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'" :aria-label="`${account.is_active ? 'Nonaktifkan' : 'Aktifkan'} akun ${account.name}`" @click="toggleAccount(account)">{{ account.is_active ? 'Aktif' : 'Nonaktif' }}</button>
+                      <Link :href="`/admin/accounts/${account.id}/edit`" class="rounded-lg p-2 text-[#2d2a70] hover:bg-blue-100" :aria-label="`Edit akun ${account.name}`"><Pencil :size="16" aria-hidden="true" /></Link>
+                      <Link :href="`/admin/accounts/${account.id}/password`" class="rounded-lg p-2 text-slate-600 hover:bg-slate-200" :aria-label="`Reset password ${account.name}`"><KeyRound :size="16" aria-hidden="true" /></Link>
+                    </div>
+                  </div>
+                  <p v-if="!unit.accounts.length" class="text-xs text-slate-500">Belum ada akun untuk unit ini.</p>
+                  <Link v-if="unit.is_active" :href="`/admin/accounts/create?unit_kerja_id=${unit.id}`" class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-orange-600 hover:bg-orange-50">
+                    <UserPlus :size="15" aria-hidden="true" /> Tambah akun
+                  </Link>
+                </div>
               </td>
               <td class="px-5 py-4 text-right">
                 <Link :href="`/admin/units/${unit.id}/edit`" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-[#2d2a70] hover:bg-blue-50">

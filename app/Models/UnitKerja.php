@@ -46,6 +46,11 @@ class UnitKerja extends Model
         return $this->hasMany(InventoryStock::class);
     }
 
+    public function sparePartPolicies(): HasMany
+    {
+        return $this->hasMany(UnitSparePartPolicy::class);
+    }
+
     public function movements(): HasMany
     {
         return $this->stockMovements();

@@ -56,9 +56,11 @@ class SparePartImportTest extends TestCase
         $this->assertSame('2.50', $part->average_yearly_failure);
         $this->assertSame('3.00', $part->max_lead_time_months);
         $this->assertSame('2.00', $part->average_lead_time_months);
-        $this->assertSame(8, $part->safety_stock);
+        $this->assertSame(7, $part->safety_stock);
         $this->assertSame(5, $part->lead_time_demand);
-        $this->assertSame(13, $part->reorder_point);
+        $this->assertSame(12, $part->reorder_point);
+        $this->assertSame('calculated', $part->reorder_calculation_status);
+        $this->assertSame('kai-reorder-v1.0.0', $part->reorder_formula_version);
         $this->assertSame('Critical', $part->severity);
         $this->assertSame('unit', $part->unit_of_measure);
         $this->assertTrue($part->is_active);
@@ -237,6 +239,9 @@ class SparePartImportTest extends TestCase
             ['Kelompok', 'System', 'Equipment', 'Detail', null, null, null, null, null, null, null, null],
         ]);
         $this->rewriteCell($path, 'E2', '=2+2');
+        $this->rewriteCell($path, 'F2', '=1+1');
+        $this->rewriteCell($path, 'G2', '=1+2');
+        $this->rewriteCell($path, 'H2', '=1+1');
         $this->rewriteCell($path, 'I2', '=5+3');
         $this->rewriteCell($path, 'K2', '=I2+J2');
 
@@ -245,7 +250,8 @@ class SparePartImportTest extends TestCase
         $part = SparePart::query()->sole();
         $this->assertSame('4.00', $part->max_yearly_failure);
         $this->assertSame(8, $part->safety_stock);
-        $this->assertSame(8, $part->reorder_point);
+        $this->assertSame(4, $part->lead_time_demand);
+        $this->assertSame(12, $part->reorder_point);
     }
 
     public function test_formula_in_text_column_is_rejected_with_context(): void
@@ -294,18 +300,19 @@ class SparePartImportTest extends TestCase
         $this->assertDatabaseCount('spare_parts', 0);
     }
 
-    public function test_unsigned_quantity_bounds_are_validated_with_context(): void
+    public function test_excel_output_columns_do_not_override_the_authoritative_formula(): void
     {
         $this->categoryPath('Kelompok', 'System', 'Equipment');
         $path = $this->workbook([
             ['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 4294967296, 3, 5, 'High'],
         ]);
 
-        $this->artisan('rams:import-spare-parts', ['workbook' => $path])
-            ->expectsOutputToContain('row 2, header Safety Stock')
-            ->assertFailed();
+        $this->artisan('rams:import-spare-parts', ['workbook' => $path])->assertSuccessful();
 
-        $this->assertDatabaseCount('spare_parts', 0);
+        $part = SparePart::query()->sole();
+        $this->assertSame(0, $part->safety_stock);
+        $this->assertSame(1, $part->lead_time_demand);
+        $this->assertSame(1, $part->reorder_point);
     }
 
     public function test_text_field_lengths_are_validated_before_database_write(): void
@@ -398,7 +405,7 @@ class SparePartImportTest extends TestCase
 
         $part = SparePart::query()->sole();
         $part->update(['code' => 'ADMIN-001', 'unit_of_measure' => 'buah', 'is_active' => false]);
-        $this->rewriteCell($path, 'K2', 17);
+        $this->rewriteCell($path, 'G2', 2);
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
             ->expectsOutputToContain('Diperbarui: 1')
@@ -408,7 +415,7 @@ class SparePartImportTest extends TestCase
         $this->assertSame('ADMIN-001', $part->code);
         $this->assertSame('buah', $part->unit_of_measure);
         $this->assertFalse($part->is_active);
-        $this->assertSame(17, $part->reorder_point);
+        $this->assertSame(2, $part->reorder_point);
     }
 
     public function test_soft_deleted_sparepart_is_skipped_without_being_restored(): void

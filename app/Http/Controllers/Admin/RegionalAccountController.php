@@ -20,27 +20,17 @@ class RegionalAccountController extends Controller
 {
     public function __construct(private readonly AuditLogger $auditLogger) {}
 
-    public function index(Request $request): Response
+    public function create(Request $request): Response
     {
-        $search = $request->string('search')->trim()->toString();
-        $accounts = User::query()
-            ->where('role', UserRole::Unit)
-            ->with('unitKerja:id,code,name')
-            ->when($search, fn ($query, $value) => $query->where(fn ($nested) => $nested->where('name', 'like', "%{$value}%")->orWhere('username', 'like', "%{$value}%")))
-            ->when($request->filled('unit_kerja_id'), fn ($query) => $query->where('unit_kerja_id', $request->integer('unit_kerja_id')))
-            ->when($request->filled('status'), fn ($query) => $query->where('is_active', $request->boolean('status')))
-            ->orderBy('name')->paginate(15)->withQueryString();
+        $selectedUnitId = UnitKerja::query()
+            ->whereKey($request->integer('unit_kerja_id'))
+            ->where('is_active', true)
+            ->value('id');
 
-        return Inertia::render('Admin/Accounts/Index', [
-            'accounts' => $accounts,
-            'units' => UnitKerja::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
-            'filters' => ['search' => $search, 'unit_kerja_id' => $request->string('unit_kerja_id')->toString(), 'status' => $request->filled('status') ? $request->string('status')->toString() : ''],
+        return Inertia::render('Admin/Accounts/Create', [
+            'units' => $this->activeUnits(),
+            'selectedUnitId' => $selectedUnitId,
         ]);
-    }
-
-    public function create(): Response
-    {
-        return Inertia::render('Admin/Accounts/Create', ['units' => $this->activeUnits()]);
     }
 
     public function store(StoreRegionalAccountRequest $request): RedirectResponse
@@ -50,7 +40,7 @@ class RegionalAccountController extends Controller
             $this->auditLogger->record('account.created', $account, [], $this->auditValues($account));
         });
 
-        return redirect()->route('admin.accounts.index')->with('success', 'Akun wilayah berhasil ditambahkan.');
+        return redirect()->route('admin.units.index')->with('success', 'Akun unit kerja berhasil ditambahkan.');
     }
 
     public function edit(User $account): Response
@@ -69,7 +59,7 @@ class RegionalAccountController extends Controller
             $this->auditLogger->record('account.updated', $account, $before, $this->auditValues($account->fresh()));
         });
 
-        return redirect()->route('admin.accounts.index')->with('success', 'Akun wilayah berhasil diperbarui.');
+        return redirect()->route('admin.units.index')->with('success', 'Akun unit kerja berhasil diperbarui.');
     }
 
     public function status(Request $request, User $account): RedirectResponse
@@ -82,7 +72,7 @@ class RegionalAccountController extends Controller
             $this->auditLogger->record('account.status_changed', $account, $before, ['is_active' => $account->fresh()->is_active]);
         });
 
-        return redirect()->route('admin.accounts.index')->with('success', 'Status akun wilayah berhasil diperbarui.');
+        return redirect()->route('admin.units.index')->with('success', 'Status akun unit kerja berhasil diperbarui.');
     }
 
     public function editPassword(User $account): Response
@@ -100,7 +90,7 @@ class RegionalAccountController extends Controller
             $this->auditLogger->record('account.password_reset', $account, [], ['password_reset' => true]);
         });
 
-        return redirect()->route('admin.accounts.index')->with('success', 'Kata sandi akun berhasil diatur ulang.');
+        return redirect()->route('admin.units.index')->with('success', 'Kata sandi akun berhasil diatur ulang.');
     }
 
     private function ensureRegional(User $account): void

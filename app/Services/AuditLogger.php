@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AuditLog;
+use App\Models\FailureLog;
 use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -21,9 +22,11 @@ class AuditLogger
             throw new LogicException('Actor audit eksplisit harus sudah tersimpan.');
         }
 
-        $unitId = $subject instanceof UnitKerja
-            ? $subject->getKey()
-            : ($subject->getAttribute('unit_kerja_id') ?? Auth::user()?->unit_kerja_id);
+        $unitId = match (true) {
+            $subject instanceof UnitKerja => $subject->getKey(),
+            $subject instanceof FailureLog => $subject->asset()->value('unit_kerja_id'),
+            default => $subject->getAttribute('unit_kerja_id') ?? Auth::user()?->unit_kerja_id,
+        };
         $actorId = $actor === null ? Auth::id() : $actor->getKey();
 
         return AuditLog::query()->create([

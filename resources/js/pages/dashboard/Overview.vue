@@ -1,114 +1,6 @@
 <template>
   <MainLayout>
-    <!-- RAMS KPI BANNER (Nasional/Unit) -->
-    <div class="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 2xl:gap-7.5">
-      
-      <!-- Block 1: Operating Days & Failure Count -->
-      <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
-        <div class="bg-[#B4C6E7] py-2 px-4 border-b border-slate-200 text-center">
-          <h3 class="font-bold text-slate-800 uppercase text-sm tracking-wide">Operating Days</h3>
-        </div>
-        <div class="p-4 flex-1 flex flex-col justify-center">
-          <div class="flex items-center justify-between mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
-            <span class="text-3xl font-extrabold text-slate-800">2168</span>
-            <span class="text-sm font-bold text-slate-500 uppercase">Days</span>
-          </div>
-          <div class="flex justify-between items-center text-xs">
-            <span class="text-slate-500">Tahun awal pemasangan equipment:</span>
-            <span class="font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded">1/1/2017</span>
-          </div>
-        </div>
-        <div class="bg-[#B4C6E7] py-2 px-4 border-y border-slate-200 text-center">
-          <h3 class="font-bold text-slate-800 uppercase text-sm tracking-wide">Failure Count</h3>
-        </div>
-        <div class="bg-rose-100 py-3 px-4 text-center">
-          <span class="font-bold text-rose-900">164 times</span>
-        </div>
-      </div>
-
-      <!-- Block 2: RELIABILITY -->
-      <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
-        <div class="bg-[#B4C6E7] py-2 px-4 border-b border-slate-200 text-center">
-          <h3 class="font-bold text-slate-800 uppercase text-sm tracking-wide">Reliability</h3>
-        </div>
-        <div class="flex-1 flex flex-col">
-          <!-- Breakdowns -->
-          <div class="grid grid-cols-5 divide-x divide-slate-100 bg-white text-center text-[10px] md:text-xs font-medium">
-            <div class="flex flex-col h-full">
-              <div class="py-2 flex-1 flex items-center justify-center">100.0000%</div>
-              <div class="bg-[#7CB342] text-white py-1 font-bold">PDSM</div>
-            </div>
-            <div class="flex flex-col h-full">
-              <div class="py-2 flex-1 flex items-center justify-center">100.0000%</div>
-              <div class="bg-[#0288D1] text-white py-1 font-bold">PLSM</div>
-            </div>
-            <div class="flex flex-col h-full">
-              <div class="py-2 flex-1 flex items-center justify-center">99.9973%</div>
-              <div class="bg-[#FDE047] text-black py-1 font-bold">PDSE</div>
-            </div>
-            <div class="flex flex-col h-full">
-              <div class="py-2 flex-1 flex items-center justify-center">99.999%</div>
-              <div class="bg-[#F57F17] text-white py-1 font-bold">PLSE</div>
-            </div>
-            <div class="flex flex-col h-full">
-              <div class="py-2 flex-1 flex items-center justify-center">100.000%</div>
-              <div class="bg-red-600 text-white py-1 font-bold">CDS</div>
-            </div>
-          </div>
-          <!-- Overall -->
-          <div class="mt-auto">
-            <div class="text-center py-4 bg-slate-50">
-              <span class="text-4xl font-light text-slate-800 tracking-tight">100.00%</span>
-            </div>
-            <div class="bg-black text-white text-center py-2">
-              <span class="text-xs font-bold tracking-widest uppercase">Overall System</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Block 3: AVAILABILITY -->
-      <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
-        <div class="bg-[#B4C6E7] py-2 px-4 border-b border-slate-200 text-center">
-          <h3 class="font-bold text-slate-800 uppercase text-sm tracking-wide">Availability</h3>
-        </div>
-        <div class="flex-1 flex flex-col">
-          <!-- Breakdowns -->
-          <div class="grid grid-cols-5 divide-x divide-slate-100 bg-white text-center text-[10px] md:text-xs font-medium">
-            <div class="flex flex-col h-full">
-              <div class="py-2 flex-1 flex items-center justify-center">100.00%</div>
-              <div class="bg-[#7CB342] text-white py-1 font-bold">PDSM</div>
-            </div>
-            <div class="flex flex-col h-full">
-              <div class="py-2 flex-1 flex items-center justify-center">100.00%</div>
-              <div class="bg-[#0288D1] text-white py-1 font-bold">PLSM</div>
-            </div>
-            <div class="flex flex-col h-full">
-              <div class="py-2 flex-1 flex items-center justify-center">99.70%</div>
-              <div class="bg-[#FDE047] text-black py-1 font-bold">PDSE</div>
-            </div>
-            <div class="flex flex-col h-full">
-              <div class="py-2 flex-1 flex items-center justify-center">99.97%</div>
-              <div class="bg-[#F57F17] text-white py-1 font-bold">PLSE</div>
-            </div>
-            <div class="flex flex-col h-full">
-              <div class="py-2 flex-1 flex items-center justify-center">100.00%</div>
-              <div class="bg-red-600 text-white py-1 font-bold">CDS</div>
-            </div>
-          </div>
-          <!-- Overall -->
-          <div class="mt-auto">
-            <div class="text-center py-4 bg-slate-50">
-              <span class="text-4xl font-light text-slate-800 tracking-tight">99.67%</span>
-            </div>
-            <div class="bg-black text-white text-center py-2">
-              <span class="text-xs font-bold tracking-widest uppercase">Overall System</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
+    <AreaSelectorBanner :units="units" :selected-area="selected_area" />
 
     <!-- Asymmetrical Grid Layout -->
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6 2xl:gap-7.5">
@@ -160,17 +52,19 @@
           <div class="flex justify-between items-start mb-6">
             <div>
               <h4 class="text-lg font-bold text-black">Tren Kegagalan Bulanan</h4>
-              <p class="text-sm text-slate-500 mt-1">Total failure event per bulan ({{ currentUser.isPusat() ? 'Nasional' : currentUser.unit_kerja_id }})</p>
+              <p class="text-sm text-slate-500 mt-1">Total failure event per bulan ({{ selectedAreaLabel }})</p>
             </div>
             <div class="cursor-pointer text-slate-400 hover:text-slate-700">
               <MoreVerticalIcon class="w-5 h-5" />
             </div>
           </div>
           <div class="flex-grow flex items-end justify-between gap-2 md:gap-4 mt-4 px-2">
-            <div v-for="(val, i) in failureTrend" :key="i" class="w-full flex flex-col items-center gap-2">
-              <div class="w-full bg-[#3C50E0] rounded-t-sm transition-all duration-300 hover:bg-[#1E3A8A]" :style="{ height: val + '%' }"></div>
-              <span class="text-[10px] text-slate-500 uppercase">{{ ['Jan','Feb','Mar','Apr','May','Jun','Jul'][i] }}</span>
+            <div v-for="item in failureTrend" :key="item.period" class="w-full flex flex-col items-center gap-2">
+              <span class="text-[10px] font-bold text-slate-600">{{ item.count }}</span>
+              <div class="w-full bg-[#3C50E0] rounded-t-sm transition-all duration-300 hover:bg-[#1E3A8A]" :style="{ height: getFailureBarHeight(item.count) + '%' }"></div>
+              <span class="text-[10px] text-slate-500 uppercase">{{ formatPeriod(item.period) }}</span>
             </div>
+            <p v-if="failureTrend.length === 0" class="w-full self-center text-center text-sm text-slate-400">Belum ada failure log.</p>
           </div>
         </div>
 
@@ -247,8 +141,8 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-if="loading">
-              <td colspan="6" class="py-6 text-center text-slate-500 text-sm">Memuat data...</td>
+            <tr v-if="riskRegisters.length === 0">
+              <td colspan="6" class="py-6 text-center text-slate-500 text-sm">Belum ada risk register.</td>
             </tr>
             <tr 
               v-else 
@@ -266,7 +160,7 @@
                 <p class="text-sm text-slate-600">{{ register.penyebab || register.penyebab_risiko }}</p>
               </td>
               <td class="py-4 px-2">
-                <span class="text-sm text-slate-600">{{ getAssetLocation(register.aset_id) }}</span>
+                <span class="text-sm text-slate-600">{{ register.location || getAssetLocation(register.aset_id) }}</span>
               </td>
               <td class="py-4 px-2 text-center">
                 <span :class="[
@@ -292,10 +186,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { computed } from 'vue'
 import MainLayout from '@/layouts/MainLayout.vue'
-import { DummyRamsRepository } from '@/infrastructure/repositories/dummy-rams.repository'
-import { useAuth } from '@/application/composables/useAuth'
+import AreaSelectorBanner from '@/components/dashboard/AreaSelectorBanner.vue'
 import { 
   DatabaseIcon, 
   AlertTriangleIcon, 
@@ -304,45 +197,37 @@ import {
   EyeIcon
 } from 'lucide-vue-next'
 
-const { currentUser } = useAuth()
-const repository = new DummyRamsRepository()
+const props = defineProps({
+  selected_area: { type: String, default: null },
+  units: { type: Array, default: () => [] },
+  summary: {
+    type: Object,
+    default: () => ({ totalAset: 0, risikoExtreme: 0, risikoHigh: 0, avgAvailability: 0, totalFailure: 0, totalProposalReorder: 0 }),
+  },
+  risk_registers: { type: Array, default: () => [] },
+  assets: { type: Array, default: () => [] },
+  failure_trend: { type: Array, default: () => [] },
+})
 
-const loading = ref(true)
-const summary = ref({ totalAset: 0, risikoExtreme: 0, risikoHigh: 0, avgAvailability: 0, totalFailure: 0, totalProposalReorder: 0 })
-const riskRegisters = ref([])
-const assets = ref([])
-const failureTrend = ref([30, 65, 40, 80, 35, 55, 20]) // Dummy trend data per bulan
+const summary = computed(() => props.summary)
+const riskRegisters = computed(() => props.risk_registers)
+const assets = computed(() => props.assets)
+const failureTrend = computed(() => props.failure_trend)
+const selectedAreaLabel = computed(() => props.selected_area || 'Nasional')
+const maxFailureCount = computed(() => Math.max(0, ...failureTrend.value.map(item => Number(item.count))))
 
 const getAssetLocation = (asetId) => {
   const asset = assets.value.find(a => a.id === asetId)
   return asset ? asset.lokasi : '-'
 }
 
-const loadDashboard = async () => {
-  loading.value = true
-  try {
-    const unitKerjaKode = currentUser.value.isPusat() ? null : currentUser.value.unit_kerja_id
-    const [summaryData, registersData, assetsData] = await Promise.all([
-      repository.getDashboardSummary(unitKerjaKode),
-      repository.getRiskRegisters(unitKerjaKode),
-      repository.getAssets(unitKerjaKode)
-    ])
-    summary.value = summaryData
-    riskRegisters.value = registersData
-    assets.value = assetsData
-  } catch (error) {
-    console.error("Gagal memuat dashboard:", error)
-  } finally {
-    loading.value = false
-  }
+const getFailureBarHeight = (count) => {
+  if (maxFailureCount.value === 0) return 0
+  return Math.max(8, (Number(count) / maxFailureCount.value) * 100)
 }
 
-// Muat ulang saat user berganti akun
-watch(currentUser, () => {
-  loadDashboard()
-}, { deep: true })
-
-onMounted(() => {
-  loadDashboard()
-})
+const formatPeriod = (period) => {
+  const [year, month] = String(period).split('-')
+  return month && year ? `${month}/${year.slice(-2)}` : period
+}
 </script>

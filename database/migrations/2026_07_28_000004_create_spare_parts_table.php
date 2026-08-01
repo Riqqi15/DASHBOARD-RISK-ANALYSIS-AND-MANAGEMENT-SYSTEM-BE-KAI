@@ -22,6 +22,9 @@ return new class extends Migration
             $table->unsignedInteger('safety_stock')->nullable();
             $table->unsignedInteger('lead_time_demand')->nullable();
             $table->unsignedInteger('reorder_point')->nullable();
+            $table->string('reorder_calculation_status', 30)->default('insufficient_data');
+            $table->string('reorder_formula_version', 30)->default('kai-reorder-v1.0.0');
+            $table->timestamp('reorder_calculated_at')->nullable();
             $table->string('severity')->nullable();
             $table->string('unit_of_measure', 30)->default('unit');
             $table->boolean('is_active')->default(true)->index();

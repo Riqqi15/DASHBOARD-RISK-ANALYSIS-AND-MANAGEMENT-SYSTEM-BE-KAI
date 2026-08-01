@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
@@ -37,6 +39,36 @@ class Asset extends Model
     public function assetSubsystem(): BelongsTo
     {
         return $this->belongsTo(AssetSubsystem::class);
+    }
+
+    public function riskMatrix(): HasOne
+    {
+        return $this->hasOne(RiskMatrix::class);
+    }
+
+    public function riskRegisters(): HasMany
+    {
+        return $this->hasMany(RiskRegister::class);
+    }
+
+    public function reliabilitySummaries(): HasMany
+    {
+        return $this->hasMany(ReliabilitySummary::class);
+    }
+
+    public function failureLogs(): HasMany
+    {
+        return $this->hasMany(FailureLog::class);
+    }
+
+    public function predictiveAssetSnapshots(): HasMany
+    {
+        return $this->hasMany(PredictiveAssetSnapshot::class);
+    }
+
+    public function latestPredictiveAssetSnapshot(): HasOne
+    {
+        return $this->hasOne(PredictiveAssetSnapshot::class)->latestOfMany('calculated_at');
     }
 
     public function scopeVisibleTo(Builder $query, User $user): Builder
