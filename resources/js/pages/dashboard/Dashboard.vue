@@ -11,155 +11,66 @@
         </div>
       </div>
 
-      <!-- Hirarki Aset (Modern Card Layout) -->
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        
-        <!-- PDSM -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col">
-          <div class="bg-gradient-to-r from-[#7CB342] to-[#558B2F] px-5 py-3">
-            <h3 class="text-white font-bold text-lg flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-white/50"></span>
-              Peralatan Dalam Sinyal Mekanik (PDSM)
-            </h3>
+      <div v-if="assetGroups.length" class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <section
+          v-for="(group, groupIndex) in assetGroups"
+          :key="group.name"
+          class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col"
+        >
+          <div class="px-5 py-3 text-white" :style="groupHeaderStyle(groupIndex)">
+            <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <h3 class="font-bold text-lg flex items-center gap-2 min-w-0">
+                <span class="w-2 h-2 rounded-full bg-white/60 shrink-0"></span>
+                <span class="break-words">{{ group.name }}</span>
+              </h3>
+              <span class="text-[11px] font-semibold uppercase bg-white/15 border border-white/20 rounded px-2 py-1 whitespace-nowrap">
+                {{ group.systems.length }} system
+              </span>
+            </div>
+            <p class="text-xs text-white/80 mt-1">{{ group.assetCount }} aset - {{ group.unitCount }} unit</p>
           </div>
+
           <div class="p-5 flex-1 bg-slate-50/50">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-              <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Interlocking Mekanik</h4>
-              <div class="flex flex-wrap gap-3">
-                <button @click="goToTroubleReport('Interlocking Mekanik')" class="subsystem-btn">
-                  Interlocking Mekanik
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div
+                v-for="system in group.systems"
+                :key="`${group.name}-${system.name}`"
+                class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 min-w-0"
+              >
+                <div class="flex items-start justify-between gap-3 mb-3">
+                  <div class="min-w-0">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider break-words">{{ system.name }}</h4>
+                    <p class="text-xs text-slate-500 mt-1">{{ system.assetCount }} aset - {{ system.unitCount }} unit</p>
+                  </div>
+                  <span class="text-[11px] font-semibold text-slate-500 bg-slate-100 rounded px-2 py-1 whitespace-nowrap">
+                    {{ system.subsystems.length }} subsystem
+                  </span>
+                </div>
 
-        <!-- CDS -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col">
-          <div class="bg-gradient-to-r from-red-600 to-red-800 px-5 py-3">
-            <h3 class="text-white font-bold text-lg flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-white/50"></span>
-              Catu Daya Sinyal (CDS)
-            </h3>
-          </div>
-          <div class="p-5 flex-1 bg-slate-50/50">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-              <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Catu Daya Sinyal</h4>
-              <div class="flex flex-wrap gap-3">
-                <button @click="goToTroubleReport('Catu Daya Sinyal')" class="subsystem-btn">
-                  Catu Daya Sinyal
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- PLSM -->
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-300">
-        <div class="bg-gradient-to-r from-[#0288D1] to-[#01579B] px-5 py-3">
-          <h3 class="text-white font-bold text-lg flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-white/50"></span>
-            Peralatan Luar Sinyal Mekanik (PLSM)
-          </h3>
-        </div>
-        <div class="p-5 bg-slate-50/50">
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-              <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Pendeteksi Sarana</h4>
-              <button @click="goToTroubleReport('Kontak Deteksi')" class="subsystem-btn w-full">Kontak Deteksi</button>
-            </div>
-
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-              <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Pengaman Wesel</h4>
-              <button @click="goToTroubleReport('Pengaman Wesel Setempat Mekanik')" class="subsystem-btn w-full">Pengaman wesel setempat</button>
-            </div>
-
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-              <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Pengontrol Kedudukan</h4>
-              <button @click="goToTroubleReport('Pengontrol dan Petunjuk Kedudukan Wesel Mekanik')" class="subsystem-btn w-full">Pengontrol & Petunjuk Wesel</button>
-            </div>
-            
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-              <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Penggerak Wesel</h4>
-              <button @click="goToTroubleReport('Penggerak Wesel Mekanik')" class="subsystem-btn w-full">Penggerak Wesel Mekanik</button>
-            </div>
-
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 xl:col-span-1 md:col-span-2">
-              <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Peraga Sinyal</h4>
-              <div class="flex flex-col gap-2">
-                <button @click="goToTroubleReport('Peraga Sinyal Mekanik Utama')" class="subsystem-btn w-full">Utama</button>
-                <button @click="goToTroubleReport('Peraga Sinyal Mekanik Pembantu')" class="subsystem-btn w-full">Pembantu</button>
-                <button @click="goToTroubleReport('Peraga Sinyal Mekanik Pelengkap')" class="subsystem-btn w-full">Pelengkap</button>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </div>
-
-      <!-- PDSE & PLSE -->
-      <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        
-        <!-- PDSE -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col xl:col-span-1">
-          <div class="bg-gradient-to-r from-[#FBC02D] to-[#F57F17] px-5 py-3">
-            <h3 class="text-white font-bold text-lg flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-white/50"></span>
-              Peralatan Dalam Sinyal Elektrik (PDSE)
-            </h3>
-          </div>
-          <div class="p-5 flex-1 bg-slate-50/50">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-              <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Interlocking Elektrik</h4>
-              <button @click="goToTroubleReport('Interlocking Elektrik')" class="subsystem-btn w-full">Interlocking Elektrik</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- PLSE -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-300 xl:col-span-2 flex flex-col">
-          <div class="bg-gradient-to-r from-[#FBC02D] to-[#F57F17] px-5 py-3">
-            <h3 class="text-white font-bold text-lg flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-white/50"></span>
-              Peralatan Luar Sinyal Elektrik (PLSE)
-            </h3>
-          </div>
-          <div class="p-5 flex-1 bg-slate-50/50">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              
-              <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Penggerak Wesel</h4>
-                <button @click="goToTroubleReport('Penggerak Wesel Elektrik')" class="subsystem-btn w-full">Penggerak Wesel Elektrik</button>
-              </div>
-
-              <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Peraga Sinyal</h4>
-                <div class="flex flex-col gap-2">
-                  <button @click="goToTroubleReport('Peraga Sinyal Elektrik Utama')" class="subsystem-btn w-full">Utama</button>
-                  <button @click="goToTroubleReport('Peraga Sinyal Elektrik Pembantu')" class="subsystem-btn w-full">Pembantu</button>
-                  <button @click="goToTroubleReport('Peraga Sinyal Elektrik Pelengkap')" class="subsystem-btn w-full">Pelengkap</button>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    v-for="subsystem in system.subsystems"
+                    :key="`${group.name}-${system.name}-${subsystem.name}`"
+                    type="button"
+                    class="subsystem-btn w-full"
+                    :data-subsystem-name="subsystem.name"
+                    @click="goToTroubleReport(subsystem.name)"
+                  >
+                    <span class="block font-semibold break-words">{{ subsystem.name }}</span>
+                    <span class="block text-[11px] font-medium opacity-90 mt-1">{{ subsystem.assetCount }} aset - {{ subsystem.unitCount }} unit</span>
+                  </button>
                 </div>
               </div>
-
-              <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Pengaman Wesel</h4>
-                <button @click="goToTroubleReport('Pengaman Wesel Setempat Elektrik')" class="subsystem-btn w-full">Pengaman Wesel Setempat</button>
-              </div>
-
-              <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Deteksi Sarana</h4>
-                <div class="flex flex-col gap-2">
-                  <button @click="goToTroubleReport('Track Circuit')" class="subsystem-btn w-full">Track Circuit</button>
-                  <button @click="goToTroubleReport('Axle Counter')" class="subsystem-btn w-full">Axle Counter</button>
-                </div>
-              </div>
-
             </div>
           </div>
-        </div>
+        </section>
+      </div>
 
+      <div v-else class="bg-white rounded-lg border border-dashed border-slate-300 p-8 text-center shadow-sm">
+        <h3 class="text-base font-bold text-slate-800">Belum ada aset terhubung</h3>
+        <p class="text-sm text-slate-500 mt-2">
+          Tambahkan Master Asset yang terhubung ke kategori aset, system, dan subsystem untuk menampilkannya di dashboard.
+        </p>
       </div>
     </div>
   </MainLayout>
@@ -167,6 +78,7 @@
 
 <script setup>
 import { router } from '@inertiajs/vue3'
+import { computed } from 'vue'
 import MainLayout from '@/layouts/MainLayout.vue'
 import AreaSelectorBanner from '@/components/dashboard/AreaSelectorBanner.vue'
 const props = defineProps({
@@ -178,7 +90,96 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  assets: {
+    type: Array,
+    default: () => [],
+  },
 })
+
+const fallbackLabel = 'Tanpa data'
+const colors = [
+  ['#7CB342', '#558B2F'],
+  ['#D50000', '#B00020'],
+  ['#0288D1', '#01579B'],
+  ['#F9A825', '#EF6C00'],
+  ['#6D28D9', '#4C1D95'],
+  ['#0F766E', '#115E59'],
+]
+
+const getLabel = (value) => {
+  const label = String(value ?? '').trim()
+  return label || fallbackLabel
+}
+
+const sumUnits = (assets) => assets.reduce((total, asset) => {
+  const units = Number(asset.jumlah_unit ?? 0)
+  return total + (Number.isFinite(units) ? units : 0)
+}, 0)
+
+const makeNode = (name) => ({
+  name,
+  assets: [],
+  children: new Map(),
+})
+
+const assetGroups = computed(() => {
+  const groups = new Map()
+
+  props.assets.forEach((asset) => {
+    const groupName = getLabel(asset.aset_prasarana_sintel)
+    const systemName = getLabel(asset.system)
+    const subsystemName = getLabel(asset.subsystem)
+
+    if (!groups.has(groupName)) {
+      groups.set(groupName, makeNode(groupName))
+    }
+
+    const group = groups.get(groupName)
+    if (!group.children.has(systemName)) {
+      group.children.set(systemName, makeNode(systemName))
+    }
+
+    const system = group.children.get(systemName)
+    if (!system.children.has(subsystemName)) {
+      system.children.set(subsystemName, makeNode(subsystemName))
+    }
+
+    group.assets.push(asset)
+    system.assets.push(asset)
+    system.children.get(subsystemName).assets.push(asset)
+  })
+
+  return Array.from(groups.values()).map((group) => {
+    const systems = Array.from(group.children.values()).map((system) => {
+      const subsystems = Array.from(system.children.values()).map((subsystem) => ({
+        name: subsystem.name,
+        assetCount: subsystem.assets.length,
+        unitCount: sumUnits(subsystem.assets),
+      }))
+
+      return {
+        name: system.name,
+        subsystems,
+        assetCount: system.assets.length,
+        unitCount: sumUnits(system.assets),
+      }
+    })
+
+    return {
+      name: group.name,
+      systems,
+      assetCount: group.assets.length,
+      unitCount: sumUnits(group.assets),
+    }
+  })
+})
+
+const groupHeaderStyle = (index) => {
+  const [from, to] = colors[index % colors.length]
+  return {
+    background: `linear-gradient(90deg, ${from}, ${to})`,
+  }
+}
 
 const goToTroubleReport = (subsystemName) => {
   router.get('/trouble-report', {
