@@ -13,6 +13,7 @@ const mountPage = (overrides = {}) => mount(Dashboard, {
   props: {
     selected_area: 'DAOP-1',
     units: [],
+    asset_categories: [],
     assets: [
       {
         id: 1,
@@ -47,6 +48,23 @@ describe('Dashboard', () => {
     expect(wrapper.text()).toContain('1 system')
     expect(wrapper.text()).toContain('1 aset')
     expect(wrapper.get('[data-subsystem-name="1"]').text()).toContain('1')
+  })
+
+  it('renders asset categories even when they do not have linked master assets yet', () => {
+    const wrapper = mountPage({
+      assets: [],
+      asset_categories: [
+        {
+          id: 6,
+          name: '1234',
+          systems: [],
+        },
+      ],
+    })
+
+    expect(wrapper.text()).toContain('1234')
+    expect(wrapper.text()).toContain('0 system')
+    expect(wrapper.text()).toContain('Belum ada system atau subsystem aktif')
   })
 
   it('opens trouble report for the selected subsystem and area', async () => {

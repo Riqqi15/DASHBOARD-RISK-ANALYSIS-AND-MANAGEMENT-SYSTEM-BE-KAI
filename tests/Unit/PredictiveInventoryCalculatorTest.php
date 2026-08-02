@@ -52,13 +52,35 @@ final class PredictiveInventoryCalculatorTest extends TestCase
         $this->assertSame(2, $result['needed_stock']);
         $this->assertSame(2, $result['proposal_quantity']);
         $this->assertSame('Sangat Wajar', $result['proposal_reasonableness']);
-        $this->assertEqualsWithDelta(0.075, $result['safety_stock_usage'], 0.0001);
+        $this->assertEqualsWithDelta(0.9, $result['safety_stock_usage'], 0.0001);
         $this->assertSame(2.0, $result['safety_stock_mca']);
         $this->assertSame(3.0, $result['safety_stock_failure']);
         $this->assertSame(3, $result['final_safety_stock']);
         $this->assertSame('Tua', $result['age_condition']);
         $this->assertSame('Melewati Umur Teknis', $result['lifetime_status']);
         $this->assertSame('calculated', $result['calculation_status']);
+    }
+
+    public function test_safety_stock_based_usage_matches_the_daop_1_workbook_formula(): void
+    {
+        $result = (new PredictiveInventoryCalculator)->calculate([
+            'function_criterion' => 1,
+            'production_impact' => 0,
+            'lead_time_months' => 12,
+            'price_category' => 'Low',
+            'current_stock' => 0,
+            'total_assets' => 10,
+            'average_yearly_usage' => 20,
+            'sla_percentage' => 1.5,
+            'failure_safety_stock' => 0,
+            'installed_at' => null,
+            'lifetime_years' => null,
+        ], CarbonImmutable::parse('2026-08-01'));
+
+        $this->assertEqualsWithDelta(3.6, $result['safety_stock_usage'], 0.0001);
+        $this->assertSame(1.0, $result['safety_stock_mca']);
+        $this->assertSame(0.0, $result['safety_stock_failure']);
+        $this->assertSame(4, $result['final_safety_stock']);
     }
 
     #[DataProvider('leadTimeProvider')]

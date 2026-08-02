@@ -23,9 +23,6 @@ const form = useForm({
   average_yearly_failure: value('average_yearly_failure'),
   max_lead_time_months: value('max_lead_time_months'),
   average_lead_time_months: value('average_lead_time_months'),
-  safety_stock: value('safety_stock'),
-  lead_time_demand: value('lead_time_demand'),
-  reorder_point: value('reorder_point'),
 })
 const deactivateForm = useForm({})
 const confirmingDeactivate = ref(false)
@@ -37,11 +34,38 @@ const deactivateButton = ref(null)
 const trackedFields = [
   'asset_subsystem_id', 'code', 'equipment', 'detail_equipment', 'unit_of_measure', 'severity',
   'max_yearly_failure', 'average_yearly_failure', 'max_lead_time_months', 'average_lead_time_months',
-  'safety_stock', 'lead_time_demand', 'reorder_point',
 ]
 const snapshot = () => JSON.stringify(Object.fromEntries(trackedFields.map((field) => [field, form[field] ?? ''])))
 const initialSnapshot = snapshot()
 const isDirty = computed(() => snapshot() !== initialSnapshot)
+const numberInput = (field) => {
+  const input = form[field]
+  if (input === null || input === undefined || String(input).trim() === '') return null
+  const parsed = Number(input)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
+}
+const averageFromMaximum = (input) => {
+  if (input === null || input === undefined || String(input).trim() === '') return ''
+  const parsed = Number(input)
+  return Number.isFinite(parsed) && parsed >= 0 ? (parsed / 2).toFixed(2) : ''
+}
+const reorderCalculation = computed(() => {
+  const maxFailure = numberInput('max_yearly_failure')
+  const averageFailure = numberInput('average_yearly_failure')
+  const maxLead = numberInput('max_lead_time_months')
+  const averageLead = numberInput('average_lead_time_months')
+  if ([maxFailure, averageFailure, maxLead, averageLead].some((value) => value === null)) return null
+  const rawSafetyStock = Math.max(0, (maxFailure * maxLead) - (averageFailure * averageLead))
+  const rawLeadTimeDemand = averageFailure * averageLead
+  const safetyStock = Math.ceil(rawSafetyStock)
+  const leadTimeDemand = Math.ceil(rawLeadTimeDemand)
+  return {
+    safety_stock: safetyStock,
+    lead_time_demand: leadTimeDemand,
+    reorder_point: Math.ceil(rawSafetyStock + rawLeadTimeDemand),
+  }
+})
+const calculatedValue = (field) => reorderCalculation.value?.[field] ?? '-'
 
 const close = () => {
   if (form.processing || deactivateForm.processing) return
@@ -108,6 +132,8 @@ const handleBeforeVisit = (event) => {
 let unregisterBeforeVisit
 watch(confirmingDeactivate, (open) => { if (open) nextTick(focusFirst) })
 watch(confirmingDiscard, (open) => { if (open) nextTick(focusFirst) })
+watch(() => form.max_yearly_failure, (value) => { form.average_yearly_failure = averageFromMaximum(value) }, { immediate: true })
+watch(() => form.max_lead_time_months, (value) => { form.average_lead_time_months = averageFromMaximum(value) }, { immediate: true })
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown, true)
   window.addEventListener('beforeunload', handleBeforeUnload)
@@ -122,10 +148,9 @@ onBeforeUnmount(() => {
 
 const fieldIds = {
   asset_subsystem_id: 'asset-subsystem-id', code: 'part-code', unit_of_measure: 'part-unit',
-  equipment: 'part-equipment', detail_equipment: 'part-name', severity: 'part-severity',
+  equipment: 'part-equipment', detail_equipment: 'part-name', severity: 'part-criticality',
   max_yearly_failure: 'part-failure-max', average_yearly_failure: 'part-failure-average',
   max_lead_time_months: 'part-lead-max', average_lead_time_months: 'part-lead-average',
-  safety_stock: 'part-safety', lead_time_demand: 'part-demand', reorder_point: 'part-reorder',
 }
 const errorAttrs = (field) => ({
   'aria-invalid': form.errors[field] ? 'true' : undefined,
@@ -143,7 +168,7 @@ const focusFirstError = () => Object.keys(fieldIds).find((field) => {
     <div v-if="open" data-dialog-backdrop class="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/55 backdrop-blur-[1px] sm:items-center sm:p-4" @click.self="close">
       <section ref="dialogPanel" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="part-dialog-title" class="max-h-[96vh] w-full overscroll-contain overflow-y-auto rounded-t-2xl bg-white outline-none shadow-2xl sm:max-w-5xl sm:rounded-2xl">
         <header class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
-          <div><p class="font-mono text-sm font-semibold uppercase tracking-[0.16em] text-[#2d2a70]">Master / suku cadang</p><h2 id="part-dialog-title" class="mt-1 text-lg font-semibold text-slate-950">{{ part ? 'Ubah suku cadang' : 'Tambah suku cadang' }}</h2><p class="mt-1 text-sm text-slate-500">Data ini berlaku lintas unit. Nilai opsional dapat dilengkapi bertahap.</p></div>
+          <div><p class="font-mono text-sm font-semibold uppercase tracking-[0.16em] text-[#2d2a70]">Master / suku cadang</p><h2 id="part-dialog-title" class="mt-1 text-lg font-semibold text-slate-950">{{ part ? 'Ubah suku cadang' : 'Tambah suku cadang' }}</h2><p class="mt-1 text-sm text-slate-500">Data manual mengikuti Reorder Stock. Nilai reorder dihitung otomatis.</p></div>
           <button data-close-dialog type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 outline-none hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[#2d2a70]" aria-label="Tutup dialog suku cadang" @click="close"><X :size="20" aria-hidden="true" /></button>
         </header>
 
@@ -155,17 +180,17 @@ const focusFirstError = () => Object.keys(fieldIds).find((field) => {
               <div class="grid gap-4 md:grid-cols-2">
                 <div><label for="part-code" class="mb-1.5 block text-sm font-medium text-slate-800">Kode suku cadang <span class="text-red-600">*</span></label><input id="part-code" v-model="form.code" v-bind="errorAttrs('code')" name="code" maxlength="50" :class="inputClass" placeholder="Contoh: SP-TC-001…" required /><p v-if="form.errors.code" id="part-code-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.code }}</p></div>
                 <div><label for="part-unit" class="mb-1.5 block text-sm font-medium text-slate-800">Satuan pencatatan <span class="text-red-600">*</span></label><input id="part-unit" v-model="form.unit_of_measure" v-bind="errorAttrs('unit_of_measure')" name="unit_of_measure" maxlength="30" :class="inputClass" placeholder="Contoh: buah…" required /><p class="mt-1 text-sm text-slate-500">Gunakan satuan operasional; contoh: buah, set, meter.</p><p v-if="form.errors.unit_of_measure" id="part-unit-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.unit_of_measure }}</p></div>
-                <div><label for="part-equipment" class="mb-1.5 block text-sm font-medium text-slate-800">Peralatan <span class="font-normal text-slate-400">(opsional)</span></label><input id="part-equipment" v-model="form.equipment" v-bind="errorAttrs('equipment')" name="equipment" maxlength="255" :class="inputClass" placeholder="Contoh: Track circuit…" /><p v-if="form.errors.equipment" id="part-equipment-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.equipment }}</p></div>
-                <div><label for="part-name" class="mb-1.5 block text-sm font-medium text-slate-800">Nama / detail peralatan <span class="text-red-600">*</span></label><input id="part-name" v-model="form.detail_equipment" v-bind="errorAttrs('detail_equipment')" name="detail_equipment" maxlength="255" :class="inputClass" placeholder="Contoh: Relay 24 VDC…" required /><p v-if="form.errors.detail_equipment" id="part-name-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.detail_equipment }}</p></div>
-                <div><label for="part-severity" class="mb-1.5 block text-sm font-medium text-slate-800">Severity <span class="font-normal text-slate-400">(opsional)</span></label><input id="part-severity" v-model="form.severity" v-bind="errorAttrs('severity')" name="severity" maxlength="100" :class="inputClass" placeholder="Contoh: Mayor…" /><p v-if="form.errors.severity" id="part-severity-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.severity }}</p></div>
+                <div><label for="part-equipment" class="mb-1.5 block text-sm font-medium text-slate-800">Equipment <span class="text-red-600">*</span></label><input id="part-equipment" v-model="form.equipment" v-bind="errorAttrs('equipment')" name="equipment" maxlength="255" :class="inputClass" placeholder="Contoh: Track circuit…" required /><p v-if="form.errors.equipment" id="part-equipment-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.equipment }}</p></div>
+                <div><label for="part-name" class="mb-1.5 block text-sm font-medium text-slate-800">Detail Equipment <span class="text-red-600">*</span></label><input id="part-name" v-model="form.detail_equipment" v-bind="errorAttrs('detail_equipment')" name="detail_equipment" maxlength="255" :class="inputClass" placeholder="Contoh: Relay 24 VDC…" required /><p v-if="form.errors.detail_equipment" id="part-name-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.detail_equipment }}</p></div>
+                <div><label for="part-criticality" class="mb-1.5 block text-sm font-medium text-slate-800">Criticality <span class="text-red-600">*</span></label><select id="part-criticality" v-model="form.severity" v-bind="errorAttrs('severity')" name="severity" :class="inputClass" required><option value="">Pilih criticality</option><option value="Desirable">Desirable</option><option value="Essential">Essential</option><option value="Vital">Vital</option></select><p class="mt-1 text-sm text-slate-500">Pilih sesuai kategori Criticality pada file Excel.</p><p v-if="form.errors.severity" id="part-criticality-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.severity }}</p></div>
               </div>
             </div>
           </section>
 
           <div class="grid gap-5 lg:grid-cols-3">
-            <section aria-labelledby="failure-title" class="rounded-xl border border-slate-200 p-4"><h3 id="failure-title" class="text-sm font-semibold text-slate-950">Kegagalan</h3><p class="mt-1 text-sm text-slate-500">Frekuensi per tahun, maksimal dua desimal.</p><div class="mt-4 space-y-4"><div><label for="part-failure-max" class="mb-1.5 block text-sm font-medium text-slate-700">Maksimum <span class="text-slate-400">(opsional)</span></label><input id="part-failure-max" v-model="form.max_yearly_failure" v-bind="errorAttrs('max_yearly_failure')" name="max_yearly_failure" type="number" min="0" step="0.01" :class="inputClass" /><p v-if="form.errors.max_yearly_failure" id="part-failure-max-error" class="mt-1 text-sm text-red-600" role="alert">{{ form.errors.max_yearly_failure }}</p></div><div><label for="part-failure-average" class="mb-1.5 block text-sm font-medium text-slate-700">Rata-rata <span class="text-slate-400">(opsional)</span></label><input id="part-failure-average" v-model="form.average_yearly_failure" v-bind="errorAttrs('average_yearly_failure')" name="average_yearly_failure" type="number" min="0" step="0.01" :class="inputClass" /><p v-if="form.errors.average_yearly_failure" id="part-failure-average-error" class="mt-1 text-sm text-red-600" role="alert">{{ form.errors.average_yearly_failure }}</p></div></div></section>
-            <section aria-labelledby="lead-title" class="rounded-xl border border-slate-200 p-4"><h3 id="lead-title" class="text-sm font-semibold text-slate-950">Lead time</h3><p class="mt-1 text-sm text-slate-500">Durasi pengadaan dalam bulan.</p><div class="mt-4 space-y-4"><div><label for="part-lead-max" class="mb-1.5 block text-sm font-medium text-slate-700">Maksimum <span class="text-slate-400">(opsional)</span></label><input id="part-lead-max" v-model="form.max_lead_time_months" v-bind="errorAttrs('max_lead_time_months')" name="max_lead_time_months" type="number" min="0" step="0.01" :class="inputClass" /><p v-if="form.errors.max_lead_time_months" id="part-lead-max-error" class="mt-1 text-sm text-red-600" role="alert">{{ form.errors.max_lead_time_months }}</p></div><div><label for="part-lead-average" class="mb-1.5 block text-sm font-medium text-slate-700">Rata-rata <span class="text-slate-400">(opsional)</span></label><input id="part-lead-average" v-model="form.average_lead_time_months" v-bind="errorAttrs('average_lead_time_months')" name="average_lead_time_months" type="number" min="0" step="0.01" :class="inputClass" /><p v-if="form.errors.average_lead_time_months" id="part-lead-average-error" class="mt-1 text-sm text-red-600" role="alert">{{ form.errors.average_lead_time_months }}</p></div></div></section>
-            <section aria-labelledby="reorder-title" class="rounded-xl border border-slate-200 p-4"><h3 id="reorder-title" class="text-sm font-semibold text-slate-950">Reorder</h3><p class="mt-1 text-sm text-slate-500">Ambang kendali stok dalam satuan barang.</p><div class="mt-4 space-y-4"><div><label for="part-safety" class="mb-1.5 block text-sm font-medium text-slate-700">Safety stock <span class="text-slate-400">(opsional)</span></label><input id="part-safety" v-model="form.safety_stock" v-bind="errorAttrs('safety_stock')" name="safety_stock" type="number" min="0" step="1" :class="inputClass" /><p v-if="form.errors.safety_stock" id="part-safety-error" class="mt-1 text-sm text-red-600" role="alert">{{ form.errors.safety_stock }}</p></div><div><label for="part-demand" class="mb-1.5 block text-sm font-medium text-slate-700">Kebutuhan lead time <span class="text-slate-400">(opsional)</span></label><input id="part-demand" v-model="form.lead_time_demand" v-bind="errorAttrs('lead_time_demand')" name="lead_time_demand" type="number" min="0" step="1" :class="inputClass" /><p v-if="form.errors.lead_time_demand" id="part-demand-error" class="mt-1 text-sm text-red-600" role="alert">{{ form.errors.lead_time_demand }}</p></div><div><label for="part-reorder" class="mb-1.5 block text-sm font-medium text-slate-700">Reorder point <span class="text-slate-400">(opsional)</span></label><input id="part-reorder" v-model="form.reorder_point" v-bind="errorAttrs('reorder_point')" name="reorder_point" type="number" min="0" step="1" :class="inputClass" /><p v-if="form.errors.reorder_point" id="part-reorder-error" class="mt-1 text-sm text-red-600" role="alert">{{ form.errors.reorder_point }}</p></div></div></section>
+            <section aria-labelledby="failure-title" class="rounded-xl border border-slate-200 p-4"><h3 id="failure-title" class="text-sm font-semibold text-slate-950">Kegagalan</h3><p class="mt-1 text-sm text-slate-500">Frekuensi per tahun, maksimal dua desimal.</p><div class="mt-4 space-y-4"><div><label for="part-failure-max" class="mb-1.5 block text-sm font-medium text-slate-700">Maksimum <span class="text-red-600">*</span></label><input id="part-failure-max" v-model="form.max_yearly_failure" v-bind="errorAttrs('max_yearly_failure')" name="max_yearly_failure" type="number" min="0" step="0.01" :class="inputClass" required /><p v-if="form.errors.max_yearly_failure" id="part-failure-max-error" class="mt-1 text-sm text-red-600" role="alert">{{ form.errors.max_yearly_failure }}</p></div><div><label for="part-failure-average" class="mb-1.5 block text-sm font-medium text-slate-700">Rata-rata <span class="text-red-600">*</span></label><input id="part-failure-average" v-model="form.average_yearly_failure" v-bind="errorAttrs('average_yearly_failure')" name="average_yearly_failure" type="number" min="0" step="0.01" :class="[inputClass, 'bg-slate-50 text-slate-600']" readonly required /><p class="mt-1 text-sm text-slate-500">Otomatis dari maksimum dibagi 2.</p><p v-if="form.errors.average_yearly_failure" id="part-failure-average-error" class="mt-1 text-sm text-red-600" role="alert">{{ form.errors.average_yearly_failure }}</p></div></div></section>
+            <section aria-labelledby="lead-title" class="rounded-xl border border-slate-200 p-4"><h3 id="lead-title" class="text-sm font-semibold text-slate-950">Lead time</h3><p class="mt-1 text-sm text-slate-500">Durasi pengadaan dalam bulan.</p><div class="mt-4 space-y-4"><div><label for="part-lead-max" class="mb-1.5 block text-sm font-medium text-slate-700">Maksimum <span class="text-red-600">*</span></label><input id="part-lead-max" v-model="form.max_lead_time_months" v-bind="errorAttrs('max_lead_time_months')" name="max_lead_time_months" type="number" min="0" step="0.01" :class="inputClass" required /><p v-if="form.errors.max_lead_time_months" id="part-lead-max-error" class="mt-1 text-sm text-red-600" role="alert">{{ form.errors.max_lead_time_months }}</p></div><div><label for="part-lead-average" class="mb-1.5 block text-sm font-medium text-slate-700">Rata-rata <span class="text-red-600">*</span></label><input id="part-lead-average" v-model="form.average_lead_time_months" v-bind="errorAttrs('average_lead_time_months')" name="average_lead_time_months" type="number" min="0" step="0.01" :class="[inputClass, 'bg-slate-50 text-slate-600']" readonly required /><p class="mt-1 text-sm text-slate-500">Otomatis dari maksimum dibagi 2.</p><p v-if="form.errors.average_lead_time_months" id="part-lead-average-error" class="mt-1 text-sm text-red-600" role="alert">{{ form.errors.average_lead_time_months }}</p></div></div></section>
+            <section aria-labelledby="reorder-title" class="rounded-xl border border-slate-200 p-4"><h3 id="reorder-title" class="text-sm font-semibold text-slate-950">Reorder</h3><p class="mt-1 text-sm text-slate-500">Ambang stok dari rumus Reorder Stock.</p><dl class="mt-4 space-y-3"><div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"><dt class="text-sm font-semibold uppercase text-slate-500">Safety stock</dt><dd data-calculated-safety-stock class="mt-1 font-mono text-lg font-semibold text-slate-950">{{ calculatedValue('safety_stock') }}</dd></div><div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"><dt class="text-sm font-semibold uppercase text-slate-500">Kebutuhan lead time</dt><dd data-calculated-lead-time-demand class="mt-1 font-mono text-lg font-semibold text-slate-950">{{ calculatedValue('lead_time_demand') }}</dd></div><div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"><dt class="text-sm font-semibold uppercase text-slate-500">Reorder point</dt><dd data-calculated-reorder-point class="mt-1 font-mono text-lg font-semibold text-slate-950">{{ calculatedValue('reorder_point') }}</dd></div></dl></section>
           </div>
 
           <div class="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">

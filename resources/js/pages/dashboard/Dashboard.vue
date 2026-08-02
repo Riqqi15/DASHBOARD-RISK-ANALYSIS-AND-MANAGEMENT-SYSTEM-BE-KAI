@@ -47,7 +47,7 @@
                   </span>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div v-if="system.subsystems.length" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     v-for="subsystem in system.subsystems"
                     :key="`${group.name}-${system.name}-${subsystem.name}`"
@@ -60,8 +60,14 @@
                     <span class="block text-[11px] font-medium opacity-90 mt-1">{{ subsystem.assetCount }} aset - {{ subsystem.unitCount }} unit</span>
                   </button>
                 </div>
+                <p v-else class="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded p-3">
+                  Belum ada subsystem aktif.
+                </p>
               </div>
             </div>
+            <p v-if="!group.systems.length" class="text-sm text-slate-500 bg-white border border-dashed border-slate-200 rounded-lg p-4">
+              Belum ada system atau subsystem aktif.
+            </p>
           </div>
         </section>
       </div>
@@ -94,6 +100,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  asset_categories: {
+    type: Array,
+    default: () => [],
+  },
 })
 
 const fallbackLabel = 'Tanpa data'
@@ -116,37 +126,48 @@ const sumUnits = (assets) => assets.reduce((total, asset) => {
   return total + (Number.isFinite(units) ? units : 0)
 }, 0)
 
-const makeNode = (name) => ({
+const makeNode = (name, id = null) => ({
+  id,
   name,
   assets: [],
   children: new Map(),
 })
 
+const ensureChild = (children, name, id = null) => {
+  if (!children.has(name)) {
+    children.set(name, makeNode(name, id))
+  }
+
+  return children.get(name)
+}
+
 const assetGroups = computed(() => {
   const groups = new Map()
+
+  props.asset_categories.forEach((category) => {
+    const group = ensureChild(groups, getLabel(category.name), category.id)
+
+    ;(category.systems ?? []).forEach((categorySystem) => {
+      const system = ensureChild(group.children, getLabel(categorySystem.name), categorySystem.id)
+
+      ;(categorySystem.subsystems ?? []).forEach((categorySubsystem) => {
+        ensureChild(system.children, getLabel(categorySubsystem.name), categorySubsystem.id)
+      })
+    })
+  })
 
   props.assets.forEach((asset) => {
     const groupName = getLabel(asset.aset_prasarana_sintel)
     const systemName = getLabel(asset.system)
     const subsystemName = getLabel(asset.subsystem)
 
-    if (!groups.has(groupName)) {
-      groups.set(groupName, makeNode(groupName))
-    }
-
-    const group = groups.get(groupName)
-    if (!group.children.has(systemName)) {
-      group.children.set(systemName, makeNode(systemName))
-    }
-
-    const system = group.children.get(systemName)
-    if (!system.children.has(subsystemName)) {
-      system.children.set(subsystemName, makeNode(subsystemName))
-    }
+    const group = ensureChild(groups, groupName)
+    const system = ensureChild(group.children, systemName)
+    const subsystem = ensureChild(system.children, subsystemName)
 
     group.assets.push(asset)
     system.assets.push(asset)
-    system.children.get(subsystemName).assets.push(asset)
+    subsystem.assets.push(asset)
   })
 
   return Array.from(groups.values()).map((group) => {

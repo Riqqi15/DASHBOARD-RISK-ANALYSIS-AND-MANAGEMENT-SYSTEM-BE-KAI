@@ -47,7 +47,7 @@ const part = {
   safety_stock: 2,
   lead_time_demand: 4,
   reorder_point: 6,
-  severity: 'Mayor',
+  severity: 'Essential',
   unit_of_measure: 'buah',
   is_active: true,
 }
@@ -78,6 +78,9 @@ describe('SparePartDialog', () => {
     expect(wrapper.text()).toContain('Kegagalan')
     expect(wrapper.text()).toContain('Lead time')
     expect(wrapper.text()).toContain('Reorder')
+    expect(wrapper.text()).toContain('Criticality')
+    expect(wrapper.get('label[for="part-equipment"]').text()).toContain('Equipment')
+    expect(wrapper.get('label[for="part-name"]').text()).toContain('Detail Equipment')
     expect(wrapper.get('label[for="part-unit"]').text()).toContain('Satuan')
     expect(wrapper.text()).toContain('contoh: buah, set, meter')
   })
@@ -98,13 +101,57 @@ describe('SparePartDialog', () => {
     }))
   })
 
+  it('calculates reorder values from failure and lead time inputs instead of exposing manual inputs', async () => {
+    const wrapper = mountDialog()
+
+    await wrapper.get('#part-failure-max').setValue('12.50')
+    await wrapper.get('#part-lead-max').setValue('4.50')
+
+    expect(wrapper.get('#part-failure-average').element.value).toBe('6.25')
+    expect(wrapper.get('#part-lead-average').element.value).toBe('2.25')
+    expect(wrapper.get('[data-calculated-safety-stock]').text()).toContain('43')
+    expect(wrapper.get('[data-calculated-lead-time-demand]').text()).toContain('15')
+    expect(wrapper.get('[data-calculated-reorder-point]').text()).toContain('57')
+    expect(wrapper.find('#part-safety').exists()).toBe(false)
+    expect(wrapper.find('#part-demand').exists()).toBe(false)
+    expect(wrapper.find('#part-reorder').exists()).toBe(false)
+  })
+
+  it('keeps average failure and lead time as read-only derived halves of maximum values', async () => {
+    const wrapper = mountDialog()
+
+    await wrapper.get('#part-failure-max').setValue('8.00')
+    await wrapper.get('#part-lead-max').setValue('6.50')
+
+    expect(wrapper.get('#part-failure-average').attributes('readonly')).toBeDefined()
+    expect(wrapper.get('#part-lead-average').attributes('readonly')).toBeDefined()
+    expect(wrapper.get('#part-failure-average').element.value).toBe('4.00')
+    expect(wrapper.get('#part-lead-average').element.value).toBe('3.25')
+  })
+
+  it('uses a manual criticality dropdown with Excel criticality values', async () => {
+    const wrapper = mountDialog()
+
+    expect(wrapper.find('#part-function-criterion').exists()).toBe(false)
+    expect(wrapper.find('#part-production-impact').exists()).toBe(false)
+    expect(wrapper.findAll('#part-criticality option').map((option) => option.text())).toEqual([
+      'Pilih criticality',
+      'Desirable',
+      'Essential',
+      'Vital',
+    ])
+
+    await wrapper.get('#part-criticality').setValue('Vital')
+    expect(wrapper.get('#part-criticality').element.value).toBe('Vital')
+  })
+
   it('prefills, validates inline, and updates an existing spare part', async () => {
     const wrapper = mountDialog({ part }, { attachTo: document.body })
     const form = inertia.forms[0]
     form.errors = {
       code: 'Kode suku cadang sudah digunakan.',
       asset_subsystem_id: 'Pilih subsystem aset.',
-      reorder_point: 'Reorder point harus lebih besar atau sama dengan safety stock.',
+      average_lead_time_months: 'Rata-rata lead time wajib diisi.',
     }
     await wrapper.vm.$nextTick()
 
@@ -112,7 +159,7 @@ describe('SparePartDialog', () => {
     expect(wrapper.get('[name="asset_subsystem_id"]').element.value).toBe('101')
     expect(wrapper.get('[role="alert"]').text()).toContain('Pilih subsystem aset.')
     expect(wrapper.text()).toContain('Kode suku cadang sudah digunakan.')
-    expect(wrapper.text()).toContain('Reorder point harus lebih besar')
+    expect(wrapper.text()).toContain('Rata-rata lead time wajib diisi.')
     await wrapper.get('form').trigger('submit')
 
     expect(inertia.put).toHaveBeenCalledWith('/admin/spare-parts/21', expect.objectContaining({ preserveScroll: true }))
@@ -177,14 +224,13 @@ describe('SparePartDialog', () => {
     form.errors = Object.fromEntries([
       'asset_subsystem_id', 'code', 'unit_of_measure', 'equipment', 'detail_equipment', 'severity',
       'max_yearly_failure', 'average_yearly_failure', 'max_lead_time_months', 'average_lead_time_months',
-      'safety_stock', 'lead_time_demand', 'reorder_point',
     ].map((field) => [field, `${field} salah`]))
     await wrapper.get('form').trigger('submit')
     const options = inertia.put.mock.calls.at(-1)[1]
     options.onError()
     await wrapper.vm.$nextTick()
 
-    for (const id of ['asset-subsystem-id', 'part-code', 'part-unit', 'part-equipment', 'part-name', 'part-severity', 'part-failure-max', 'part-failure-average', 'part-lead-max', 'part-lead-average', 'part-safety', 'part-demand', 'part-reorder']) {
+    for (const id of ['asset-subsystem-id', 'part-code', 'part-unit', 'part-equipment', 'part-name', 'part-criticality', 'part-failure-max', 'part-failure-average', 'part-lead-max', 'part-lead-average']) {
       expect(wrapper.get(`#${id}`).attributes('aria-invalid')).toBe('true')
       expect(wrapper.get(`#${id}`).attributes('aria-describedby')).toBeTruthy()
     }
@@ -200,9 +246,9 @@ describe('SparePartDialog', () => {
     expect(wrapper.findAll('[placeholder]').every((field) => !field.attributes('placeholder').includes('...'))).toBe(true)
     expect(wrapper.findAll('input, select, textarea').map((field) => field.attributes('name')).every(Boolean)).toBe(true)
     expect(wrapper.findAll('input').map((field) => field.attributes('name'))).toEqual([
-      'code', 'unit_of_measure', 'equipment', 'detail_equipment', 'severity',
+      'code', 'unit_of_measure', 'equipment', 'detail_equipment',
       'max_yearly_failure', 'average_yearly_failure', 'max_lead_time_months',
-      'average_lead_time_months', 'safety_stock', 'lead_time_demand', 'reorder_point',
+      'average_lead_time_months',
     ])
   })
 

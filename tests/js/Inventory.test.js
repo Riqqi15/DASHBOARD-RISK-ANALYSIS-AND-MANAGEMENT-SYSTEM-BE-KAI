@@ -132,12 +132,27 @@ describe('Inventory', () => {
     expect(wrapper.text()).toContain('Total Jenis')
     expect(wrapper.text()).toContain('Total Unit Tersedia')
     expect(wrapper.text()).not.toMatch(/Generate Forecast|Prediksi Defisit|Dalam Pengiriman|Purchase Order/i)
-    expect(wrapper.get('[data-inventory-desktop]').text()).toContain('Batas reorder')
+    expect(wrapper.get('[data-inventory-desktop]').text()).toContain('Safety stock')
+    expect(wrapper.get('[data-inventory-desktop]').text()).not.toContain('Batas reorder')
+    expect(wrapper.get('[data-inventory-desktop]').text()).not.toContain('6 buah')
     expect(wrapper.get('[data-inventory-mobile]').text()).toContain('Relay 24 VDC')
+    expect(wrapper.get('[data-inventory-mobile]').text()).toContain('Safety stock')
+    expect(wrapper.get('[data-inventory-mobile]').text()).not.toContain('Batas reorder')
     expect(wrapper.get('[data-tab="stock"]').text()).toContain('Stok Saat Ini')
     expect(wrapper.get('[data-tab="history"]').text()).toContain('Riwayat Transaksi')
     expect(wrapper.get('[data-tab="master"]').text()).toContain('Master Suku Cadang')
     expect(wrapper.findAll('button').some((button) => button.text() === 'Catat IN/OUT')).toBe(true)
+  })
+
+  it('shows only safety stock in the master spare parts table and cards', () => {
+    const wrapper = mountPage({ filters: { ...props.filters, tab: 'master' } })
+
+    expect(wrapper.get('[data-master-desktop]').text()).toContain('Safety stock')
+    expect(wrapper.get('[data-master-desktop]').text()).not.toContain('Safety / reorder')
+    expect(wrapper.get('[data-master-desktop]').text()).not.toContain('2 / 6')
+    expect(wrapper.get('[data-master-mobile]').text()).toContain('Safety stock')
+    expect(wrapper.get('[data-master-mobile]').text()).not.toContain('Safety / reorder')
+    expect(wrapper.get('[data-master-mobile]').text()).not.toContain('2 / 6')
   })
 
   it('exposes master controls only to Pusat and normalizes a regional master URL', async () => {

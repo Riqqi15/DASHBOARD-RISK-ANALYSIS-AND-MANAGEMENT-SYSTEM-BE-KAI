@@ -4,6 +4,7 @@ namespace App\Http\Requests\Admin;
 
 use App\Models\AssetSubsystem;
 use App\Models\SparePart;
+use App\Services\PredictiveInventoryCalculator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -28,16 +29,18 @@ class StoreSparePartRequest extends FormRequest
                     ->whereNull('deleted_at')),
             ],
             'code' => ['required', 'string', 'max:50', Rule::unique('spare_parts', 'code')],
-            'equipment' => ['nullable', 'string', 'max:255'],
+            'equipment' => ['required', 'string', 'max:255'],
             'detail_equipment' => ['required', 'string', 'max:255'],
-            'max_yearly_failure' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
-            'average_yearly_failure' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
-            'max_lead_time_months' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
-            'average_lead_time_months' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
+            'max_yearly_failure' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
+            'average_yearly_failure' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
+            'max_lead_time_months' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
+            'average_lead_time_months' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999.99'],
             'safety_stock' => ['nullable', 'integer', 'min:0', 'max:4294967295'],
             'lead_time_demand' => ['nullable', 'integer', 'min:0', 'max:4294967295'],
             'reorder_point' => ['nullable', 'integer', 'min:0', 'max:4294967295'],
-            'severity' => ['nullable', 'string', 'max:100'],
+            'function_criterion' => ['nullable', 'integer', 'between:1,3'],
+            'production_impact' => ['nullable', 'integer', 'between:0,3'],
+            'severity' => ['required', 'string', Rule::in(['Desirable', 'Essential', 'Vital'])],
             'unit_of_measure' => ['required', 'string', 'max:30'],
         ];
     }
@@ -101,13 +104,23 @@ class StoreSparePartRequest extends FormRequest
             'code.string' => 'Kode suku cadang harus berupa teks.',
             'code.max' => 'Kode suku cadang maksimal 50 karakter.',
             'code.unique' => 'Kode suku cadang sudah digunakan.',
-            'equipment.string' => 'Nama peralatan harus berupa teks.',
-            'equipment.max' => 'Nama peralatan maksimal 255 karakter.',
-            'detail_equipment.required' => 'Detail peralatan wajib diisi.',
-            'detail_equipment.string' => 'Detail peralatan harus berupa teks.',
-            'detail_equipment.max' => 'Detail peralatan maksimal 255 karakter.',
-            'severity.string' => 'Severity harus berupa teks.',
-            'severity.max' => 'Severity maksimal 100 karakter.',
+            'equipment.required' => 'Equipment wajib diisi.',
+            'equipment.string' => 'Equipment harus berupa teks.',
+            'equipment.max' => 'Equipment maksimal 255 karakter.',
+            'detail_equipment.required' => 'Detail Equipment wajib diisi.',
+            'detail_equipment.string' => 'Detail Equipment harus berupa teks.',
+            'detail_equipment.max' => 'Detail Equipment maksimal 255 karakter.',
+            'max_yearly_failure.required' => 'Maksimum kegagalan wajib diisi.',
+            'average_yearly_failure.required' => 'Rata-rata kegagalan wajib diisi.',
+            'max_lead_time_months.required' => 'Maksimum lead time wajib diisi.',
+            'average_lead_time_months.required' => 'Rata-rata lead time wajib diisi.',
+            'function_criterion.integer' => 'Criteria Function harus berupa angka.',
+            'function_criterion.between' => 'Criteria Function harus bernilai 1 sampai 3.',
+            'production_impact.integer' => 'Criteria Production Impact harus berupa angka.',
+            'production_impact.between' => 'Criteria Production Impact harus bernilai 0 sampai 3.',
+            'severity.required' => 'Criticality wajib dipilih.',
+            'severity.string' => 'Criticality harus berupa teks.',
+            'severity.in' => 'Criticality harus Desirable, Essential, atau Vital.',
             'unit_of_measure.required' => 'Satuan wajib diisi.',
             'unit_of_measure.string' => 'Satuan harus berupa teks.',
             'unit_of_measure.max' => 'Satuan maksimal 30 karakter.',
@@ -136,6 +149,69 @@ class StoreSparePartRequest extends FormRequest
             $normalized[$field] = in_array($field, ['equipment', 'severity'], true) && $value === '' ? null : $value;
         }
 
+        foreach ([
+            'max_yearly_failure' => 'average_yearly_failure',
+            'max_lead_time_months' => 'average_lead_time_months',
+        ] as $maximumField => $averageField) {
+            $average = $this->averageFromMaximum($this->input($maximumField));
+            if ($average !== null) {
+                $normalized[$averageField] = $average;
+            }
+        }
+
+        $criticality = $this->criticalityFromCriteria();
+        if ($criticality !== null && blank($this->input('severity'))) {
+            $normalized['severity'] = $criticality;
+        }
+
         $this->merge($normalized);
+    }
+
+    private function averageFromMaximum(mixed $input): ?string
+    {
+        if (! is_string($input) && ! is_int($input) && ! is_float($input)) {
+            return null;
+        }
+
+        $value = trim((string) $input);
+        if (! preg_match('/^\d+(?:\.\d{1,2})?$/', $value)) {
+            return null;
+        }
+
+        $number = (float) $value;
+        if ($number < 0 || $number > 99999999.99) {
+            return null;
+        }
+
+        return number_format($number / 2, 2, '.', '');
+    }
+
+    private function criticalityFromCriteria(): ?string
+    {
+        $function = $this->integerInput('function_criterion');
+        $impact = $this->integerInput('production_impact');
+        if ($function === null || $impact === null) {
+            return null;
+        }
+        if ($function < 1 || $function > 3 || $impact < 0 || $impact > 3) {
+            return null;
+        }
+
+        return app(PredictiveInventoryCalculator::class)->criticality($function, $impact);
+    }
+
+    private function integerInput(string $field): ?int
+    {
+        $input = $this->input($field);
+        if (! is_string($input) && ! is_int($input)) {
+            return null;
+        }
+
+        $value = trim((string) $input);
+        if (! preg_match('/^-?\d+$/', $value)) {
+            return null;
+        }
+
+        return (int) $value;
     }
 }

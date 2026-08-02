@@ -92,6 +92,20 @@ class MasterAssetManagementTest extends TestCase
                 ->where('hierarchy.0.sparepart_out', 2));
     }
 
+    public function test_index_exposes_empty_asset_categories_without_master_assets(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        AssetGroup::factory()->create(['name' => '1234']);
+
+        $this->actingAs($pusat)->get('/master-asset')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('assets.data', 0)
+                ->has('hierarchy', 0)
+                ->has('assetCategories', 1)
+                ->where('assetCategories.0.name', '1234')
+                ->where('assetCategories.0.systems', []));
+    }
+
     public function test_index_hierarchy_uses_the_full_filtered_result_before_pagination(): void
     {
         $selectedUnit = UnitKerja::factory()->create();

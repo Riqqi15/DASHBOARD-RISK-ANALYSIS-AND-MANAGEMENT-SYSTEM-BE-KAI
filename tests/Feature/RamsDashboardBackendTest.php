@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AssetGroup;
 use App\Models\UnitKerja;
 use App\Models\User;
 use Database\Seeders\RamsOperationalDataSeeder;
@@ -13,6 +14,26 @@ class RamsDashboardBackendTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_dashboard_includes_asset_category_tree_without_assets(): void
+    {
+        $pusat = User::factory()->pusat()->create(['is_active' => true]);
+        AssetGroup::query()->create([
+            'name' => '1234',
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($pusat)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('dashboard/Dashboard')
+                ->has('asset_categories', 1)
+                ->where('asset_categories.0.name', '1234')
+                ->has('asset_categories.0.systems', 0)
+                ->has('assets', 0));
+    }
+
     public function test_dashboard_pages_read_seeded_database_with_area_authorization(): void
     {
         $pusat = User::factory()->pusat()->create(['is_active' => true]);
@@ -23,9 +44,9 @@ class RamsDashboardBackendTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('dashboard/Dashboard')
-                ->has('assets', 34)
+                ->where('selected_area', null)
                 ->where('summary.totalAset', 34)
-                ->where('selected_area', null));
+                ->has('assets', 34));
 
         $this->actingAs($pusat)
             ->get('/risk-matrix?area=DIVRE4')
@@ -58,8 +79,8 @@ class RamsDashboardBackendTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('dashboard/Dashboard')
-                ->has('assets', 17)
                 ->where('summary.totalAset', 17)
+                ->has('assets', 17)
                 ->where('selected_area', 'DAOP-1'));
 
         $this->actingAs($regional)

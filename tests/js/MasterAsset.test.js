@@ -63,6 +63,18 @@ const props = {
       asset_group: { id: 1, name: 'Peralatan Luar Sinyal Elektrik' },
     },
   }],
+  assetCategories: [{
+    id: 1,
+    name: 'Peralatan Luar Sinyal Elektrik',
+    systems: [{
+      id: 11,
+      name: 'Peraga Sinyal Elektrik',
+      subsystems: [
+        { id: 101, name: 'Track Circuit' },
+        { id: 102, name: 'Axle Counter' },
+      ],
+    }],
+  }],
   legacySummary: null,
   stats: { total_assets: 1, total_units: 12, active_assets: 1, unique_subsystems: 1 },
   filters: { search: '', status: '', unit_kerja_id: '' },
@@ -155,12 +167,28 @@ describe('MasterAsset', () => {
     const wrapper = mountPage({
       assets: { data: [], links: [], from: null, to: null, total: 0 },
       hierarchy: [],
+      assetCategories: [],
       legacySummary: null,
       stats: { total_assets: 0, total_units: 0, active_assets: 0, unique_subsystems: 0 },
     })
 
     expect(wrapper.text()).toContain('Belum ada aset')
     expect(wrapper.findAll('a[href="/master-asset/create"]').some((link) => link.text().includes('Tambah aset pertama'))).toBe(true)
+  })
+
+  it('renders empty asset categories from the category tree even without master assets', () => {
+    const wrapper = mountPage({
+      assets: { data: [], links: [], from: null, to: null, total: 0 },
+      hierarchy: [],
+      assetCategories: [{ id: 1234, name: '1234', systems: [] }],
+      legacySummary: null,
+      stats: { total_assets: 0, total_units: 0, active_assets: 0, unique_subsystems: 0 },
+    })
+
+    expect(wrapper.text()).toContain('1234')
+    expect(wrapper.text()).toContain('Belum ada system aktif')
+    expect(wrapper.text()).not.toContain('Belum ada aset')
+    expect(wrapper.getComponent(AssetHierarchyTable).props('categoryTree')).toHaveLength(1)
   })
 
   it('preserves backend pagination links', () => {

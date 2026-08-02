@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Enums\RiskRegisterStatus;
 use App\Models\Asset;
+use App\Models\AssetGroup;
+use App\Models\AssetSubsystem;
+use App\Models\AssetSystem;
 use App\Models\FailureLog;
 use App\Models\InventoryStock;
 use App\Models\PredictiveAssetSnapshot;
@@ -26,6 +29,7 @@ class RamsDashboardQuery
             'units' => $user->isPusat() ? $this->units() : [],
             'summary' => $this->summary($user, $unit),
             'assets' => $this->assets($user, $unit),
+            'asset_categories' => $this->assetCategories(),
         ];
     }
 
@@ -207,6 +211,39 @@ class RamsDashboardQuery
             ->orderBy('id')
             ->get()
             ->map(fn (Asset $asset): array => $this->assetPayload($asset))
+            ->all();
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function assetCategories(): array
+    {
+        return AssetGroup::query()
+            ->with(['systems.subsystems'])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (AssetGroup $group): array => [
+                'id' => $group->id,
+                'name' => $group->name,
+                'is_active' => $group->is_active,
+                'systems' => $group->systems
+                    ->map(fn (AssetSystem $system): array => [
+                        'id' => $system->id,
+                        'name' => $system->name,
+                        'is_active' => $system->is_active,
+                        'subsystems' => $system->subsystems
+                            ->map(fn (AssetSubsystem $subsystem): array => [
+                                'id' => $subsystem->id,
+                                'name' => $subsystem->name,
+                                'is_active' => $subsystem->is_active,
+                            ])
+                            ->values()
+                            ->all(),
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->values()
             ->all();
     }
 

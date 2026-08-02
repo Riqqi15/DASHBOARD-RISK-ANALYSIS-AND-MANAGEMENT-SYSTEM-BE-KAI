@@ -72,6 +72,7 @@ class MasterAssetController extends Controller
         return Inertia::render('master-data/assets/MasterAsset', [
             'assets' => $assets,
             ...$hierarchyProps,
+            'assetCategories' => $this->activeCategories(),
             'stats' => $stats,
             'filters' => [
                 'search' => $search,

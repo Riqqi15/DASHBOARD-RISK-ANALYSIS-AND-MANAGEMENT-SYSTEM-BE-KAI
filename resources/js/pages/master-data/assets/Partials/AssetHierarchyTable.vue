@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, MapPin, Pencil, Trash2 } from 'lucide-vue-ne
 const props = defineProps({
   rows: { type: Array, required: true },
   assets: { type: Array, required: true },
+  categoryTree: { type: Array, default: () => [] },
   legacySummary: { type: Object, default: null },
   statusOptions: { type: Array, required: true },
   showUnit: { type: Boolean, default: false },
@@ -26,9 +27,34 @@ const statusClass = (status) => ({
 const unitLabel = (asset) => asset.unit_kerja
   ? `${asset.unit_kerja.code}${asset.unit_kerja.name ? ` — ${asset.unit_kerja.name}` : ''}`
   : 'Unit tidak tersedia'
+const emptyGroupRowId = (groupId) => `asset-empty-group-${groupId}`
+const emptySystemRowId = (groupId, systemId) => `asset-empty-system-${groupId}-${systemId}`
+const subsystemRow = (subsystem, aggregate = {}) => ({
+  id: subsystem.id,
+  name: subsystem.name,
+  total: Number(aggregate.total) || 0,
+  sparepart_in: Number(aggregate.sparepart_in) || 0,
+  sparepart_out: Number(aggregate.sparepart_out) || 0,
+  assets: props.assets.filter((asset) => String(asset.asset_subsystem_id) === String(subsystem.id)),
+})
 
 const groups = computed(() => {
   const grouped = new Map()
+
+  for (const group of props.categoryTree) {
+    grouped.set(String(group.id), {
+      id: group.id,
+      name: group.name,
+      systems: new Map((group.systems ?? []).map((system) => [
+        String(system.id),
+        {
+          id: system.id,
+          name: system.name,
+          subsystems: (system.subsystems ?? []).map((subsystem) => subsystemRow(subsystem)),
+        },
+      ])),
+    })
+  }
 
   for (const row of props.rows) {
     const system = relation(row, 'asset_system', 'assetSystem')
@@ -42,14 +68,11 @@ const groups = computed(() => {
     if (!groupRow.systems.has(String(system.id))) {
       groupRow.systems.set(String(system.id), { id: system.id, name: system.name, subsystems: [] })
     }
-    groupRow.systems.get(String(system.id)).subsystems.push({
-      id: row.id,
-      name: row.name,
-      total: Number(row.total) || 0,
-      sparepart_in: Number(row.sparepart_in) || 0,
-      sparepart_out: Number(row.sparepart_out) || 0,
-      assets: props.assets.filter((asset) => String(asset.asset_subsystem_id) === String(row.id)),
-    })
+    const systemRow = groupRow.systems.get(String(system.id))
+    const subsystemIndex = systemRow.subsystems.findIndex((subsystem) => String(subsystem.id) === String(row.id))
+    const merged = subsystemRow(row, row)
+    if (subsystemIndex === -1) systemRow.subsystems.push(merged)
+    else systemRow.subsystems[subsystemIndex] = merged
   }
 
   const legacyAssets = props.assets.filter((asset) => asset.asset_subsystem_id == null)
@@ -95,11 +118,15 @@ const toggle = (collection, key) => {
 const systemKey = (groupId, systemId) => `${groupId}-${systemId}`
 const systemHeaderId = (groupId, systemId) => `asset-system-header-${groupId}-${systemId}`
 const subsystemRowId = (subsystemId) => `asset-subsystem-row-${subsystemId}`
-const systemControlIds = (system) => system.subsystems.map((subsystem) => subsystemRowId(subsystem.id)).join(' ')
+const systemControlIds = (groupId, system) => system.subsystems.length
+  ? system.subsystems.map((subsystem) => subsystemRowId(subsystem.id)).join(' ')
+  : emptySystemRowId(groupId, system.id)
 const groupControlIds = (group) => group.systems.flatMap((system) => [
   systemHeaderId(group.id, system.id),
-  ...system.subsystems.map((subsystem) => subsystemRowId(subsystem.id)),
-]).join(' ')
+  ...(system.subsystems.length
+    ? system.subsystems.map((subsystem) => subsystemRowId(subsystem.id))
+    : [emptySystemRowId(group.id, system.id)]),
+]).join(' ') || emptyGroupRowId(group.id)
 </script>
 
 <template>
@@ -137,6 +164,21 @@ const groupControlIds = (group) => group.systems.flatMap((system) => [
           <td class="border-b border-slate-200 px-5 py-3" />
         </tr>
 
+        <tr
+          v-if="!group.systems.length"
+          :id="emptyGroupRowId(group.id)"
+          v-show="!collapsedGroups.has(String(group.id))"
+          class="bg-white"
+        >
+          <td class="border-b border-slate-100 px-5 py-4" />
+          <td class="border-b border-slate-100 px-5 py-4 text-sm italic text-slate-400">Belum ada system aktif</td>
+          <td class="border-b border-slate-100 px-5 py-4" />
+          <td class="border-b border-slate-100 px-5 py-4 text-right font-mono text-sm tabular-nums text-slate-400">0</td>
+          <td class="border-b border-slate-100 px-5 py-4 text-right font-mono text-sm tabular-nums text-slate-400">0</td>
+          <td class="border-b border-slate-100 px-5 py-4 text-right font-mono text-sm tabular-nums text-slate-400">0</td>
+          <td class="border-b border-slate-100 px-5 py-4" />
+        </tr>
+
         <template v-for="system in group.systems" :key="system.id">
             <tr :id="systemHeaderId(group.id, system.id)" v-show="!collapsedGroups.has(String(group.id))" :data-system-id="system.id" class="bg-slate-50/70 text-slate-800">
               <td class="border-b border-slate-100 px-5 py-3" />
@@ -145,7 +187,7 @@ const groupControlIds = (group) => group.systems.flatMap((system) => [
                   type="button"
                   class="inline-flex min-h-11 items-center gap-2 rounded-md text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#171650] focus-visible:ring-offset-2"
                   :aria-expanded="!collapsedSystems.has(systemKey(group.id, system.id))"
-                  :aria-controls="systemControlIds(system)"
+                  :aria-controls="systemControlIds(group.id, system)"
                   :aria-label="`${collapsedSystems.has(systemKey(group.id, system.id)) ? 'Buka' : 'Tutup'} system ${system.name}`"
                   @click="toggle(collapsedSystems, systemKey(group.id, system.id))"
                 >
@@ -159,6 +201,21 @@ const groupControlIds = (group) => group.systems.flatMap((system) => [
               <td class="border-b border-slate-100 px-5 py-3 text-right font-mono text-sm font-medium tabular-nums">{{ number(system.sparepart_in) }}</td>
               <td class="border-b border-slate-100 px-5 py-3 text-right font-mono text-sm font-medium tabular-nums">{{ number(system.sparepart_out) }}</td>
               <td class="border-b border-slate-100 px-5 py-3" />
+            </tr>
+
+            <tr
+              v-if="!system.subsystems.length"
+              :id="emptySystemRowId(group.id, system.id)"
+              v-show="!collapsedGroups.has(String(group.id)) && !collapsedSystems.has(systemKey(group.id, system.id))"
+              class="bg-white"
+            >
+              <td class="border-b border-slate-100 px-5 py-4" />
+              <td class="border-b border-slate-100 px-5 py-4" />
+              <td class="border-b border-slate-100 px-5 py-4 text-sm italic text-slate-400">Belum ada subsystem aktif</td>
+              <td class="border-b border-slate-100 px-5 py-4 text-right font-mono text-sm tabular-nums text-slate-400">0</td>
+              <td class="border-b border-slate-100 px-5 py-4 text-right font-mono text-sm tabular-nums text-slate-400">0</td>
+              <td class="border-b border-slate-100 px-5 py-4 text-right font-mono text-sm tabular-nums text-slate-400">0</td>
+              <td class="border-b border-slate-100 px-5 py-4" />
             </tr>
 
             <tr

@@ -9,7 +9,7 @@ use InvalidArgumentException;
 
 final class PredictiveInventoryCalculator
 {
-    public const FORMULA_VERSION = 'kai-predictive-v1.0.0';
+    public const FORMULA_VERSION = 'kai-predictive-v1.1.0';
 
     /** @var array<string, string> */
     private const CRITICALITY = [
@@ -42,7 +42,7 @@ final class PredictiveInventoryCalculator
         $proposalReasonableness = $this->proposalReasonableness($proposalQuantity, $totalAssets);
         $averageYearlyUsage = max(0.0, (float) $input['average_yearly_usage']);
         $slaRate = max(0.0, (float) $input['sla_percentage']) / 100;
-        $safetyStockUsage = ($leadTimeMonths / 12) * $averageYearlyUsage * $slaRate;
+        $safetyStockUsage = $leadTimeMonths * $averageYearlyUsage * $slaRate;
         $safetyStockMca = (float) $neededStock;
         $safetyStockFailure = max(0.0, (float) $input['failure_safety_stock']);
         $finalSafetyStock = (int) ceil(max($safetyStockUsage, $safetyStockMca, $safetyStockFailure));

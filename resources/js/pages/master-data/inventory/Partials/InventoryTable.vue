@@ -57,7 +57,7 @@ const pageLabel = (label) => label.includes('Previous') ? 'Sebelumnya' : label.i
               <th scope="col" class="px-4 py-3">Kategori</th>
               <th v-if="showUnit" scope="col" class="px-4 py-3">Unit kerja</th>
               <th scope="col" class="px-4 py-3 text-right">Stok</th>
-              <th scope="col" class="px-4 py-3 text-right">Batas reorder</th>
+              <th scope="col" class="px-4 py-3 text-right">Safety stock</th>
               <th scope="col" class="px-4 py-3">Status</th>
               <th scope="col" class="px-5 py-3 text-right">Aksi</th>
             </tr>
@@ -77,7 +77,7 @@ const pageLabel = (label) => label.includes('Previous') ? 'Sebelumnya' : label.i
                 <p class="mt-0.5 max-w-48 truncate text-sm text-slate-500" :title="row.unit.name">{{ row.unit.name }}</p>
               </td>
               <td class="px-4 py-3 text-right font-mono text-base font-semibold tabular-nums text-slate-950">{{ row.quantity }} <span class="text-sm font-normal text-slate-500">{{ row.spare_part.unit_of_measure }}</span></td>
-              <td class="px-4 py-3 text-right font-mono text-sm tabular-nums text-slate-700">{{ row.spare_part.reorder_point ?? '—' }} <span v-if="row.spare_part.reorder_point !== null" class="text-sm text-slate-500">{{ row.spare_part.unit_of_measure }}</span></td>
+              <td class="px-4 py-3 text-right font-mono text-sm tabular-nums text-slate-700">{{ row.spare_part.safety_stock ?? '—' }} <span v-if="row.spare_part.safety_stock !== null" class="text-sm text-slate-500">{{ row.spare_part.unit_of_measure }}</span></td>
               <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm font-semibold" :class="meta(row.status).class"><span class="h-1.5 w-1.5 rounded-full" :class="meta(row.status).dot" aria-hidden="true" />{{ meta(row.status).label }}</span></td>
               <td class="px-5 py-3 text-right">
                 <button type="button" class="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-indigo-50 focus:ring-2 focus:ring-[#2d2a70] focus:ring-offset-2" :aria-label="`Catat IN/OUT ${row.spare_part.detail_equipment}`" @click="$emit('movement', row)">

@@ -330,6 +330,8 @@ class InventoryController extends Controller
                 'safety_stock',
                 'lead_time_demand',
                 'reorder_point',
+                'function_criterion',
+                'production_impact',
                 'severity',
                 'unit_of_measure',
                 'is_active',

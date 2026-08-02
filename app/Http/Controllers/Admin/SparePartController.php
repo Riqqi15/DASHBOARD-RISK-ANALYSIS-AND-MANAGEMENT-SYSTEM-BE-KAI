@@ -10,6 +10,7 @@ use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
 use App\Models\SparePart;
 use App\Services\AuditLogger;
+use App\Services\ReorderStockCalculator;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,14 +20,17 @@ use Illuminate\Validation\ValidationException;
 
 class SparePartController extends Controller
 {
-    public function __construct(private readonly AuditLogger $auditLogger) {}
+    public function __construct(
+        private readonly AuditLogger $auditLogger,
+        private readonly ReorderStockCalculator $reorderStockCalculator,
+    ) {}
 
     public function store(StoreSparePartRequest $request): RedirectResponse
     {
         try {
             DB::transaction(function () use ($request): void {
                 $this->lockActiveCategoryPath($request->integer('asset_subsystem_id'));
-                $values = $request->validated();
+                $values = $this->withCalculatedReorderValues($request->validated());
                 $part = SparePart::query()->create([
                     ...$values,
                     'source_key' => hash('sha256', 'manual|'.$values['code']),
@@ -56,7 +60,7 @@ class SparePartController extends Controller
                 $part = SparePart::query()->lockForUpdate()->findOrFail($sparePart->id);
                 $this->lockActiveCategoryPath($request->integer('asset_subsystem_id'));
                 $before = $this->auditValues($part);
-                $part->fill($request->validated());
+                $part->fill($this->withCalculatedReorderValues($request->validated()));
 
                 if (! $part->isDirty()) {
                     return false;
@@ -124,6 +128,30 @@ class SparePartController extends Controller
         return $subsystem;
     }
 
+    /**
+     * @param  array<string, mixed>  $values
+     * @return array<string, mixed>
+     */
+    private function withCalculatedReorderValues(array $values): array
+    {
+        $calculation = $this->reorderStockCalculator->calculate(
+            (float) $values['max_yearly_failure'],
+            (float) $values['average_yearly_failure'],
+            (float) $values['max_lead_time_months'],
+            (float) $values['average_lead_time_months'],
+        );
+
+        return [
+            ...$values,
+            'safety_stock' => $calculation['safety_stock'],
+            'lead_time_demand' => $calculation['lead_time_demand'],
+            'reorder_point' => $calculation['reorder_point'],
+            'reorder_calculation_status' => $calculation['calculation_status'],
+            'reorder_formula_version' => $calculation['formula_version'],
+            'reorder_calculated_at' => now(),
+        ];
+    }
+
     /** @return array<string, mixed> */
     private function auditValues(SparePart $part): array
     {
@@ -141,6 +169,8 @@ class SparePartController extends Controller
             'safety_stock' => $part->safety_stock,
             'lead_time_demand' => $part->lead_time_demand,
             'reorder_point' => $part->reorder_point,
+            'function_criterion' => $part->function_criterion,
+            'production_impact' => $part->production_impact,
             'severity' => $part->severity,
             'unit_of_measure' => $part->unit_of_measure,
             'is_active' => $part->is_active,

@@ -18,6 +18,7 @@ import DeleteAssetDialog from './Partials/DeleteAssetDialog.vue'
 const props = defineProps({
   assets: { type: Object, required: true },
   hierarchy: { type: Array, required: true },
+  assetCategories: { type: Array, required: true },
   legacySummary: { type: Object, default: null },
   stats: { type: Object, required: true },
   filters: { type: Object, required: true },
@@ -36,6 +37,9 @@ const deleting = ref(false)
 const hasActiveFilters = computed(() => Boolean(
   filters.search || filters.status || filters.unit_kerja_id,
 ))
+const shouldShowCategoryTree = computed(() => !filters.search && !filters.status)
+const displayCategoryTree = computed(() => shouldShowCategoryTree.value ? props.assetCategories : [])
+const hasHierarchyData = computed(() => props.assets.data.length > 0 || displayCategoryTree.value.length > 0 || props.legacySummary)
 
 const applyFilters = () => router.get('/master-asset', filters, {
   preserveState: true,
@@ -145,12 +149,12 @@ const paginationLabel = (label) => label
     </section>
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div v-if="assets.data.length">
+      <div v-if="hasHierarchyData">
         <div data-desktop-hierarchy class="hidden md:block">
-          <AssetHierarchyTable :rows="hierarchy" :assets="assets.data" :legacy-summary="legacySummary" :status-options="statusOptions" :show-unit="can.choose_unit" @delete="assetToDelete = $event" />
+          <AssetHierarchyTable :rows="hierarchy" :assets="assets.data" :category-tree="displayCategoryTree" :legacy-summary="legacySummary" :status-options="statusOptions" :show-unit="can.choose_unit" @delete="assetToDelete = $event" />
         </div>
         <div data-mobile-hierarchy class="bg-slate-50 p-3 md:hidden">
-          <AssetHierarchyCard :rows="hierarchy" :assets="assets.data" :legacy-summary="legacySummary" :status-options="statusOptions" :show-unit="can.choose_unit" @delete="assetToDelete = $event" />
+          <AssetHierarchyCard :rows="hierarchy" :assets="assets.data" :category-tree="displayCategoryTree" :legacy-summary="legacySummary" :status-options="statusOptions" :show-unit="can.choose_unit" @delete="assetToDelete = $event" />
         </div>
       </div>
 

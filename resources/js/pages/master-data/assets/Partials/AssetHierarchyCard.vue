@@ -6,6 +6,7 @@ import { MapPin, Pencil, Trash2 } from 'lucide-vue-next'
 const props = defineProps({
   rows: { type: Array, required: true },
   assets: { type: Array, required: true },
+  categoryTree: { type: Array, default: () => [] },
   legacySummary: { type: Object, default: null },
   statusOptions: { type: Array, required: true },
   showUnit: { type: Boolean, default: false },
@@ -25,9 +26,11 @@ const unitLabel = (asset) => asset.unit_kerja
   : 'Unit tidak tersedia'
 
 const cards = computed(() => {
-  const scopedCards = props.rows.map((row) => {
-  const system = relation(row, 'asset_system', 'assetSystem')
-  const group = relation(system, 'asset_group', 'assetGroup')
+  const rowById = new Map(props.rows.map((row) => [String(row.id), row]))
+  const seenSubsystems = new Set()
+  const scopedCards = []
+  const buildSubsystemCard = (row, group, system) => {
+    seenSubsystems.add(String(row.id))
 
     return {
       id: row.id,
@@ -38,7 +41,50 @@ const cards = computed(() => {
       sparepart_out: row.sparepart_out ?? 0,
       assets: props.assets.filter((asset) => String(asset.asset_subsystem_id) === String(row.id)),
     }
-  })
+  }
+
+  for (const group of props.categoryTree) {
+    if (!(group.systems ?? []).length) {
+      scopedCards.push({
+        id: `group-${group.id}`,
+        name: group.name,
+        breadcrumb: group.name,
+        total: 0,
+        sparepart_in: 0,
+        sparepart_out: 0,
+        assets: [],
+        emptyMessage: 'Belum ada system aktif',
+      })
+      continue
+    }
+
+    for (const system of group.systems ?? []) {
+      if (!(system.subsystems ?? []).length) {
+        scopedCards.push({
+          id: `system-${system.id}`,
+          name: system.name,
+          breadcrumb: [group.name, system.name].join(' / '),
+          total: 0,
+          sparepart_in: 0,
+          sparepart_out: 0,
+          assets: [],
+          emptyMessage: 'Belum ada subsystem aktif',
+        })
+        continue
+      }
+
+      for (const subsystem of system.subsystems ?? []) {
+        scopedCards.push(buildSubsystemCard(rowById.get(String(subsystem.id)) ?? subsystem, group, system))
+      }
+    }
+  }
+
+  for (const row of props.rows) {
+    if (seenSubsystems.has(String(row.id))) continue
+    const system = relation(row, 'asset_system', 'assetSystem')
+    const group = relation(system, 'asset_group', 'assetGroup')
+    scopedCards.push(buildSubsystemCard(row, group, system))
+  }
 
   if (props.legacySummary) {
     scopedCards.push({
@@ -78,7 +124,8 @@ const cards = computed(() => {
           </div>
         </dl>
 
-        <div v-if="card.assets.length" class="mt-4 space-y-3">
+        <p v-if="card.emptyMessage" class="mt-4 text-sm italic text-slate-400">{{ card.emptyMessage }}</p>
+        <div v-else-if="card.assets.length" class="mt-4 space-y-3">
           <div v-for="asset in card.assets" :key="asset.id" data-asset-detail class="rounded-lg border border-slate-200 p-3">
             <div class="flex items-start justify-between gap-3">
               <p class="text-sm font-semibold text-slate-900">{{ asset.nama_aset }}</p>

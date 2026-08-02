@@ -32,8 +32,8 @@ const meta = (status) => statusMeta[status] ?? { label: status, class: 'border-s
           <p class="mt-1 font-mono text-lg font-semibold tabular-nums text-slate-950">{{ row.quantity }} <span class="text-sm font-normal text-slate-500">{{ row.spare_part.unit_of_measure }}</span></p>
         </div>
         <div class="bg-slate-50 px-3 py-2.5">
-          <p class="text-sm font-semibold uppercase tracking-wider text-slate-500">Batas reorder</p>
-          <p class="mt-1 font-mono text-lg font-semibold tabular-nums text-slate-950">{{ row.spare_part.reorder_point ?? '—' }} <span v-if="row.spare_part.reorder_point !== null" class="text-sm font-normal text-slate-500">{{ row.spare_part.unit_of_measure }}</span></p>
+          <p class="text-sm font-semibold uppercase tracking-wider text-slate-500">Safety stock</p>
+          <p class="mt-1 font-mono text-lg font-semibold tabular-nums text-slate-950">{{ row.spare_part.safety_stock ?? '—' }} <span v-if="row.spare_part.safety_stock !== null" class="text-sm font-normal text-slate-500">{{ row.spare_part.unit_of_measure }}</span></p>
         </div>
       </div>
 

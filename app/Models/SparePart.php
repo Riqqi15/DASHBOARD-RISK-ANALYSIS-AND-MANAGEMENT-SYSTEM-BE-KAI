@@ -24,6 +24,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'safety_stock',
     'lead_time_demand',
     'reorder_point',
+    'function_criterion',
+    'production_impact',
     'reorder_calculation_status',
     'reorder_formula_version',
     'reorder_calculated_at',
@@ -76,6 +78,8 @@ class SparePart extends Model
             'safety_stock' => 'integer',
             'lead_time_demand' => 'integer',
             'reorder_point' => 'integer',
+            'function_criterion' => 'integer',
+            'production_impact' => 'integer',
             'reorder_calculated_at' => 'immutable_datetime',
             'is_active' => 'boolean',
         ];
