@@ -20,10 +20,19 @@
       <!-- Tabel Ringkasan (Biru - Modern) -->
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="bg-gradient-to-r from-[#4A72B2] to-[#3a5a8f] px-4 py-3 border-b border-slate-200">
-          <h3 class="text-white font-bold text-sm flex items-center gap-2">
-            <ActivityIcon class="w-4 h-4 text-white/80" />
-            Ringkasan Keandalan (Reliability Data)
-          </h3>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h3 class="text-white font-bold text-sm flex items-center gap-2">
+              <ActivityIcon class="w-4 h-4 text-white/80" />
+              Ringkasan Keandalan (Reliability Data)
+            </h3>
+            <span
+              v-if="summaryData"
+              class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+              :class="parityBadgeClass(summaryData.parity_status)"
+            >
+              {{ parityLabel(summaryData.parity_status) }}
+            </span>
+          </div>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-xs text-left">
@@ -47,11 +56,11 @@
             <tbody class="divide-y divide-slate-100">
               <tr v-if="summaryData" class="hover:bg-slate-50 transition-colors">
                 <td class="p-3 font-semibold text-slate-700">{{ subsystemName }}</td>
-                <td class="p-3 text-center">{{ summaryData.jumlah_unit || 0 }}</td>
-                <td class="p-3 text-center">{{ summaryData.total_operating_hour || 0 }}</td>
+                <td class="p-3 text-center">{{ formatNumber(summaryData.jumlah_unit) }}</td>
+                <td class="p-3 text-center">{{ formatNumber(summaryData.total_operating_hour) }}</td>
                 <td class="p-3 text-center text-emerald-600 font-medium">{{ formatNumber(summaryData.total_uptime) }}</td>
                 <td class="p-3 text-center text-rose-600 font-medium">{{ formatNumber(summaryData.total_downtime) }}</td>
-                <td class="p-3 text-center font-bold">{{ summaryData.jumlah_failure || 0 }}</td>
+                <td class="p-3 text-center font-bold">{{ formatNumber(summaryData.jumlah_failure) }}</td>
                 <td class="p-3 text-center">{{ formatNumber(summaryData.mttf) }}</td>
                 <td class="p-3 text-center font-medium">{{ formatNumber(summaryData.mtbf) }}</td>
                 <td class="p-3 text-center">{{ formatDecimal(summaryData.failure_rate) }}</td>
@@ -65,8 +74,8 @@
                     {{ formatPercent(summaryData.availability) }}
                   </span>
                 </td>
-                <td class="p-3 text-center bg-orange-50 font-bold text-orange-600 border-l border-r border-orange-100">{{ calculatedSparepart }}</td>
-                <td class="p-3 text-center font-bold text-rose-600">{{ calculatedVandalism }}</td>
+                <td class="p-3 text-center bg-orange-50 font-bold text-orange-600 border-l border-r border-orange-100">{{ formatNumber(summaryData.spare_part_replacement_count) }}</td>
+                <td class="p-3 text-center font-bold text-rose-600">{{ formatNumber(summaryData.vandalism_count) }}</td>
               </tr>
               <tr v-else>
                 <td colspan="13" class="p-8 text-center text-slate-400">Memuat data ringkasan...</td>
@@ -98,7 +107,7 @@
                 <th class="p-3 font-semibold text-center">Vandalisme</th>
                 <th class="p-3 font-semibold min-w-[140px]">Tgl Jam Kejadian</th>
                 <th class="p-3 font-semibold min-w-[140px]">Tgl Jam Penanganan</th>
-                <th class="p-3 font-semibold text-center">Downtime<br>(jam)</th>
+                <th class="p-3 font-semibold text-center">Downtime<br>(hh:mm)</th>
                 <th class="p-3 font-semibold text-center">Konversi<br>ke Menit</th>
                 <th class="p-3 font-semibold text-center">Interval<br>Failure (jam)</th>
               </tr>
@@ -220,32 +229,41 @@ const summaryData = computed(() => {
   if (!summary && props.assets.length === 0) return null
 
   return {
-    jumlah_unit: totalUnits.value,
-    total_operating_hour: summary?.total_operating_hour ?? 0,
-    total_uptime: summary?.total_uptime ?? 0,
-    total_downtime: summary?.total_downtime ?? 0,
+    jumlah_unit: summary?.jumlah_unit ?? totalUnits.value,
+    total_operating_hour: summary?.total_operating_hour ?? null,
+    total_uptime: summary?.total_uptime ?? null,
+    total_downtime: summary?.total_downtime ?? null,
     jumlah_failure: summary?.jumlah_failure ?? props.failure_logs.length,
-    mttf: summary?.mttf ?? 0,
-    mtbf: summary?.mtbf ?? 0,
-    failure_rate: summary?.failure_rate ?? 0,
-    reliability: summary?.reliability ?? 0,
-    availability: summary?.availability ?? 0,
+    mttf: summary?.mttf ?? null,
+    mtbf: summary?.mtbf ?? null,
+    failure_rate: summary?.failure_rate ?? null,
+    reliability: summary?.reliability ?? null,
+    availability: summary?.availability ?? null,
+    spare_part_replacement_count: summary?.spare_part_replacement_count ?? 0,
+    vandalism_count: summary?.vandalism_count ?? 0,
+    parity_status: summary?.parity_status ?? 'not_compared',
   }
 })
 
 // Formatting helpers
-const formatNumber = (num) => num ? Number(num).toFixed(2).replace(/\.00$/, '') : '0'
-const formatDecimal = (num) => num ? Number(num).toFixed(6) : '0'
-const formatPercent = (num) => num ? (Number(num) * 100).toFixed(2) + '%' : '0%'
+const isMissing = (value) => value === null || value === undefined || value === ''
+const formatNumber = (num) => isMissing(num) ? 'Data belum ada' : Number(num).toFixed(2).replace(/\.00$/, '')
+const formatDecimal = (num) => isMissing(num) ? 'Data belum ada' : Number(num).toFixed(10).replace(/0+$/, '').replace(/\.$/, '')
+const formatPercent = (num) => isMissing(num) ? 'Data belum ada' : (Number(num) * 100).toFixed(4) + '%'
 
-// Auto-calculate "COUNTIF" based on loaded logs
-const calculatedSparepart = computed(() => {
-  return failureLogs.value.filter(log => log.penggantian_sparepart === 'Y').length
-})
+const parityLabel = (status) => ({
+  matched: 'Sesuai Excel',
+  mismatch: 'Ada selisih',
+  excel_data_missing: 'Data Excel belum ada',
+  not_compared: 'Belum dibandingkan',
+}[status] || 'Belum dibandingkan')
 
-const calculatedVandalism = computed(() => {
-  return failureLogs.value.filter(log => log.tindak_vandalisme === 'Y').length
-})
+const parityBadgeClass = (status) => ({
+  matched: 'bg-emerald-50 text-emerald-700',
+  mismatch: 'bg-amber-50 text-amber-700',
+  excel_data_missing: 'bg-slate-50 text-slate-700',
+  not_compared: 'bg-slate-50 text-slate-700',
+}[status] || 'bg-slate-50 text-slate-700')
 
 // Output Report: Filter only logs with Sparepart Replacements
 const sparepartLogs = computed(() => {

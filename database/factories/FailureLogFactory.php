@@ -32,8 +32,14 @@ class FailureLogFactory extends Factory
             'resolved_at' => $resolvedAt,
             'downtime_minutes' => (int) (($resolvedAt->getTimestamp() - $startedAt->getTimestamp()) / 60),
             'spare_part_replaced' => false,
+            'spare_part_marker' => null,
             'spare_part_quantity' => null,
             'vandalism' => false,
+            'vandalism_marker' => null,
+            'workbook_hash' => null,
+            'workbook_name' => null,
+            'sheet_name' => null,
+            'source_row' => null,
         ];
     }
 }

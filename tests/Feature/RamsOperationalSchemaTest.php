@@ -26,11 +26,20 @@ class RamsOperationalSchemaTest extends TestCase
             'id', 'asset_id', 'period', 'operating_minutes', 'downtime_minutes', 'failure_count',
             'mttf_hours', 'mtbf_hours', 'mttr_hours', 'failure_rate', 'reliability', 'availability',
             'calculation_status', 'formula_version', 'calculated_at', 'created_at', 'updated_at',
+            'excel_snapshot_id', 'baseline_date', 'calculation_date', 'unit_count', 'operating_hours',
+            'downtime_value', 'uptime_hours', 'spare_part_replacement_count', 'vandalism_count',
+            'calculation_profile', 'parity_status', 'parity_differences',
         ]));
         $this->assertTrue(Schema::hasColumns('failure_logs', [
             'id', 'asset_id', 'spare_part_id', 'created_by', 'source_key', 'idempotency_key', 'location',
             'resort', 'qc', 'failure_event', 'cause', 'action_taken', 'started_at', 'resolved_at',
             'downtime_minutes', 'spare_part_replaced', 'spare_part_quantity', 'vandalism', 'created_at', 'updated_at',
+            'spare_part_marker', 'vandalism_marker', 'workbook_hash', 'workbook_name', 'sheet_name', 'source_row',
+        ]));
+        $this->assertTrue(Schema::hasColumns('reliability_excel_snapshots', [
+            'id', 'asset_id', 'workbook_hash', 'workbook_name', 'sheet_name', 'source_row',
+            'baseline_date', 'calculation_date', 'summary_values', 'summary_formulas',
+            'summary_errors', 'formula_profile', 'imported_at', 'created_at', 'updated_at',
         ]));
         $this->assertTrue(Schema::hasColumns('predictive_asset_snapshots', [
             'id', 'asset_id', 'source_key', 'workbook_hash', 'workbook_name', 'sheet_name', 'source_row',

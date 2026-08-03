@@ -144,8 +144,8 @@
                   <span class="font-medium text-slate-800">{{ computedTglJamPenanganan || '-' }}</span>
                 </div>
                 <div class="flex justify-between items-center text-sm pt-2 border-t border-indigo-100">
-                  <span class="text-slate-600">Downtime (jam):</span>
-                  <span class="font-bold text-rose-600">{{ computedDowntimeJam }} Jam</span>
+                  <span class="text-slate-600">Downtime (hh:mm):</span>
+                  <span class="font-bold text-rose-600">{{ computedDowntimeJam }}</span>
                 </div>
                 <div class="flex justify-between items-center text-sm">
                   <span class="text-slate-600">Konversi ke Menit:</span>
@@ -286,7 +286,13 @@ const calculateDowntime = () => {
 }
 
 const computedDowntimeMenit = computed(() => calculateDowntime())
-const computedDowntimeJam = computed(() => (calculateDowntime() / 60).toFixed(2))
+const computedDowntimeJam = computed(() => {
+  const minutes = calculateDowntime()
+  if (minutes <= 0) return '0:00'
+  const h = Math.floor(minutes / 60)
+  const m = Math.floor(minutes % 60)
+  return `${h}:${m.toString().padStart(2, '0')}`
+})
 
 const close = () => {
   emit('close')

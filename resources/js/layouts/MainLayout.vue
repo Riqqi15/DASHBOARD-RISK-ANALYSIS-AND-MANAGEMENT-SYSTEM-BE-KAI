@@ -13,6 +13,7 @@ import {
   Network,
   Package,
   ShieldCheck,
+  UploadCloud,
   X,
 } from 'lucide-vue-next'
 import FlashMessage from '@/components/feedback/FlashMessage.vue'
@@ -40,6 +41,7 @@ const menuItems = [
   { name: 'master-asset', label: 'Master Aset', to: '/master-asset', icon: Database },
   { name: 'risk-matrix', label: 'Matriks Risiko', to: '/risk-matrix', icon: AlertTriangle },
   { name: 'inventory', label: 'Inventori Suku Cadang', to: '/inventory', icon: Package },
+  { name: 'trouble-report-import', label: 'Import Trouble Report', to: '/trouble-report/import', icon: UploadCloud },
 ]
 
 const adminMenuItems = [

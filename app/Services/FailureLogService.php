@@ -6,7 +6,6 @@ use App\Enums\StockDirection;
 use App\Enums\StockMovementType;
 use App\Models\Asset;
 use App\Models\FailureLog;
-use App\Models\ReliabilitySummary;
 use App\Models\SparePart;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -18,7 +17,7 @@ class FailureLogService
 {
     public function __construct(
         private readonly StockMovementService $stockMovementService,
-        private readonly ReliabilityCalculator $reliabilityCalculator,
+        private readonly ReliabilityParityService $parityService,
         private readonly AuditLogger $auditLogger,
     ) {}
 
@@ -96,7 +95,7 @@ class FailureLogService
             ]);
             $failure->setRelation('asset', $asset);
 
-            $this->recalculateReliability($asset, $startedAt, $resolvedAt);
+            $this->recalculateReliability($asset, $resolvedAt);
             $this->auditLogger->record(
                 action: 'failure_log.created',
                 subject: $failure,
@@ -138,34 +137,12 @@ class FailureLogService
 
     private function recalculateReliability(
         Asset $asset,
-        CarbonImmutable $occurredAt,
         CarbonImmutable $resolvedAt,
     ): void {
-        $snapshotPeriod = $occurredAt->startOfMonth();
-        $installedAt = $asset->tanggal_pemasangan?->startOfDay();
-        $periodStart = $installedAt && $installedAt->lessThan($resolvedAt)
-            ? CarbonImmutable::instance($installedAt)
-            : $snapshotPeriod;
-        $periodEnd = $resolvedAt;
-        $failures = FailureLog::query()
-            ->where('asset_id', $asset->id)
-            ->where('started_at', '>=', $periodStart)
-            ->where('started_at', '<', $periodEnd)
-            ->get(['started_at', 'resolved_at'])
-            ->map(fn (FailureLog $failure): array => [
-                'started_at' => $failure->started_at,
-                'resolved_at' => $failure->resolved_at,
-            ]);
-        $metrics = $this->reliabilityCalculator->calculate(
-            $asset->jumlah_unit,
-            $periodStart,
-            $periodEnd,
-            $failures,
-        );
+        $this->parityService->recalculateAsset($asset, $resolvedAt);
 
-        ReliabilitySummary::query()->updateOrCreate(
-            ['asset_id' => $asset->id, 'period' => $snapshotPeriod->toDateString()],
-            [...$metrics, 'calculated_at' => now()],
-        );
+        if ($resolvedAt->startOfMonth()->lessThan(now()->startOfMonth())) {
+            $this->parityService->recalculateAsset($asset, now()->toImmutable());
+        }
     }
 }

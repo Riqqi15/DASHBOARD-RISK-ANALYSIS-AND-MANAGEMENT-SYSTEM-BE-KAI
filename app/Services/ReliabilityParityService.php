@@ -1,0 +1,166 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+use App\Models\Asset;
+use App\Models\FailureLog;
+use App\Models\ReliabilityExcelSnapshot;
+use App\Models\ReliabilitySummary;
+use App\Models\UnitKerja;
+use Carbon\CarbonImmutable;
+
+final class ReliabilityParityService
+{
+    /** @var array<string, float> */
+    private const TOLERANCES = [
+        'unit_count' => 0.0,
+        'operating_hours' => 0.0001,
+        'downtime_value' => 0.0001,
+        'uptime_hours' => 0.0001,
+        'failure_count' => 0.0,
+        'mttf_hours' => 0.001,
+        'mtbf_hours' => 0.001,
+        'failure_rate' => 0.00000001,
+        'reliability' => 0.00000001,
+        'availability' => 0.00000001,
+        'spare_part_replacement_count' => 0.0,
+        'vandalism_count' => 0.0,
+    ];
+
+    public function __construct(private readonly ExcelParityReliabilityCalculator $calculator) {}
+
+    /** @return array<string, int> */
+    public function recalculateUnit(UnitKerja $unit): array
+    {
+        $result = [
+            'calculated' => 0,
+            'matched' => 0,
+            'mismatch' => 0,
+            'excel_data_missing' => 0,
+            'not_compared' => 0,
+        ];
+
+        Asset::query()
+            ->where('unit_kerja_id', $unit->id)
+            ->with('assetSubsystem')
+            ->get()
+            ->each(function (Asset $asset) use (&$result): void {
+                $summary = $this->recalculateAsset($asset);
+                if (! $summary) {
+                    return;
+                }
+                $result['calculated']++;
+                $result[$summary->parity_status] = ($result[$summary->parity_status] ?? 0) + 1;
+            });
+
+        return $result;
+    }
+
+    public function recalculateAsset(Asset $asset, ?CarbonImmutable $fallbackCalculationDate = null): ?ReliabilitySummary
+    {
+        $snapshot = ReliabilityExcelSnapshot::query()
+            ->where('asset_id', $asset->id)
+            ->latest('imported_at')
+            ->latest('id')
+            ->first();
+
+        $baselineDate = $snapshot?->baseline_date
+            ? CarbonImmutable::instance($snapshot->baseline_date)
+            : ($asset->tanggal_pemasangan ? CarbonImmutable::instance($asset->tanggal_pemasangan)->startOfDay() : CarbonImmutable::parse('2020-01-01'));
+        $calculationDate = $fallbackCalculationDate
+            ? $fallbackCalculationDate->startOfDay()
+            : ($snapshot?->calculation_date
+                ? CarbonImmutable::instance($snapshot->calculation_date)
+                : now()->toImmutable()->startOfDay());
+        $profile = $snapshot?->formula_profile ?? [
+            'downtime_mode' => 'minutes',
+            'interval_baseline_date' => $baselineDate->toDateString(),
+            'empty_mttf_mode' => 'null',
+            'spare_part_count_mode' => 'countif_ya',
+            'vandalism_count_mode' => 'countif_ya',
+        ];
+
+        $failures = FailureLog::query()
+            ->where('asset_id', $asset->id)
+            ->where('started_at', '<', $calculationDate->addDay())
+            ->orderBy('started_at')
+            ->get()
+            ->map(fn (FailureLog $failure): array => [
+                'started_at' => CarbonImmutable::instance($failure->started_at),
+                'resolved_at' => CarbonImmutable::instance($failure->resolved_at),
+                'downtime_minutes' => $failure->downtime_minutes,
+                'spare_part_marker' => $failure->spare_part_marker,
+                'vandalism_marker' => $failure->vandalism_marker,
+                'spare_part_replaced' => $failure->spare_part_replaced,
+                'vandalism' => $failure->vandalism,
+            ]);
+
+        $metrics = $this->calculator->calculate(
+            unitCount: (int) $asset->jumlah_unit,
+            baselineDate: $baselineDate,
+            calculationDate: $calculationDate,
+            failures: $failures,
+            profile: $profile,
+        );
+        [$status, $differences] = $this->compare($metrics, $snapshot);
+
+        return ReliabilitySummary::query()->updateOrCreate(
+            ['asset_id' => $asset->id, 'period' => $calculationDate->startOfMonth()->toDateString()],
+            [
+                ...$metrics,
+                'excel_snapshot_id' => $snapshot?->id,
+                'baseline_date' => $baselineDate->toDateString(),
+                'calculation_date' => $calculationDate->toDateString(),
+                'calculation_profile' => $profile,
+                'parity_status' => $status,
+                'parity_differences' => $differences === [] ? null : $differences,
+                'calculated_at' => now(),
+            ],
+        );
+    }
+
+    /** @param array<string, mixed> $metrics
+     * @return array{string, array<string, array{backend: mixed, excel: mixed}>}
+     */
+    private function compare(array $metrics, ?ReliabilityExcelSnapshot $snapshot): array
+    {
+        if (! $snapshot) {
+            return ['excel_data_missing', []];
+        }
+
+        $values = $snapshot->summary_values ?? [];
+        $errors = $snapshot->summary_errors ?? [];
+        $differences = [];
+        $missingExcel = false;
+
+        foreach (self::TOLERANCES as $key => $tolerance) {
+            if (array_key_exists($key, $errors) || ! array_key_exists($key, $values) || $values[$key] === null || $values[$key] === '') {
+                $missingExcel = true;
+
+                continue;
+            }
+
+            $backend = $metrics[$key] ?? null;
+            $excel = $values[$key];
+            if (is_numeric($backend) && is_numeric($excel)) {
+                if (abs((float) $backend - (float) $excel) > $tolerance) {
+                    $differences[$key] = ['backend' => $backend, 'excel' => $excel];
+                }
+
+                continue;
+            }
+
+            if ($backend !== $excel) {
+                $differences[$key] = ['backend' => $backend, 'excel' => $excel];
+            }
+        }
+
+        if ($differences !== []) {
+            return ['mismatch', $differences];
+        }
+
+        return [$missingExcel ? 'excel_data_missing' : 'matched', []];
+    }
+}

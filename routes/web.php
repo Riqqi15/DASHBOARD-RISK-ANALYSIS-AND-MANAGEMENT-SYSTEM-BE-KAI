@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Admin\UnitSubsystemOpeningController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\FailureLogController;
+use App\Http\Controllers\FailureLogImportController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MasterAssetController;
 use App\Http\Controllers\RamsDashboardController;
@@ -26,6 +27,8 @@ Route::middleware(['auth', 'active'])->group(function (): void {
 
     Route::get('/dashboard', [RamsDashboardController::class, 'dashboard'])->name('dashboard');
     Route::get('/overview', [RamsDashboardController::class, 'overview'])->name('overview');
+    Route::get('/trouble-report/import', [FailureLogImportController::class, 'index'])->name('failure-logs.import.index');
+    Route::post('/trouble-report/import', [FailureLogImportController::class, 'store'])->name('failure-logs.import.store');
     Route::get('/trouble-report', [RamsDashboardController::class, 'troubleReport'])->name('trouble-report');
     Route::post('/trouble-report', [FailureLogController::class, 'store'])->name('failure-logs.store');
     Route::resource('master-asset', MasterAssetController::class)

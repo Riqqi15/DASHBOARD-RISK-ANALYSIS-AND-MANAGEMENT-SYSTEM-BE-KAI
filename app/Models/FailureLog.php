@@ -25,8 +25,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'resolved_at',
     'downtime_minutes',
     'spare_part_replaced',
+    'spare_part_marker',
     'spare_part_quantity',
     'vandalism',
+    'vandalism_marker',
+    'workbook_hash',
+    'workbook_name',
+    'sheet_name',
+    'source_row',
 ])]
 class FailureLog extends Model
 {
@@ -68,6 +74,7 @@ class FailureLog extends Model
             'spare_part_replaced' => 'boolean',
             'spare_part_quantity' => 'integer',
             'vandalism' => 'boolean',
+            'source_row' => 'integer',
         ];
     }
 }
