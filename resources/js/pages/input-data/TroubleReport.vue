@@ -110,16 +110,17 @@
                 <th class="p-3 font-semibold text-center">Downtime<br>(hh:mm)</th>
                 <th class="p-3 font-semibold text-center">Konversi<br>ke Menit</th>
                 <th class="p-3 font-semibold text-center">Interval<br>Failure (jam)</th>
+                <th class="p-3 font-semibold text-center min-w-[80px]">Aksi</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-if="failureLogs.length === 0">
-                <td colspan="13" class="p-12 text-center text-slate-400 bg-slate-50/50">
+                <td colspan="14" class="p-12 text-center text-slate-400 bg-slate-50/50">
                   <div class="flex flex-col items-center justify-center">
                     <AlertTriangleIcon class="w-8 h-8 text-slate-300 mb-2" />
                     <p>Belum ada data kejadian kegagalan untuk subsystem ini di unit kerja Anda.</p>
                     <div class="mt-4 flex gap-3 justify-center items-center">
-                      <button v-if="assets.length > 0" @click="isModalOpen = true" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 flex items-center gap-2 transition">
+                      <button v-if="assets.length > 0" @click="openCreateModal" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 flex items-center gap-2 transition">
                         <PlusIcon class="w-4 h-4" /> Input Manual
                       </button>
                     </div>
@@ -144,6 +145,16 @@
                 <td class="p-3 text-center font-bold">{{ log.downtime_jam !== undefined ? log.downtime_jam : '-' }}</td>
                 <td class="p-3 text-center text-slate-600">{{ log.downtime_menit !== undefined ? log.downtime_menit : '-' }}</td>
                 <td class="p-3 text-center text-slate-600">{{ log.interval_jam !== undefined ? log.interval_jam : '-' }}</td>
+                <td class="p-3 text-center">
+                  <div class="flex items-center justify-center gap-2">
+                    <button @click="openEditModal(log)" class="text-blue-500 hover:text-blue-700 p-1" title="Edit">
+                      <EditIcon class="w-4 h-4" />
+                    </button>
+                    <button @click="deleteLog(log)" class="text-rose-500 hover:text-rose-700 p-1" title="Hapus">
+                      <TrashIcon class="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -196,6 +207,7 @@
         :is-open="isModalOpen"
         :subsystem-name="subsystemName"
         :spare-parts="spare_parts"
+        :log="selectedLog"
         @close="isModalOpen = false"
         @save="handleSaveLog"
       />
@@ -208,7 +220,7 @@ import { ref, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import MainLayout from '@/layouts/MainLayout.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
-import { ActivityIcon, AlertTriangleIcon, PlusIcon, SettingsIcon } from 'lucide-vue-next'
+import { ActivityIcon, AlertTriangleIcon, PlusIcon, SettingsIcon, EditIcon, TrashIcon } from 'lucide-vue-next'
 import TroubleReportModal from '@/components/trouble-report/TroubleReportModal.vue'
 
 const props = defineProps({
@@ -221,6 +233,7 @@ const props = defineProps({
 })
 
 const isModalOpen = ref(false)
+const selectedLog = ref(null)
 const subsystemName = computed(() => props.subsystem || 'Subsystem Tidak Diketahui')
 const failureLogs = computed(() => props.failure_logs)
 const totalUnits = computed(() => props.assets.reduce((total, asset) => total + Number(asset.jumlah_unit || 0), 0))
@@ -270,18 +283,46 @@ const sparepartLogs = computed(() => {
   return failureLogs.value.filter(log => log.penggantian_sparepart === 'Y')
 })
 
-const handleSaveLog = (newLog) => {
+const openCreateModal = () => {
+  selectedLog.value = null
+  isModalOpen.value = true
+}
+
+const openEditModal = (log) => {
+  selectedLog.value = log
+  isModalOpen.value = true
+}
+
+const deleteLog = (log) => {
+  if (confirm('Apakah Anda yakin ingin menghapus data Trouble Report ini?')) {
+    router.delete(`/trouble-report/${log.id}`, {
+      preserveScroll: true,
+    })
+  }
+}
+
+const handleSaveLog = (logData) => {
   const asset = props.assets[0]
   if (!asset) return
 
-  router.post('/trouble-report', {
-    ...newLog,
-    asset_id: asset.id,
-    idempotency_key: crypto.randomUUID(),
-  }, {
-    preserveScroll: true,
-    onSuccess: () => { isModalOpen.value = false },
-  })
+  if (selectedLog.value) {
+    router.put(`/trouble-report/${selectedLog.value.id}`, {
+      ...logData,
+      asset_id: asset.id,
+    }, {
+      preserveScroll: true,
+      onSuccess: () => { isModalOpen.value = false },
+    })
+  } else {
+    router.post('/trouble-report', {
+      ...logData,
+      asset_id: asset.id,
+      idempotency_key: crypto.randomUUID(),
+    }, {
+      preserveScroll: true,
+      onSuccess: () => { isModalOpen.value = false },
+    })
+  }
 }
 
 const backToDashboard = () => {

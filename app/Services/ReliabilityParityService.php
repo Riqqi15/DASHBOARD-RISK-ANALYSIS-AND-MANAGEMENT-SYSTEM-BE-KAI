@@ -85,9 +85,13 @@ final class ReliabilityParityService
         $failures = FailureLog::query()
             ->where('asset_id', $asset->id)
             ->where('started_at', '<', $calculationDate->addDay())
+            ->orderByRaw('CASE WHEN source_row IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('source_row')
             ->orderBy('started_at')
+            ->orderBy('id')
             ->get()
             ->map(fn (FailureLog $failure): array => [
+                'source_row' => $failure->source_row,
                 'started_at' => CarbonImmutable::instance($failure->started_at),
                 'resolved_at' => CarbonImmutable::instance($failure->resolved_at),
                 'downtime_minutes' => $failure->downtime_minutes,

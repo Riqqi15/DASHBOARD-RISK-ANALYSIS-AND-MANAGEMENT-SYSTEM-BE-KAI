@@ -26,6 +26,7 @@ class UpdateUnitKerjaRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::enum(UnitType::class)],
             'is_active' => ['required', 'boolean'],
+            'operating_start_date' => ['nullable', 'date'],
         ];
     }
 

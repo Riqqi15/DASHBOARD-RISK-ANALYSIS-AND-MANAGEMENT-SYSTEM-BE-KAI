@@ -36,7 +36,10 @@ class RamsAreaRequest extends FormRequest
 
         $area = $this->validated('area');
         if (! $area) {
-            return null;
+            return UnitKerja::query()
+                ->where('is_active', true)
+                ->orderBy('code')
+                ->first();
         }
 
         return UnitKerja::query()

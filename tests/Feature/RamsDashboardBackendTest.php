@@ -34,6 +34,20 @@ class RamsDashboardBackendTest extends TestCase
                 ->has('assets', 0));
     }
 
+    public function test_pusat_dashboard_defaults_to_first_active_unit_instead_of_national_scope(): void
+    {
+        $pusat = User::factory()->pusat()->create(['is_active' => true]);
+        UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
+        UnitKerja::factory()->create(['code' => 'DIVRE-IV', 'is_active' => true]);
+
+        $this->actingAs($pusat)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('dashboard/Dashboard')
+                ->where('selected_area', 'DAOP-1'));
+    }
+
     public function test_dashboard_pages_read_seeded_database_with_area_authorization(): void
     {
         $pusat = User::factory()->pusat()->create(['is_active' => true]);
@@ -44,9 +58,9 @@ class RamsDashboardBackendTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('dashboard/Dashboard')
-                ->where('selected_area', null)
-                ->where('summary.totalAset', 34)
-                ->has('assets', 34));
+                ->where('selected_area', 'DAOP-1')
+                ->where('summary.totalAset', 17)
+                ->has('assets', 17));
 
         $this->actingAs($pusat)
             ->get('/risk-matrix?area=DIVRE4')

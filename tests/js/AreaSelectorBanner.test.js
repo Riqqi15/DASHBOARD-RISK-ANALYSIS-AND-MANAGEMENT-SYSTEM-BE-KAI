@@ -43,7 +43,8 @@ describe('AreaSelectorBanner', () => {
     expect(wrapper.text()).toContain('Area Lintas')
     expect(wrapper.text()).toContain('Dashboard Risk Analysis and Management System')
     expect(wrapper.get('[data-area-code="DAOP-1"]').attributes('aria-pressed')).toBe('true')
-    expect(wrapper.get('[data-area-code="national"]').attributes('aria-pressed')).toBe('false')
+    expect(wrapper.find('[data-area-code="national"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Nasional (Pusat)')
   })
 
   it('navigates with the selected unit code', async () => {

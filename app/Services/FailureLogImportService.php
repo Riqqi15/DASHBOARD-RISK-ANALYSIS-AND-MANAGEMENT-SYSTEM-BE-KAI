@@ -18,6 +18,7 @@ final class FailureLogImportService
         private readonly FailureLogWorkbookImporter $importer,
         private readonly ExcelReliabilitySnapshotImporter $snapshotImporter,
         private readonly ReliabilityParityService $parityService,
+        private readonly MasterAssetWorkbookImporter $masterAssetImporter,
     ) {}
 
     /** @return array<string, mixed> */
@@ -54,11 +55,18 @@ final class FailureLogImportService
         $batch->issues()->delete();
 
         try {
+            // Step 1: Auto-create/update master aset (AssetGroup, AssetSystem, AssetSubsystem, Asset)
+            // berdasarkan sheet "Predictive Data Asset" dalam workbook yang sama.
+            // Idempoten — tidak akan membuat duplikat jika sudah ada.
+            $masterSummary = $this->masterAssetImporter->import($path, $unit);
+
             $summary = $this->importer->import($path, $unit, $workbookHash, $workbook->getClientOriginalName());
             $snapshotSummary = $this->snapshotImporter->import($path, $unit, $workbook->getClientOriginalName());
             $paritySummary = $this->parityService->recalculateUnit($unit);
             $summary['snapshots'] = (int) ($snapshotSummary['snapshots'] ?? 0);
             $summary['parity'] = $paritySummary;
+            $summary['master_assets_created'] = (int) ($masterSummary['created'] ?? 0);
+            $summary['master_assets_updated'] = (int) ($masterSummary['updated'] ?? 0);
             $summary['issues'] = [
                 ...($summary['issues'] ?? []),
                 ...($snapshotSummary['issues'] ?? []),
@@ -131,6 +139,8 @@ final class FailureLogImportService
             'status' => 'succeeded',
             'workbook' => $batch->workbook_name,
             'unit' => $unit->only(['id', 'code', 'name']),
+            'master_assets_created' => (int) ($summary['master_assets_created'] ?? 0),
+            'master_assets_updated' => (int) ($summary['master_assets_updated'] ?? 0),
             'created' => (int) ($summary['created'] ?? 0),
             'updated' => (int) ($summary['updated'] ?? 0),
             'unchanged' => (int) ($summary['unchanged'] ?? 0),

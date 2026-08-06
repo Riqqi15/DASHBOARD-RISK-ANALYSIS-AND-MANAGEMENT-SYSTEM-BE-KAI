@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['code', 'name', 'type', 'is_active'])]
+#[Fillable(['code', 'name', 'type', 'is_active', 'operating_start_date'])]
 class UnitKerja extends Model
 {
     /** @use HasFactory<UnitKerjaFactory> */
@@ -66,6 +66,7 @@ class UnitKerja extends Model
         return [
             'type' => UnitType::class,
             'is_active' => 'boolean',
+            'operating_start_date' => 'date:Y-m-d',
         ];
     }
 }

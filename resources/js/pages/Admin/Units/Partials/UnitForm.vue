@@ -14,6 +14,7 @@ const form = useForm({
   name: props.unit?.name ?? '',
   type: props.unit?.type ?? 'daop',
   is_active: props.unit?.is_active ?? true,
+  operating_start_date: props.unit?.operating_start_date ?? '',
 })
 
 const submit = () => {
@@ -62,6 +63,24 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
         </span>
       </label>
       <p v-if="form.errors.is_active" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.is_active }}</p>
+    </div>
+
+    <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+      <label for="operating_start_date" class="mb-2 block text-sm font-medium text-slate-800">
+        Tanggal mulai operasi
+        <span class="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">Override</span>
+      </label>
+      <input
+        id="operating_start_date"
+        v-model="form.operating_start_date"
+        type="date"
+        :class="inputClass"
+      />
+      <p class="mt-1.5 text-xs text-slate-500">
+        Jika diisi, tanggal ini akan digunakan sebagai acuan hari operasi di dashboard.
+        Jika dikosongkan, sistem akan menggunakan tanggal pemasangan asset tertua secara otomatis.
+      </p>
+      <p v-if="form.errors.operating_start_date" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.operating_start_date }}</p>
     </div>
 
     <div class="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">

@@ -86,6 +86,17 @@ class FailureLogWorkbookImporter
                     $result['sheets']++;
                     try {
                         $asset = $this->resolveAsset($sheet, $unit, $sheetName);
+                        if ($asset === null) {
+                            $result['skipped']++;
+                            $result['issues'][] = [
+                                'sheet_name' => $sheetName,
+                                'source_row' => null,
+                                'source_column' => null,
+                                'message' => "Aset (AssetGroup/System/Subsystem) untuk sheet {$sheetName} tidak ditemukan atau ambigu.",
+                            ];
+                            continue;
+                        }
+
                         $this->importRows(
                             $sheet,
                             $headers['row'],
@@ -274,7 +285,7 @@ class FailureLogWorkbookImporter
         }
     }
 
-    private function resolveAsset(Worksheet $sheet, UnitKerja $unit, string $sheetName): Asset
+    private function resolveAsset(Worksheet $sheet, UnitKerja $unit, string $sheetName): ?Asset
     {
         return $this->assetResolver->resolve($sheet, $unit, $sheetName);
     }

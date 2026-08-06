@@ -88,7 +88,7 @@ class UnitKerjaController extends Controller
     public function edit(UnitKerja $unit): Response
     {
         return Inertia::render('Admin/Units/Edit', [
-            'unit' => $unit->only(['id', 'code', 'name', 'type', 'is_active']),
+            'unit' => $unit->only(['id', 'code', 'name', 'type', 'is_active', 'operating_start_date']),
             'typeOptions' => $this->typeOptions(),
         ]);
     }
@@ -121,6 +121,7 @@ class UnitKerjaController extends Controller
             'name' => $unit->name,
             'type' => $unit->type->value,
             'is_active' => $unit->is_active,
+            'operating_start_date' => $unit->operating_start_date?->toDateString(),
         ];
     }
 }

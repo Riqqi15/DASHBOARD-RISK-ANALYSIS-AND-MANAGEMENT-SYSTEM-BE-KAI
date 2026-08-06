@@ -31,6 +31,8 @@ Route::middleware(['auth', 'active'])->group(function (): void {
     Route::post('/trouble-report/import', [FailureLogImportController::class, 'store'])->name('failure-logs.import.store');
     Route::get('/trouble-report', [RamsDashboardController::class, 'troubleReport'])->name('trouble-report');
     Route::post('/trouble-report', [FailureLogController::class, 'store'])->name('failure-logs.store');
+    Route::put('/trouble-report/{log}', [FailureLogController::class, 'update'])->name('failure-logs.update');
+    Route::delete('/trouble-report/{log}', [FailureLogController::class, 'destroy'])->name('failure-logs.destroy');
     Route::resource('master-asset', MasterAssetController::class)
         ->parameters(['master-asset' => 'asset'])
         ->except(['show'])

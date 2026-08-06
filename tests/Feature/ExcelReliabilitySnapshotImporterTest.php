@@ -43,8 +43,8 @@ final class ExcelReliabilitySnapshotImporterTest extends TestCase
         $this->assertSame($asset->id, $snapshot->asset_id);
         $this->assertSame('Interlocking Elektrik', $snapshot->sheet_name);
         $this->assertSame('2020-01-01', $snapshot->baseline_date->toDateString());
-        $this->assertSame('2026-08-03', $snapshot->calculation_date->toDateString());
-        $this->assertSame(115488, $snapshot->summary_values['operating_hours']);
+        $this->assertSame('2026-08-06', $snapshot->calculation_date->toDateString());
+        $this->assertEqualsWithDelta(115632, $snapshot->summary_values['operating_hours'], 0.0001);
         $this->assertNull($snapshot->summary_values['mttf_hours']);
         $this->assertSame('#DIV/0!', $snapshot->summary_errors['mttf_hours']);
         $this->assertSame('=Dashboard!R4*24*[@[Jumlah Unit]]', $snapshot->summary_formulas['operating_hours']);
@@ -76,7 +76,7 @@ final class ExcelReliabilitySnapshotImporterTest extends TestCase
         $dashboard = $spreadsheet->getActiveSheet();
         $dashboard->setTitle('Dashboard');
         $dashboard->setCellValue('W4', 43831);
-        $dashboard->setCellValue('R4', 2406);
+        $dashboard->setCellValue('R4', '=DATE(2026,8,6)-W4');
 
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('Interlocking Elektrik');
@@ -101,8 +101,8 @@ final class ExcelReliabilitySnapshotImporterTest extends TestCase
 
         $sheet->setCellValue('B4', 'Interlocking Elektrik');
         $sheet->setCellValue('C4', 2);
-        $sheet->setCellValue('D4', 115488);
-        $sheet->setCellValue('E4', 115350);
+        $sheet->setCellValue('D4', '=Dashboard!R4*24*C4');
+        $sheet->setCellValue('E4', '=D4-F4');
         $sheet->setCellValue('F4', 138);
         $sheet->setCellValue('G4', 3);
         $sheet->setCellValueExplicit('H4', '#DIV/0!', DataType::TYPE_ERROR);

@@ -31,20 +31,6 @@
 
       <div class="flex w-full flex-wrap gap-2.5" role="group" aria-label="Pilih area lintas">
         <button
-          type="button"
-          data-area-code="national"
-          :aria-pressed="selectedArea === null"
-          class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-200"
-          :class="selectedArea === null
-            ? 'border-[#171650] bg-[#171650] text-white shadow-lg shadow-[#171650]/20 ring-2 ring-orange-400 ring-offset-2'
-            : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:-translate-y-0.5 hover:border-orange-300 hover:text-[#171650] hover:shadow-md'"
-          @click="selectArea(null)"
-        >
-          <Check v-if="selectedArea === null" :size="15" :stroke-width="2.6" aria-hidden="true" />
-          Nasional (Pusat)
-        </button>
-
-        <button
           v-for="area in units"
           :key="area.id"
           type="button"
@@ -96,13 +82,14 @@ const props = defineProps({
 })
 
 const { currentUser } = useAuth()
-const activeAreaLabel = computed(() => props.selectedArea || 'Nasional (Pusat)')
-const isActive = (code) => code === props.selectedArea
+const displayedArea = computed(() => props.selectedArea || props.units[0]?.code || null)
+const activeAreaLabel = computed(() => displayedArea.value || 'Pilih DAOP/DIVRE')
+const isActive = (code) => code === displayedArea.value
 
 const selectArea = (code) => {
   router.get(
     window.location.pathname,
-    code ? { area: code } : {},
+    { area: code },
     { preserveScroll: true, preserveState: false, replace: true },
   )
 }

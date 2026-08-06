@@ -117,7 +117,7 @@ class RamsDashboardQuery
             ->with('assetSubsystem')
             ->get();
         $assetIds = $assets->pluck('id');
-        
+
         $summaries = ReliabilitySummary::query()
             ->visibleTo($user)
             ->whereIn('asset_id', $assetIds)
@@ -127,22 +127,28 @@ class RamsDashboardQuery
         $allLogs = FailureLog::query()
             ->visibleTo($user)
             ->whereIn('asset_id', $assetIds)
+            ->orderByRaw('CASE WHEN source_row IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('source_row')
             ->orderBy('started_at')
+            ->orderBy('id')
             ->get();
-            
+
         $logsWithInterval = [];
         $groupedLogs = $allLogs->groupBy('asset_id');
-        
+
         foreach ($groupedLogs as $assetId => $logs) {
             $summary = $summaries->firstWhere('asset_id', $assetId);
             $asset = $assets->firstWhere('id', $assetId);
             $baseline = null;
-            if ($summary && $summary->baseline_date) {
-                $baseline = \Carbon\CarbonImmutable::instance($summary->baseline_date);
+            $intervalBaseline = $summary?->calculation_profile['interval_baseline_date'] ?? null;
+            if ($intervalBaseline) {
+                $baseline = CarbonImmutable::parse((string) $intervalBaseline)->startOfDay();
+            } elseif ($summary && $summary->baseline_date) {
+                $baseline = CarbonImmutable::instance($summary->baseline_date);
             } elseif ($asset && $asset->tanggal_pemasangan) {
-                $baseline = \Carbon\CarbonImmutable::parse($asset->tanggal_pemasangan);
+                $baseline = CarbonImmutable::parse($asset->tanggal_pemasangan);
             }
-            
+
             $previousStart = $baseline;
             foreach ($logs as $log) {
                 if ($previousStart !== null) {
@@ -150,13 +156,10 @@ class RamsDashboardQuery
                 } else {
                     $log->interval_jam = null;
                 }
-                $previousStart = \Carbon\CarbonImmutable::instance($log->started_at);
+                $previousStart = CarbonImmutable::instance($log->started_at);
                 $logsWithInterval[] = $log;
             }
         }
-        
-        // Sort descending by started_at for frontend
-        usort($logsWithInterval, fn ($a, $b) => $b->started_at <=> $a->started_at);
 
         return [
             'selected_area' => $unit?->code,
@@ -203,6 +206,10 @@ class RamsDashboardQuery
                 1.0,
             );
         $oldestInstallation = (clone $assets)->whereNotNull('tanggal_pemasangan')->min('tanggal_pemasangan');
+        $manualStartDate = $unit?->operating_start_date?->toDateString();
+        $operatingStartDate = $manualStartDate ?? ($oldestInstallation
+            ? CarbonImmutable::parse($oldestInstallation)->toDateString()
+            : null);
         $latestPredictive = PredictiveAssetSnapshot::query()
             ->whereIn('asset_id', $assetIds)
             ->orderByDesc('calculated_at')
@@ -218,9 +225,10 @@ class RamsDashboardQuery
             'avgAvailability' => $overallAvailability ?? 0.0,
             'overallReliability' => $overallReliability,
             'overallAvailability' => $overallAvailability,
-            'operatingDays' => $oldestInstallation
-                ? (int) CarbonImmutable::parse($oldestInstallation)->startOfDay()->diffInDays(now()->startOfDay())
+            'operatingDays' => $operatingStartDate
+                ? (int) CarbonImmutable::parse($operatingStartDate)->startOfDay()->diffInDays(now()->startOfDay())
                 : null,
+            'operatingStartDate' => $operatingStartDate,
             'reliabilityGroups' => $this->reliabilityGroups($calculatedReliability),
             'totalFailure' => FailureLog::query()->whereIn('asset_id', $assetIds)->count(),
             'totalProposalReorder' => $latestPredictive
@@ -451,27 +459,23 @@ class RamsDashboardQuery
         $grouped = $summaries->groupBy(fn (ReliabilitySummary $summary): string => $this->reliabilityGroupCode($summary));
 
         return collect($labels)
-            ->map(function (string $label, string $code) use ($grouped): ?array {
+            ->map(function (string $label, string $code) use ($grouped): array {
                 $items = $grouped->get($code, collect());
-                if ($items->isEmpty()) {
-                    return null;
-                }
 
                 return [
                     'code' => $code,
                     'name' => $label,
                     'asset_count' => $items->count(),
-                    'reliability' => $items->reduce(
+                    'reliability' => $items->isEmpty() ? null : $items->reduce(
                         fn (float $product, ReliabilitySummary $summary): float => $product * (float) $summary->reliability,
                         1.0,
                     ),
-                    'availability' => $items->reduce(
+                    'availability' => $items->isEmpty() ? null : $items->reduce(
                         fn (float $product, ReliabilitySummary $summary): float => $product * (float) $summary->availability,
                         1.0,
                     ),
                 ];
             })
-            ->filter()
             ->values()
             ->all();
     }
@@ -494,7 +498,7 @@ class RamsDashboardQuery
     private function failurePayload(FailureLog $log): array
     {
         $isYes = fn (?string $val): bool => in_array(mb_strtoupper(trim((string) $val)), ['Y', 'YA', 'YES'], true);
-        
+
         return [
             'id' => $log->id,
             'aset_id' => $log->asset_id,
@@ -508,7 +512,7 @@ class RamsDashboardQuery
             'tindak_vandalisme' => ($log->vandalism || $isYes($log->vandalism_marker)) ? 'Y' : 'N',
             'tanggal_jam_kejadian' => $log->started_at->toDateTimeString(),
             'tanggal_jam_penanganan' => $log->resolved_at->toDateTimeString(),
-            'downtime_jam' => floor($log->downtime_minutes / 60) . ':' . str_pad((string)($log->downtime_minutes % 60), 2, '0', STR_PAD_LEFT),
+            'downtime_jam' => floor($log->downtime_minutes / 60).':'.str_pad((string) ($log->downtime_minutes % 60), 2, '0', STR_PAD_LEFT),
             'downtime_menit' => $log->downtime_minutes,
             'interval_jam' => $log->interval_jam !== null ? round($log->interval_jam, 2) : null,
             'nama_sparepart' => $log->sparePart?->detail_equipment,

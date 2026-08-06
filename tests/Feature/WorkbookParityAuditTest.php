@@ -194,10 +194,10 @@ final class WorkbookParityAuditTest extends TestCase
         $this->assertNotNull($summary);
         $this->assertSame(3, $summary->failure_count);
         $this->assertSame(2, $summary->unit_count);
-        $this->assertEqualsWithDelta(115488, (float) $summary->operating_hours, 1);
+        $this->assertEqualsWithDelta(115632, (float) $summary->operating_hours, 1);
         $this->assertEqualsWithDelta(138, (float) $summary->downtime_value, 1);
-        $this->assertEqualsWithDelta(115350, (float) $summary->uptime_hours, 1);
-        $this->assertEqualsWithDelta(38450, (float) $summary->mtbf_hours, 1);
+        $this->assertEqualsWithDelta(115494, (float) $summary->uptime_hours, 1);
+        $this->assertEqualsWithDelta(38498, (float) $summary->mtbf_hours, 1);
 
         // Parity status: may be 'matched' or 'excel_data_missing' depending on MTTF error
         $this->assertContains($summary->parity_status, ['matched', 'excel_data_missing']);

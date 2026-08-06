@@ -35,12 +35,14 @@ const submit = () => {
 }
 
 const counters = computed(() => props.result ? [
+  { label: 'Aset Dibuat', value: props.result.master_assets_created ?? 0, tone: 'text-fuchsia-700 bg-fuchsia-50 border-fuchsia-100' },
+  { label: 'Aset Diperbarui', value: props.result.master_assets_updated ?? 0, tone: 'text-pink-700 bg-pink-50 border-pink-100' },
   { label: 'Sheet terbaca', value: props.result.sheets ?? 0, tone: 'text-blue-700 bg-blue-50 border-blue-100' },
   { label: 'Snapshot Excel', value: props.result.snapshots ?? 0, tone: 'text-cyan-700 bg-cyan-50 border-cyan-100' },
-  { label: 'Dibuat', value: props.result.created ?? 0, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
-  { label: 'Diperbarui', value: props.result.updated ?? 0, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
-  { label: 'Tidak berubah', value: props.result.unchanged ?? 0, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
-  { label: 'Dilewati', value: props.result.skipped ?? 0, tone: 'text-amber-700 bg-amber-50 border-amber-100' },
+  { label: 'Log Dibuat', value: props.result.created ?? 0, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
+  { label: 'Log Diperbarui', value: props.result.updated ?? 0, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
+  { label: 'Log Tetap', value: props.result.unchanged ?? 0, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
+  { label: 'Log Dilewati', value: props.result.skipped ?? 0, tone: 'text-amber-700 bg-amber-50 border-amber-100' },
   { label: 'Parity dihitung', value: props.result.parity?.calculated ?? 0, tone: 'text-violet-700 bg-violet-50 border-violet-100' },
   { label: 'Sesuai Excel', value: props.result.parity?.matched ?? 0, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
   { label: 'Ada selisih', value: props.result.parity?.mismatch ?? 0, tone: 'text-orange-700 bg-orange-50 border-orange-100' },
@@ -55,7 +57,7 @@ const counters = computed(() => props.result ? [
         <p class="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">Input Data</p>
         <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-950">Import Trouble Report</h2>
         <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-          Unggah workbook RAMS berformat .xlsm atau .xlsx. Sistem membaca tabel detail kejadian, menyimpan snapshot ringkasan Excel, lalu menghitung parity formula backend.
+          Unggah workbook RAMS berformat .xlsm atau .xlsx. Sistem akan otomatis membuat master aset dari sheet "Predictive Data Asset", membaca tabel detail kejadian, menyimpan snapshot ringkasan Excel, lalu menghitung parity formula backend.
         </p>
       </header>
 

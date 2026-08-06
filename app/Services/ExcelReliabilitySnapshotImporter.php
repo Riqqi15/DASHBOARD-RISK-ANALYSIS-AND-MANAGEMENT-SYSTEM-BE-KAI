@@ -70,9 +70,11 @@ final class ExcelReliabilitySnapshotImporter
 
                     try {
                         $asset = $this->assetResolver->resolve($sheet, $unit, $sheetName);
-                        $values = $this->summaryValues($sheet, $headers['row'], $headers['columns']);
                         $formulas = $this->summaryFormulas($sheet, $headers['row'], $headers['columns']);
                         $errors = $this->summaryErrors($sheet, $headers['row'], $headers['columns']);
+                        $values = $this->summaryValues($sheet, $headers['row'], $headers['columns']);
+                        $profile = $this->formulaProfile($sheet, $formulas, $values, $errors);
+                        $values = $this->applyDetailFormulaOverrides($sheet, $values, $profile);
                         ReliabilityExcelSnapshot::query()->updateOrCreate(
                             [
                                 'asset_id' => $asset->id,
@@ -87,7 +89,7 @@ final class ExcelReliabilitySnapshotImporter
                                 'summary_values' => $values,
                                 'summary_formulas' => $formulas,
                                 'summary_errors' => $errors,
-                                'formula_profile' => $this->formulaProfile($sheet, $formulas, $values, $errors),
+                                'formula_profile' => $profile,
                                 'imported_at' => now(),
                             ],
                         );
@@ -241,9 +243,132 @@ final class ExcelReliabilitySnapshotImporter
             return null;
         }
 
-        $value = $cell->isFormula() ? $cell->getOldCalculatedValue() : $cell->getValue();
+        try {
+            $value = $cell->isFormula() ? $cell->getCalculatedValue() : $cell->getValue();
+        } catch (\Throwable) {
+            $value = $cell->isFormula() ? $cell->getOldCalculatedValue() : $cell->getValue();
+        }
 
         return $this->isExcelError($value) ? null : $value;
+    }
+
+    /** @param array<string, mixed> $values
+     * @param  array<string, string|null>  $profile
+     * @return array<string, mixed>
+     */
+    private function applyDetailFormulaOverrides(Worksheet $sheet, array $values, array $profile): array
+    {
+        $headers = $this->detailHeaders($sheet);
+        if ($headers === null) {
+            return $values;
+        }
+
+        $columns = $headers['columns'];
+        $failureCount = 0;
+        $downtimeTotal = 0.0;
+        $intervals = [];
+        $sparePartCount = 0;
+        $vandalismCount = 0;
+        $downtimeColumn = ($profile['downtime_mode'] ?? 'minutes') === 'excel_day_fraction'
+            ? ($columns['downtime_hours'] ?? null)
+            : ($columns['downtime_minutes'] ?? null);
+
+        for ($row = $headers['row'] + 1; $row <= $sheet->getHighestDataRow(); $row++) {
+            $event = $this->text($this->cellValue($sheet->getCell([$columns['failure_event'], $row])));
+            if ($event === '') {
+                continue;
+            }
+
+            $failureCount++;
+            if ($downtimeColumn !== null) {
+                $downtime = $this->cellValue($sheet->getCell([$downtimeColumn, $row]));
+                if (is_numeric($downtime)) {
+                    $downtimeTotal += (float) $downtime;
+                }
+            }
+
+            if (isset($columns['interval_hours'])) {
+                $interval = $this->cellValue($sheet->getCell([$columns['interval_hours'], $row]));
+                if (is_numeric($interval)) {
+                    $intervals[] = (float) $interval;
+                }
+            }
+
+            if (isset($columns['spare_part'])) {
+                $marker = $this->text($this->cellValue($sheet->getCell([$columns['spare_part'], $row])));
+                if ($this->countMarker($marker, $profile['spare_part_count_mode'] ?? 'countif_ya')) {
+                    $sparePartCount++;
+                }
+            }
+
+            if (isset($columns['vandalism'])) {
+                $marker = $this->text($this->cellValue($sheet->getCell([$columns['vandalism'], $row])));
+                if ($this->countMarker($marker, $profile['vandalism_count_mode'] ?? 'countif_ya')) {
+                    $vandalismCount++;
+                }
+            }
+        }
+
+        $values['failure_count'] = $failureCount;
+        $values['downtime_value'] = $downtimeTotal;
+        $values['mttf_hours'] = $intervals === [] ? null : array_sum($intervals) / count($intervals);
+        $values['spare_part_replacement_count'] = $sparePartCount;
+        $values['vandalism_count'] = $vandalismCount;
+
+        if (is_numeric($values['operating_hours'] ?? null)) {
+            $operatingHours = (float) $values['operating_hours'];
+            $uptimeHours = $operatingHours - $downtimeTotal;
+            $mtbfHours = $failureCount > 0 ? $uptimeHours / $failureCount : 0.0;
+            $failureRate = $mtbfHours > 0 ? 1 / $mtbfHours : 0.0;
+
+            $values['uptime_hours'] = $uptimeHours;
+            $values['mtbf_hours'] = $mtbfHours;
+            $values['failure_rate'] = $failureRate;
+            $values['reliability'] = exp(-$failureRate);
+            $values['availability'] = $operatingHours > 0 ? $uptimeHours / $operatingHours : null;
+        }
+
+        return $values;
+    }
+
+    /** @return array{row: int, columns: array<string, int>}|null */
+    private function detailHeaders(Worksheet $sheet): ?array
+    {
+        $map = [
+            'failure event' => 'failure_event',
+            'konversi ke menit' => 'downtime_minutes',
+            'konversi ke menit ' => 'downtime_minutes',
+            'downtime (jam)' => 'downtime_hours',
+            'interval antar failure (jam)' => 'interval_hours',
+            'penggantian sparepart' => 'spare_part',
+            'tindak vandalisme' => 'vandalism',
+        ];
+
+        for ($row = 1; $row <= min(30, $sheet->getHighestDataRow()); $row++) {
+            $columns = [];
+            $highestColumn = Coordinate::columnIndexFromString($sheet->getHighestDataColumn($row));
+            for ($column = 1; $column <= min(30, $highestColumn); $column++) {
+                $header = $this->normalize($sheet->getCell([$column, $row])->getValue());
+                if (isset($map[$header])) {
+                    $columns[$map[$header]] = $column;
+                }
+            }
+
+            if (isset($columns['failure_event'])) {
+                return ['row' => $row, 'columns' => $columns];
+            }
+        }
+
+        return null;
+    }
+
+    private function countMarker(string $marker, string $mode): bool
+    {
+        if ($mode === 'counta') {
+            return $marker !== '';
+        }
+
+        return in_array(mb_strtoupper($marker), ['Y', 'YA', 'YES'], true);
     }
 
     private function isExcelError(mixed $value): bool
@@ -259,5 +384,10 @@ final class ExcelReliabilitySnapshotImporter
         $text = str_replace('λ', 'lambda', $text);
 
         return mb_strtolower($text);
+    }
+
+    private function text(mixed $value): string
+    {
+        return preg_replace('/\s+/u', ' ', trim((string) ($value ?? ''))) ?? '';
     }
 }

@@ -29,7 +29,15 @@ final class ExcelParityReliabilityCalculator
         $operatingHours = max(0.0, $baseline->diffInDays($calculation, false) * 24.0 * $unitCount);
         $rows = collect($failures)
             ->filter(fn (array $failure): bool => isset($failure['started_at']))
-            ->sortBy(fn (array $failure): int => $failure['started_at']->getTimestamp())
+            ->sortBy(function (array $failure): array {
+                $sourceRow = $failure['source_row'] ?? null;
+
+                return [
+                    $sourceRow === null ? 1 : 0,
+                    $sourceRow === null ? $failure['started_at']->getTimestamp() : (int) $sourceRow,
+                    $failure['started_at']->getTimestamp(),
+                ];
+            })
             ->values();
 
         $downtimeMode = $profile['downtime_mode'] ?? 'minutes';

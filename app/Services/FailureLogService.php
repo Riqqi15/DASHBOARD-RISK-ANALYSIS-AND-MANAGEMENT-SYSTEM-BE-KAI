@@ -145,4 +145,77 @@ class FailureLogService
             $this->parityService->recalculateAsset($asset, now()->toImmutable());
         }
     }
+    public function update(FailureLog $failure, array $data, User $actor): FailureLog
+    {
+        return DB::transaction(function () use ($failure, $data, $actor): FailureLog {
+            $authoritativeActor = User::query()
+                ->whereKey($actor->getKey())
+                ->where('is_active', true)
+                ->sharedLock()
+                ->first();
+            if (! $authoritativeActor) {
+                throw new AuthorizationException('Pengguna tidak aktif atau tidak ditemukan.');
+            }
+
+            $asset = Asset::query()
+                ->whereKey($data['asset_id'])
+                ->with('unitKerja')
+                ->sharedLock()
+                ->firstOrFail();
+            if ($authoritativeActor->isUnit() && $authoritativeActor->unit_kerja_id !== $asset->unit_kerja_id) {
+                throw new AuthorizationException('Aset berada di luar unit kerja pengguna.');
+            }
+
+            $part = $this->resolveSparePart($data, $asset);
+            $startedAt = CarbonImmutable::parse($data['started_at']);
+            $resolvedAt = CarbonImmutable::parse($data['resolved_at']);
+
+            $oldResolvedAt = CarbonImmutable::parse($failure->resolved_at);
+
+            $failure->update([
+                'asset_id' => $asset->id,
+                'spare_part_id' => $part?->id,
+                'location' => $data['location'],
+                'resort' => $data['resort'] ?? null,
+                'qc' => $data['qc'] ?? null,
+                'failure_event' => $data['failure_event'],
+                'cause' => $data['cause'],
+                'action_taken' => $data['action_taken'],
+                'started_at' => $startedAt,
+                'resolved_at' => $resolvedAt,
+                'downtime_minutes' => (int) $startedAt->diffInMinutes($resolvedAt),
+                'spare_part_replaced' => $part !== null,
+                'spare_part_quantity' => $part ? (int) $data['spare_part_quantity'] : null,
+                'vandalism' => (bool) $data['vandalism'],
+            ]);
+
+            $this->recalculateReliability($asset, $oldResolvedAt);
+            if (!$oldResolvedAt->isSameDay($resolvedAt)) {
+                $this->recalculateReliability($asset, $resolvedAt);
+            }
+
+            return $failure;
+        }, 5);
+    }
+
+    public function delete(FailureLog $failure, User $actor): void
+    {
+        DB::transaction(function () use ($failure, $actor): void {
+            $authoritativeActor = User::query()
+                ->whereKey($actor->getKey())
+                ->where('is_active', true)
+                ->sharedLock()
+                ->first();
+            if (! $authoritativeActor) {
+                throw new AuthorizationException('Pengguna tidak aktif atau tidak ditemukan.');
+            }
+
+            $asset = $failure->asset;
+            $resolvedAt = CarbonImmutable::parse($failure->resolved_at);
+
+            $failure->delete();
+
+            $this->recalculateReliability($asset, $resolvedAt);
+        }, 5);
+    }
 }

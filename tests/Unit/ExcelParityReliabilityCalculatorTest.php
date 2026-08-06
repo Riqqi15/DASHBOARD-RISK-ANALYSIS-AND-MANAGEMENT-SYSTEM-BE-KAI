@@ -284,6 +284,33 @@ final class ExcelParityReliabilityCalculatorTest extends TestCase
         $this->assertEqualsWithDelta(24 - (95 / 1440), $result['uptime_hours'], 0.000000001);
     }
 
+    public function test_interval_uses_workbook_row_order_when_source_rows_are_available(): void
+    {
+        $result = (new ExcelParityReliabilityCalculator)->calculate(
+            unitCount: 1,
+            baselineDate: CarbonImmutable::parse('2020-01-01 00:00:00'),
+            calculationDate: CarbonImmutable::parse('2020-01-04 00:00:00'),
+            failures: [
+                [
+                    'source_row' => 11,
+                    'started_at' => CarbonImmutable::parse('2020-01-02 00:00:00'),
+                    'downtime_minutes' => 60,
+                ],
+                [
+                    'source_row' => 10,
+                    'started_at' => CarbonImmutable::parse('2020-01-03 00:00:00'),
+                    'downtime_minutes' => 60,
+                ],
+            ],
+            profile: [
+                'downtime_mode' => 'minutes',
+                'interval_baseline_date' => '2020-01-01',
+            ],
+        );
+
+        $this->assertEqualsWithDelta(12, $result['mttf_hours'], 0.0001);
+    }
+
     /** Peraga Sinyal Elektrik Utama uses P8=2017-01-01 for its interval formula. */
     public function test_it_matches_single_failure_peraga_sinyal_elektrik_utama(): void
     {

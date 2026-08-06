@@ -2,6 +2,89 @@
   <MainLayout>
     <AreaSelectorBanner :units="units" :selected-area="selected_area" />
     <div class="space-y-8 pb-10">
+      <section class="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col xl:flex-row xl:items-stretch">
+        <div class="flex-1 flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between border-b xl:border-b-0 xl:border-r border-slate-200">
+          <div>
+            <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Operational {{ selected_area || 'DAOP/DIVRE' }}</p>
+            <h2 class="mt-1 text-lg font-extrabold text-slate-800">Tahun awal pemasangan equipment</h2>
+          </div>
+          <div class="rounded-lg bg-lime-100 px-4 py-3 text-center ring-1 ring-lime-200">
+            <p class="text-xs font-semibold text-slate-700">Mulai operasi</p>
+            <p class="mt-1 text-2xl font-extrabold text-red-600">{{ formattedOperatingStartDate }}</p>
+          </div>
+        </div>
+        <div class="flex-1 grid grid-cols-2 divide-x divide-slate-200 bg-slate-50">
+          <div class="px-5 py-5 flex flex-col justify-center items-center text-center">
+            <p class="text-sm font-bold text-slate-800 mb-1">Operating Days</p>
+            <div class="inline-flex items-baseline gap-1">
+              <span class="text-3xl font-black text-[#171650]">{{ summary?.operatingDays ?? '-' }}</span>
+              <span class="text-sm font-semibold text-slate-500">Days</span>
+            </div>
+          </div>
+          <div class="px-5 py-5 flex flex-col justify-center items-center text-center">
+            <p class="text-sm font-bold text-slate-800 mb-1">Failure Count</p>
+            <div class="inline-flex items-baseline gap-1">
+              <span class="text-3xl font-black text-red-600">{{ summary?.totalFailure ?? 0 }}</span>
+              <span class="text-sm font-semibold text-slate-500">times</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <!-- RELIABILITY -->
+        <div class="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
+          <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 text-center">
+            <h3 class="text-base font-extrabold text-slate-800 uppercase tracking-widest">Reliability</h3>
+          </div>
+          <div class="flex divide-x divide-white">
+            <div 
+              v-for="group in (summary?.reliabilityGroups || [])" 
+              :key="group.code"
+              class="flex-1 flex flex-col items-center justify-center p-3 text-center"
+              :class="groupColor(group.code)"
+            >
+              <div class="text-sm font-bold bg-white/90 px-2 py-0.5 rounded shadow-sm text-slate-800 mb-2 whitespace-nowrap">
+                {{ formatPercentage(group.reliability, 4, 100) }}
+              </div>
+              <div class="text-sm font-extrabold uppercase">{{ group.code }}</div>
+            </div>
+          </div>
+          <div class="bg-black text-white px-4 py-3 text-center flex flex-col items-center justify-center">
+            <div class="text-3xl font-black mb-1">
+              {{ formatPercentage(summary?.overallReliability, 2, 100) }}
+            </div>
+            <div class="text-sm font-bold uppercase tracking-[0.2em]">Overall System</div>
+          </div>
+        </div>
+
+        <!-- AVAILABILITY -->
+        <div class="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
+          <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 text-center">
+            <h3 class="text-base font-extrabold text-slate-800 uppercase tracking-widest">Availability</h3>
+          </div>
+          <div class="flex divide-x divide-white">
+            <div 
+              v-for="group in (summary?.reliabilityGroups || [])" 
+              :key="group.code"
+              class="flex-1 flex flex-col items-center justify-center p-3 text-center"
+              :class="groupColor(group.code)"
+            >
+              <div class="text-sm font-bold bg-white/90 px-2 py-0.5 rounded shadow-sm text-slate-800 mb-2 whitespace-nowrap">
+                {{ formatPercentage(group.availability, 2) }}
+              </div>
+              <div class="text-sm font-extrabold uppercase">{{ group.code }}</div>
+            </div>
+          </div>
+          <div class="bg-black text-white px-4 py-3 text-center flex flex-col items-center justify-center">
+            <div class="text-3xl font-black mb-1">
+              {{ formatPercentage(summary?.overallAvailability, 2) }}
+            </div>
+            <div class="text-sm font-bold uppercase tracking-[0.2em]">Overall System</div>
+          </div>
+        </div>
+      </section>
+
       <div class="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-200 pb-5 gap-4">
         <div>
           <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Pilih Subsystem</h2>
@@ -96,6 +179,10 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  summary: {
+    type: Object,
+    default: () => ({}),
+  },
   assets: {
     type: Array,
     default: () => [],
@@ -119,6 +206,50 @@ const colors = [
 const getLabel = (value) => {
   const label = String(value ?? '').trim()
   return label || fallbackLabel
+}
+
+const formattedOperatingStartDate = computed(() => {
+  if (!props.summary?.operatingStartDate) {
+    return 'Data belum ada'
+  }
+
+  const date = new Date(`${props.summary.operatingStartDate}T00:00:00`)
+  if (Number.isNaN(date.getTime())) {
+    return 'Data belum ada'
+  }
+
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date)
+})
+
+const formattedOperatingDays = computed(() => {
+  const days = Number(props.summary?.operatingDays)
+
+  return Number.isFinite(days) ? `${days} hari operasi` : 'Data belum ada'
+})
+
+const formatPercentage = (val, maxDecimals = 4, defaultValue = null) => {
+  if (val === null || val === undefined) {
+    if (defaultValue !== null) {
+      return new Intl.NumberFormat('id-ID', { style: 'percent', minimumFractionDigits: maxDecimals, maximumFractionDigits: maxDecimals }).format(defaultValue / 100)
+    }
+    return '#DIV/0!'
+  }
+  return new Intl.NumberFormat('id-ID', { style: 'percent', minimumFractionDigits: 0, maximumFractionDigits: maxDecimals }).format(val)
+}
+
+const groupColor = (code) => {
+  const map = {
+    PDSM: 'bg-[#92D050] text-white',
+    PLSM: 'bg-[#4BACC6] text-white',
+    PDSE: 'bg-[#FFFF00] text-slate-800',
+    PLSE: 'bg-[#FFC000] text-slate-800',
+    CDS: 'bg-[#FF0000] text-white',
+  }
+  return map[code] || 'bg-slate-500 text-white'
 }
 
 const sumUnits = (assets) => assets.reduce((total, asset) => {

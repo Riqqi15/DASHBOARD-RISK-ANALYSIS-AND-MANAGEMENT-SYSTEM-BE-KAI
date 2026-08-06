@@ -13,6 +13,10 @@ const mountPage = (overrides = {}) => mount(Dashboard, {
   props: {
     selected_area: 'DAOP-1',
     units: [],
+    summary: {
+      operatingDays: 2409,
+      operatingStartDate: '2020-01-01',
+    },
     asset_categories: [],
     assets: [
       {
@@ -48,6 +52,14 @@ describe('Dashboard', () => {
     expect(wrapper.text()).toContain('1 system')
     expect(wrapper.text()).toContain('1 aset')
     expect(wrapper.get('[data-subsystem-name="1"]').text()).toContain('1')
+  })
+
+  it('renders operating start date and operating days for the selected daop or divre', () => {
+    const wrapper = mountPage()
+
+    expect(wrapper.text()).toContain('Tahun awal pemasangan equipment')
+    expect(wrapper.text()).toContain('01/01/2020')
+    expect(wrapper.text()).toContain('2409 hari operasi')
   })
 
   it('renders asset categories even when they do not have linked master assets yet', () => {

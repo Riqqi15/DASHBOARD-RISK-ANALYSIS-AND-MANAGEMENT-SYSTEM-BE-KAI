@@ -13,7 +13,7 @@ final class RamsWorkbookAssetResolver
 {
     public function __construct(private readonly AssetCategoryResolver $categoryResolver) {}
 
-    public function resolve(Worksheet $sheet, UnitKerja $unit, string $sheetName): Asset
+    public function resolve(Worksheet $sheet, UnitKerja $unit, string $sheetName): ?Asset
     {
         $label = trim((string) ($sheet->getCell('B4')->getValue() ?? '')) ?: $sheetName;
         $normalizedCandidates = array_unique([
@@ -32,7 +32,7 @@ final class RamsWorkbookAssetResolver
             });
 
         if ($matches->count() !== 1) {
-            throw new RuntimeException("Sheet {$sheetName} tidak dapat dipetakan tepat ke satu aset {$unit->code} ({$label}).");
+            return null;
         }
 
         return $matches->first();
