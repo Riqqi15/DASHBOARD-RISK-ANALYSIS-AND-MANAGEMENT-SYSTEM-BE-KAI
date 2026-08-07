@@ -22,6 +22,7 @@ import logoKai from '../assets/logo-kai.png'
 const page = usePage()
 const isSidebarOpen = ref(false)
 const isUserMenuOpen = ref(false)
+const isDashboardMenuOpen = ref(false)
 
 const currentPath = computed(() => page.url.split('?')[0])
 const user = computed(() => page.props.auth?.user ?? {})
@@ -99,10 +100,53 @@ const closeSidebar = () => {
       <nav class="flex-1 overflow-y-auto px-3 py-5">
         <p class="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Ruang kerja</p>
         <ul class="space-y-1">
-          <li v-for="item in menuItems" :key="item.name">
+          <!-- Dashboard Collapsible Parent -->
+          <li>
+            <div class="flex items-center w-full min-h-11 justify-between gap-1 pr-2 rounded-lg border-l-[3px] transition"
+                 :class="currentPath === '/dashboard' ? 'border-orange-500 bg-orange-50' : 'border-transparent hover:bg-slate-50'">
+              <Link
+                href="/dashboard"
+                class="group flex flex-1 items-center gap-3 px-3 py-2 text-sm font-medium transition"
+                :class="currentPath === '/dashboard' ? 'text-[#171650]' : 'text-slate-600 hover:text-slate-950'"
+                @click="closeSidebar"
+              >
+                <LayoutDashboard :size="19" :stroke-width="1.8" :class="currentPath === '/dashboard' ? 'text-orange-600' : 'text-slate-400 group-hover:text-slate-600'" aria-hidden="true" />
+                Dashboard
+              </Link>
+              <button
+                @click="isDashboardMenuOpen = !isDashboardMenuOpen"
+                class="p-1.5 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-200/50 transition-colors mr-1"
+                aria-label="Toggle sub-menu"
+              >
+                <ChevronDown
+                  :size="16"
+                  class="transition-transform duration-200"
+                  :class="isDashboardMenuOpen ? 'rotate-180' : ''"
+                />
+              </button>
+            </div>
+            
+            <ul v-show="isDashboardMenuOpen" class="mt-1 space-y-1 pl-8">
+              <li v-for="item in menuItems.filter(i => !['dashboard', 'trouble-report-import'].includes(i.name))" :key="item.name">
+                <Link
+                  :href="item.to"
+                  class="group flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition"
+                  :class="currentPath === item.to
+                    ? 'bg-orange-50 text-[#171650] font-semibold'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'"
+                  @click="closeSidebar"
+                >
+                  <component :is="item.icon" :size="17" :stroke-width="1.8" :class="currentPath === item.to ? 'text-orange-600' : 'text-slate-400 group-hover:text-slate-600'" aria-hidden="true" />
+                  {{ item.label }}
+                </Link>
+              </li>
+            </ul>
+          </li>
+          <!-- Import Trouble Report (Outside) -->
+          <li v-for="item in menuItems.filter(i => i.name === 'trouble-report-import')" :key="item.name">
             <Link
               :href="item.to"
-              class="group flex min-h-11 items-center gap-3 rounded-lg border-l-[3px] px-3 text-sm font-medium transition"
+              class="group flex min-h-11 items-center gap-3 rounded-lg border-l-[3px] px-3 text-sm font-medium transition mt-1"
               :class="currentPath === item.to
                 ? 'border-orange-500 bg-orange-50 text-[#171650]'
                 : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950'"
