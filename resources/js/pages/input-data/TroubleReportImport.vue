@@ -1,11 +1,14 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { Head, useForm, usePage } from '@inertiajs/vue3'
 import {
   AlertTriangle,
   CheckCircle2,
   FileSpreadsheet,
   UploadCloud,
+  XCircle,
+  Info,
+  Download,
 } from 'lucide-vue-next'
 import MainLayout from '@/layouts/MainLayout.vue'
 
@@ -21,6 +24,7 @@ const assignedUnit = computed(() => page.props.auth?.user?.unit_kerja ?? null)
 const form = useForm({
   unit_kerja_id: props.selected_unit_id ?? '',
   workbook: null,
+  dry_run: false,
 })
 
 const selectWorkbook = (event) => {
@@ -47,6 +51,18 @@ const counters = computed(() => props.result ? [
   { label: 'Sesuai Excel', value: props.result.parity?.matched ?? 0, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
   { label: 'Ada selisih', value: props.result.parity?.mismatch ?? 0, tone: 'text-orange-700 bg-orange-50 border-orange-100' },
 ] : [])
+
+const activeTab = ref('all')
+
+const categorizedIssues = computed(() => {
+  const issues = props.result?.issues || []
+  return {
+    all: issues,
+    error: issues.filter(i => i.severity === 'error'),
+    warning: issues.filter(i => i.severity === 'warning'),
+    info: issues.filter(i => i.severity === 'info'),
+  }
+})
 </script>
 
 <template>
@@ -111,6 +127,18 @@ const counters = computed(() => props.result ? [
             <p v-if="form.errors.workbook" class="mt-1.5 text-xs font-medium text-red-600">{{ form.errors.workbook }}</p>
           </div>
 
+          <div class="flex items-center gap-2">
+            <input
+              id="dry-run"
+              type="checkbox"
+              v-model="form.dry_run"
+              class="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-600"
+            />
+            <label for="dry-run" class="text-sm font-medium text-slate-800">
+              Hanya Simulasi (Dry Run) <span class="font-normal text-slate-500">— Hanya mengecek error dan selisih tanpa menyimpan data</span>
+            </label>
+          </div>
+
           <div v-if="form.progress" class="space-y-2" aria-live="polite">
             <div class="flex items-center justify-between text-xs font-medium text-slate-600">
               <span>Mengunggah workbook</span>
@@ -140,7 +168,10 @@ const counters = computed(() => props.result ? [
             <CheckCircle2 v-if="result.status === 'succeeded'" class="mt-0.5 text-emerald-600" :size="21" aria-hidden="true" />
             <AlertTriangle v-else class="mt-0.5 text-red-600" :size="21" aria-hidden="true" />
             <div>
-              <h3 class="font-semibold text-slate-950">Hasil impor</h3>
+              <h3 class="font-semibold text-slate-950 flex items-center gap-2">
+                Hasil impor
+                <span v-if="result.dry_run" class="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 border border-slate-300">Mode Simulasi</span>
+              </h3>
               <p class="mt-1 text-xs text-slate-500">{{ result.workbook }} · {{ result.unit?.code }}</p>
             </div>
           </div>
@@ -159,23 +190,53 @@ const counters = computed(() => props.result ? [
           </div>
         </div>
 
-        <div v-if="result.issues?.length" class="border-t border-slate-200">
-          <div class="bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-900">
-            Daftar masalah ({{ result.issues.length }})
-          </div>
-          <ul class="divide-y divide-slate-100">
-            <li v-for="(issue, index) in result.issues" :key="`${issue.sheet_name}-${issue.source_row}-${index}`" class="flex gap-3 px-5 py-4">
-              <AlertTriangle class="mt-0.5 shrink-0 text-amber-600" :size="17" aria-hidden="true" />
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-slate-800">{{ issue.message }}</p>
-                <p class="mt-1 text-xs text-slate-500">
-                  {{ issue.sheet_name || 'Workbook' }}
-                  <template v-if="issue.source_row"> · Baris {{ issue.source_row }}</template>
-                  <template v-if="issue.source_column"> · {{ issue.source_column }}</template>
-                </p>
+        <div v-if="result.issues?.length" class="border-t border-slate-200 bg-slate-50">
+          <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-5 py-3">
+            <div class="flex items-center gap-4">
+              <span class="text-sm font-semibold text-slate-900">Daftar masalah ({{ result.issues.length }})</span>
+              <div class="flex flex-wrap gap-2">
+                <button type="button" @click="activeTab = 'all'" :class="activeTab === 'all' ? 'bg-slate-200 text-slate-900 shadow-sm' : 'text-slate-600 hover:bg-slate-100'" class="rounded-md px-3 py-1 text-xs font-semibold transition">Semua</button>
+                <button type="button" v-if="categorizedIssues.error.length" @click="activeTab = 'error'" :class="activeTab === 'error' ? 'bg-red-200 text-red-900 shadow-sm' : 'text-red-600 hover:bg-red-100'" class="rounded-md px-3 py-1 text-xs font-semibold transition">Error ({{ categorizedIssues.error.length }})</button>
+                <button type="button" v-if="categorizedIssues.warning.length" @click="activeTab = 'warning'" :class="activeTab === 'warning' ? 'bg-amber-200 text-amber-900 shadow-sm' : 'text-amber-700 hover:bg-amber-100'" class="rounded-md px-3 py-1 text-xs font-semibold transition">Warning ({{ categorizedIssues.warning.length }})</button>
+                <button type="button" v-if="categorizedIssues.info.length" @click="activeTab = 'info'" :class="activeTab === 'info' ? 'bg-blue-200 text-blue-900 shadow-sm' : 'text-blue-700 hover:bg-blue-100'" class="rounded-md px-3 py-1 text-xs font-semibold transition">Info ({{ categorizedIssues.info.length }})</button>
               </div>
-            </li>
-          </ul>
+            </div>
+            <a v-if="result.batch_id" :href="`/trouble-report/import/batch/${result.batch_id}/issues/csv`" target="_blank" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900">
+              <Download :size="14" aria-hidden="true" />
+              Unduh CSV
+            </a>
+          </div>
+          
+          <div class="max-h-[500px] overflow-y-auto bg-white">
+            <ul class="divide-y divide-slate-100">
+              <li v-for="(issue, index) in categorizedIssues[activeTab]" :key="`${issue.sheet_name}-${issue.source_row}-${index}`" class="flex gap-4 px-5 py-4 transition-colors" :class="{
+                'bg-red-50/50 hover:bg-red-50': issue.severity === 'error',
+                'bg-amber-50/50 hover:bg-amber-50': issue.severity === 'warning',
+                'bg-blue-50/50 hover:bg-blue-50': issue.severity === 'info'
+              }">
+                <XCircle v-if="issue.severity === 'error'" class="mt-0.5 shrink-0 text-red-600" :size="18" aria-hidden="true" />
+                <AlertTriangle v-else-if="issue.severity === 'warning'" class="mt-0.5 shrink-0 text-amber-600" :size="18" aria-hidden="true" />
+                <Info v-else class="mt-0.5 shrink-0 text-blue-600" :size="18" aria-hidden="true" />
+                
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold" :class="{
+                    'text-red-900': issue.severity === 'error',
+                    'text-amber-900': issue.severity === 'warning',
+                    'text-blue-900': issue.severity === 'info'
+                  }">{{ issue.message }}</p>
+                  <p class="mt-1 text-xs font-medium" :class="{
+                    'text-red-700': issue.severity === 'error',
+                    'text-amber-700': issue.severity === 'warning',
+                    'text-blue-700': issue.severity === 'info'
+                  }">
+                    {{ issue.sheet_name || 'Workbook' }}
+                    <template v-if="issue.source_row"> · Baris {{ issue.source_row }}</template>
+                    <template v-if="issue.source_column"> · Kolom {{ issue.source_column }}</template>
+                  </p>
+                </div>
+              </li>
+            </ul>
+          </div>
         </div>
 
         <div v-else class="flex items-center gap-2 border-t border-slate-200 px-5 py-4 text-sm text-emerald-700">

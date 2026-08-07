@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Models\RamsImportBatch;
 use App\Models\UnitKerja;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Throwable;
 
@@ -22,7 +23,7 @@ final class FailureLogImportService
     ) {}
 
     /** @return array<string, mixed> */
-    public function import(UploadedFile $workbook, UnitKerja $unit): array
+    public function import(UploadedFile $workbook, UnitKerja $unit, bool $dryRun = false): array
     {
         $path = $workbook->getRealPath();
         if (! is_string($path) || $path === '') {
@@ -46,7 +47,7 @@ final class FailureLogImportService
             'workbook_name' => $workbook->getClientOriginalName(),
             'file_size' => $workbook->getSize() ?: 0,
             'status' => 'processing',
-            'dry_run' => false,
+            'dry_run' => $dryRun,
             'summary' => null,
             'error_message' => null,
             'started_at' => now(),
@@ -54,6 +55,7 @@ final class FailureLogImportService
         ])->save();
         $batch->issues()->delete();
 
+        DB::beginTransaction();
         try {
             // Step 1: Auto-create/update master aset (AssetGroup, AssetSystem, AssetSubsystem, Asset)
             // berdasarkan sheet "Predictive Data Asset" dalam workbook yang sama.
@@ -64,19 +66,27 @@ final class FailureLogImportService
             $snapshotSummary = $this->snapshotImporter->import($path, $unit, $workbook->getClientOriginalName());
             $paritySummary = $this->parityService->recalculateUnit($unit);
             $summary['snapshots'] = (int) ($snapshotSummary['snapshots'] ?? 0);
-            $summary['parity'] = $paritySummary;
+            $summary['parity'] = $paritySummary['counts'];
             $summary['master_assets_created'] = (int) ($masterSummary['created'] ?? 0);
             $summary['master_assets_updated'] = (int) ($masterSummary['updated'] ?? 0);
             $summary['issues'] = [
                 ...($summary['issues'] ?? []),
                 ...($snapshotSummary['issues'] ?? []),
+                ...($paritySummary['issues'] ?? []),
             ];
+
+            if ($dryRun) {
+                DB::rollBack();
+            } else {
+                DB::commit();
+            }
+
             foreach ($summary['issues'] ?? [] as $issue) {
                 $batch->issues()->create([
                     'sheet_name' => $issue['sheet_name'] ?? null,
                     'source_row' => $issue['source_row'] ?? null,
                     'source_column' => $issue['source_column'] ?? null,
-                    'severity' => 'warning',
+                    'severity' => $issue['severity'] ?? 'warning',
                     'message' => $issue['message'],
                 ]);
             }
@@ -89,6 +99,10 @@ final class FailureLogImportService
 
             return $this->result($batch, $unit, $summary);
         } catch (Throwable $exception) {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+            
             $batch->update([
                 'status' => 'failed',
                 'error_message' => $exception->getMessage(),
@@ -137,6 +151,7 @@ final class FailureLogImportService
         return [
             'batch_id' => $batch->id,
             'status' => 'succeeded',
+            'dry_run' => $batch->dry_run,
             'workbook' => $batch->workbook_name,
             'unit' => $unit->only(['id', 'code', 'name']),
             'master_assets_created' => (int) ($summary['master_assets_created'] ?? 0),
@@ -158,7 +173,7 @@ final class FailureLogImportService
                 'sheet_name' => $issue['sheet_name'] ?? null,
                 'source_row' => $issue['source_row'] ?? null,
                 'source_column' => $issue['source_column'] ?? null,
-                'severity' => 'warning',
+                'severity' => $issue['severity'] ?? 'warning',
                 'message' => $issue['message'],
             ], $summary['issues'] ?? []),
         ];

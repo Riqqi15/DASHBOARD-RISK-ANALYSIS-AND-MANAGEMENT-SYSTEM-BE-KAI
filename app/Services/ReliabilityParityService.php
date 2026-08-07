@@ -31,31 +31,55 @@ final class ReliabilityParityService
 
     public function __construct(private readonly ExcelParityReliabilityCalculator $calculator) {}
 
-    /** @return array<string, int> */
+    /** @return array{counts: array<string, int>, issues: list<array<string, mixed>>} */
     public function recalculateUnit(UnitKerja $unit): array
     {
-        $result = [
+        $counts = [
             'calculated' => 0,
             'matched' => 0,
             'mismatch' => 0,
             'excel_data_missing' => 0,
             'not_compared' => 0,
         ];
+        $issues = [];
 
         Asset::query()
             ->where('unit_kerja_id', $unit->id)
             ->with('assetSubsystem')
             ->get()
-            ->each(function (Asset $asset) use (&$result): void {
+            ->each(function (Asset $asset) use (&$counts, &$issues): void {
                 $summary = $this->recalculateAsset($asset);
                 if (! $summary) {
                     return;
                 }
-                $result['calculated']++;
-                $result[$summary->parity_status] = ($result[$summary->parity_status] ?? 0) + 1;
+                $counts['calculated']++;
+                $counts[$summary->parity_status] = ($counts[$summary->parity_status] ?? 0) + 1;
+
+                if ($summary->parity_status === 'mismatch' && $summary->parity_differences) {
+                    $mismatches = [];
+                    $causes = [];
+                    foreach ($summary->parity_differences as $key => $diff) {
+                        $mismatches[] = "{$key} (Sistem: {$diff['backend']}, Excel: {$diff['excel']})";
+                        if (in_array($key, ['failure_count', 'spare_part_replacement_count', 'vandalism_count'])) {
+                            $causes['log_missing'] = 'Ada log kerusakan di Excel yang dilewati sistem (format salah/kosong), atau salah hitung manual.';
+                        } elseif (in_array($key, ['downtime_value', 'uptime_hours', 'operating_hours'])) {
+                            $causes['duration_error'] = 'Kesalahan penjumlahan durasi jam/menit (downtime/uptime) pada Excel.';
+                        } elseif (in_array($key, ['mttf_hours', 'mtbf_hours', 'failure_rate', 'reliability', 'availability'])) {
+                            $causes['formula_error'] = 'Kemungkinan besar rumus formula keandalan (pembagian/eksponensial) di Excel keliru atau salah ketik.';
+                        }
+                    }
+                    $causeText = empty($causes) ? 'Periksa kembali data pada Excel.' : implode(' ', array_values($causes));
+                    $issues[] = [
+                        'sheet_name' => 'Ringkasan Keandalan',
+                        'source_row' => null,
+                        'source_column' => null,
+                        'message' => "Selisih parity pada aset {$asset->nama_aset}. Detail: " . implode(', ', $mismatches) . ". Penyebab: {$causeText}",
+                        'severity' => 'warning',
+                    ];
+                }
             });
 
-        return $result;
+        return ['counts' => $counts, 'issues' => $issues];
     }
 
     public function recalculateAsset(Asset $asset, ?CarbonImmutable $fallbackCalculationDate = null): ?ReliabilitySummary

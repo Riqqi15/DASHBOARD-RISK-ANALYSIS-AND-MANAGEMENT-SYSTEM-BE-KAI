@@ -34,7 +34,11 @@ final class FailureLogImportController extends Controller
 
     public function store(ImportFailureLogsRequest $request, FailureLogImportService $service): RedirectResponse
     {
-        $result = $service->import($request->file('workbook'), $request->selectedUnit());
+        $result = $service->import(
+            $request->file('workbook'),
+            $request->selectedUnit(),
+            (bool) $request->validated('dry_run', false)
+        );
         $redirect = to_route('failure-logs.import.index')->with('import_result', $result);
 
         if ($result['status'] === 'failed') {
@@ -47,5 +51,35 @@ final class FailureLogImportController extends Controller
             : "Import Trouble Report selesai dengan {$issueCount} masalah yang dilewati.";
 
         return $redirect->with('success', $message);
+    }
+
+    public function downloadIssues(Request $request, string $batchId): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $batch = \App\Models\RamsImportBatch::query()->findOrFail($batchId);
+        $issues = $batch->issues()->get();
+
+        $filename = "Daftar_Masalah_Import_{$batchId}.csv";
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        return response()->stream(function () use ($issues) {
+            $file = fopen('php://output', 'w');
+            // Add BOM for Excel UTF-8 support
+            fputs($file, "\xEF\xBB\xBF");
+            fputcsv($file, ['Sheet', 'Baris', 'Kolom', 'Keparahan', 'Pesan Masalah']);
+            foreach ($issues as $issue) {
+                fputcsv($file, [
+                    $issue->sheet_name ?? '-',
+                    $issue->source_row ?? '-',
+                    $issue->source_column ?? '-',
+                    strtoupper($issue->severity),
+                    $issue->message,
+                ]);
+            }
+            fclose($file);
+        }, 200, $headers);
     }
 }

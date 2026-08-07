@@ -185,6 +185,7 @@ class FailureLogWorkbookImporter
                     'source_row' => $row,
                     'source_column' => $cause === '' ? 'Penyebab' : 'Tindakan',
                     'message' => 'Penyebab atau tindakan kosong.',
+                    'severity' => 'error',
                 ];
 
                 continue;
@@ -215,6 +216,7 @@ class FailureLogWorkbookImporter
                     'source_row' => $row,
                     'source_column' => 'Tanggal/Waktu',
                     'message' => $exception->getMessage(),
+                    'severity' => 'error',
                 ];
 
                 continue;
@@ -228,6 +230,7 @@ class FailureLogWorkbookImporter
                     'source_row' => $row,
                     'source_column' => 'Tanggal Jam Penanganan',
                     'message' => 'Tanggal penanganan sebelum tanggal kejadian; tanggal kejadian dan waktu selesai digunakan mengikuti formula Excel.',
+                    'severity' => 'warning',
                 ];
                 $resolvedAt = $this->resolvedAtFromExcelTimeFormula($sheet, $columns, $row, $startedAt);
             }
@@ -281,6 +284,13 @@ class FailureLogWorkbookImporter
                 $result['updated']++;
             } else {
                 $result['unchanged']++;
+                $result['issues'][] = [
+                    'sheet_name' => $sheetName,
+                    'source_row' => $row,
+                    'source_column' => 'Baris Utuh',
+                    'message' => 'Data duplikat atau sudah ada di sistem dan tidak ada perubahan (dilewati).',
+                    'severity' => 'info',
+                ];
             }
         }
     }

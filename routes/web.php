@@ -29,6 +29,7 @@ Route::middleware(['auth', 'active'])->group(function (): void {
     Route::get('/overview', [RamsDashboardController::class, 'overview'])->name('overview');
     Route::get('/trouble-report/import', [FailureLogImportController::class, 'index'])->name('failure-logs.import.index');
     Route::post('/trouble-report/import', [FailureLogImportController::class, 'store'])->name('failure-logs.import.store');
+    Route::get('/trouble-report/import/batch/{batchId}/issues/csv', [FailureLogImportController::class, 'downloadIssues'])->name('failure-logs.import.issues.csv');
     Route::get('/trouble-report', [RamsDashboardController::class, 'troubleReport'])->name('trouble-report');
     Route::post('/trouble-report', [FailureLogController::class, 'store'])->name('failure-logs.store');
     Route::put('/trouble-report/{log}', [FailureLogController::class, 'update'])->name('failure-logs.update');

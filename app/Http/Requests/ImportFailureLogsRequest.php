@@ -33,6 +33,7 @@ final class ImportFailureLogsRequest extends FormRequest
                 'required',
                 File::types(['xlsx', 'xlsm'])->max(50 * 1024),
             ],
+            'dry_run' => ['nullable', 'boolean'],
         ];
     }
 
