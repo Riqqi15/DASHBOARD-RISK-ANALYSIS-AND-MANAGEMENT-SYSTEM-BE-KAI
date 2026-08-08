@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['name', 'normalized_name', 'sort_order', 'is_active'])]
+#[Fillable(['name', 'normalized_name', 'sort_order', 'dashboard_color', 'dashboard_color_source', 'is_active'])]
 class AssetGroup extends Model
 {
     /** @use HasFactory<AssetGroupFactory> */

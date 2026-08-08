@@ -70,7 +70,7 @@ const levelDetails = {
 
 const openCreate = (level) => {
   if (!canManage.value) return
-  const data = { name: '', sort_order: 0 }
+  const data = { name: '', sort_order: 0, dashboard_color: null }
   if (level === 'system') data.asset_group_id = activeGroupId.value
   if (level === 'subsystem') data.asset_system_id = activeSystemId.value
   categoryForm.value = useForm(data)
@@ -79,7 +79,11 @@ const openCreate = (level) => {
 
 const openEdit = (level, category) => {
   if (!canManage.value) return
-  categoryForm.value = useForm({ name: category.name, sort_order: category.sort_order })
+  categoryForm.value = useForm({
+    name: category.name,
+    sort_order: category.sort_order,
+    dashboard_color: category.dashboard_color,
+  })
   categoryDialog.value = { mode: 'edit', level, category }
 }
 

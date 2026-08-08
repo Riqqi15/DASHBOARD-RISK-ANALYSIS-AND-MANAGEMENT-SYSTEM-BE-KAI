@@ -35,6 +35,7 @@ class SparePartController extends Controller
                     ...$values,
                     'source_key' => hash('sha256', 'manual|'.$values['code']),
                     'is_active' => true,
+                    'reorder_calculated_at' => now(),
                 ]);
                 $this->auditLogger->record(
                     'spare_part.created',
@@ -66,6 +67,7 @@ class SparePartController extends Controller
                     return false;
                 }
 
+                $part->reorder_calculated_at = now();
                 $part->save();
                 $this->auditLogger->record(
                     'spare_part.updated',
@@ -148,7 +150,6 @@ class SparePartController extends Controller
             'reorder_point' => $calculation['reorder_point'],
             'reorder_calculation_status' => $calculation['calculation_status'],
             'reorder_formula_version' => $calculation['formula_version'],
-            'reorder_calculated_at' => now(),
         ];
     }
 

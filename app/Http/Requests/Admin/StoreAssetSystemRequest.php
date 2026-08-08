@@ -30,6 +30,7 @@ class StoreAssetSystemRequest extends FormRequest
                 Rule::unique('asset_systems', 'normalized_name')->where(fn ($query) => $query->where('asset_group_id', $this->input('asset_group_id'))),
             ],
             'sort_order' => ['required', 'integer', 'min:0', 'max:65535'],
+            'dashboard_color' => ['nullable', 'regex:/^#[0-9A-F]{6}$/i'],
         ];
     }
 
@@ -40,6 +41,7 @@ class StoreAssetSystemRequest extends FormRequest
             'name' => $name,
             'normalized_name' => mb_strtolower($name),
             'sort_order' => $this->input('sort_order') ?? 0,
+            'dashboard_color' => ($color = mb_strtoupper(trim((string) $this->input('dashboard_color')))) !== '' ? $color : null,
         ]);
     }
 

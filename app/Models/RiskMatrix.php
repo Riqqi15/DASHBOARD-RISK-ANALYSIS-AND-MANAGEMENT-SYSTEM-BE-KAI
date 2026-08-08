@@ -10,7 +10,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['asset_id', 'likelihood', 'consequence', 'assessed_at'])]
+#[Fillable([
+    'asset_id', 'source_key', 'workbook_hash', 'workbook_name', 'sheet_name', 'source_row',
+    'likelihood', 'consequence', 'excel_values', 'excel_formulas', 'parity_status',
+    'parity_differences', 'formula_version', 'assessed_at',
+])]
 class RiskMatrix extends Model
 {
     /** @use HasFactory<RiskMatrixFactory> */
@@ -47,6 +51,9 @@ class RiskMatrix extends Model
         return [
             'likelihood' => 'integer',
             'consequence' => 'integer',
+            'excel_values' => 'array',
+            'excel_formulas' => 'array',
+            'parity_differences' => 'array',
             'assessed_at' => 'datetime',
         ];
     }

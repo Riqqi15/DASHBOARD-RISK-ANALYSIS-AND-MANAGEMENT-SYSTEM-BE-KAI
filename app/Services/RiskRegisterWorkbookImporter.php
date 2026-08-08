@@ -20,6 +20,17 @@ class RiskRegisterWorkbookImporter
         private readonly RiskAssessmentCalculator $riskAssessmentCalculator,
     ) {}
 
+    public function supports(string $workbookPath): bool
+    {
+        if (! is_file($workbookPath)) {
+            return false;
+        }
+
+        $reader = IOFactory::createReaderForFile($workbookPath);
+
+        return in_array(self::SHEET, $reader->listWorksheetNames($workbookPath), true);
+    }
+
     /** @return array{created: int, updated: int, unchanged: int, skipped: int, issues: list<array{sheet_name: string, source_row: int, message: string}>} */
     public function import(string $workbookPath, UnitKerja $unit): array
     {

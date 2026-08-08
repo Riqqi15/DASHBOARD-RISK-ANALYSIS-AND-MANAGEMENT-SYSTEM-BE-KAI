@@ -9,6 +9,8 @@ use App\Models\AssetSubsystem;
 use App\Models\RamsImportBatch;
 use App\Models\RamsImportIssue;
 use App\Models\ReliabilitySummary;
+use App\Models\RiskRegister;
+use App\Models\SparePart;
 use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -96,6 +98,8 @@ final class FailureLogImportUploadTest extends TestCase
         $subsystem = AssetSubsystem::factory()->create(['name' => 'Interlocking Elektrik']);
         Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create(['jumlah_unit' => 2]);
         $user = User::factory()->unit($unit)->create();
+        User::factory()->pusat()->create(['username' => 'pusat-audit']);
+        $usersBefore = User::query()->orderBy('id')->get()->map->getRawOriginal()->all();
         $workbook = $this->uploadedWorkbook();
 
         $response = $this->actingAs($user)->post('/trouble-report/import', [
@@ -105,18 +109,29 @@ final class FailureLogImportUploadTest extends TestCase
 
         $response->assertRedirect('/trouble-report/import')
             ->assertSessionHas('success')
-            ->assertSessionHas('import_result', fn (array $result): bool => $result['status'] === 'succeeded'
-                && $result['created'] === 1
-                && $result['snapshots'] === 1
-                && $result['parity']['calculated'] === 1
-                && $result['skipped'] === 1
-                && count($result['issues']) === 1);
+            ->assertSessionHas('import_result');
+        $result = $response->getSession()->get('import_result');
+        $this->assertSame('succeeded', $result['status']);
+        $this->assertSame(1, $result['created']);
+        $this->assertSame(1, $result['risk_registers_created']);
+        $this->assertSame(1, $result['spare_parts_created']);
+        $this->assertSame(1, $result['snapshots']);
+        $this->assertSame(1, $result['parity']['calculated']);
+        $this->assertSame(1, $result['skipped']);
+        $this->assertCount(3, $result['issues']);
         $this->assertSame($unit->id, RamsImportBatch::query()->sole()->unit_kerja_id);
         $this->assertSame('succeeded', RamsImportBatch::query()->sole()->status);
-        $this->assertSame(11, RamsImportIssue::query()->sole()->source_row);
+        $this->assertSame(11, RamsImportIssue::query()->whereNotNull('source_row')->sole()->source_row);
         $this->assertDatabaseCount('failure_logs', 1);
+        $this->assertSame('Gangguan interlocking', RiskRegister::query()->sole()->risk_event);
+        $this->assertSame('Modul relay', SparePart::query()->sole()->detail_equipment);
         $this->assertDatabaseCount('reliability_excel_snapshots', 1);
         $this->assertSame('mismatch', ReliabilitySummary::query()->sole()->parity_status);
+        $this->assertSame(
+            $usersBefore,
+            User::query()->orderBy('id')->get()->map->getRawOriginal()->all(),
+            'Import workbook tidak boleh membuat atau mengubah akun pengguna.',
+        );
     }
 
     private function uploadedWorkbook(): UploadedFile
@@ -180,6 +195,30 @@ final class FailureLogImportUploadTest extends TestCase
         }
         $sheet->setCellValue('K10', '09/03/2020');
         $sheet->setCellValueExplicit('K11', '#DIV/0!', DataType::TYPE_ERROR);
+
+        $riskRegister = $spreadsheet->createSheet();
+        $riskRegister->setTitle('LxC');
+        $riskRegister->fromArray([
+            'No', 'System', 'Subsystem', 'Risk Event', 'Risk Cause', 'Impact',
+            'Part Name', 'Likelihood', 'Consequence',
+        ], null, 'A1');
+        $riskRegister->fromArray([
+            1, 'Sinyal Elektrik', 'Interlocking Elektrik', 'Gangguan interlocking',
+            'Modul gagal', 'Perjalanan terganggu', 'Modul relay', 2, 3,
+        ], null, 'A2');
+
+        $reorder = $spreadsheet->createSheet();
+        $reorder->setTitle('Reorder Stock');
+        $reorder->fromArray([
+            'System', 'Sub-System', 'Equipment', 'Detail Equipment',
+            'Max yearly Failure', 'Average Yearly Failure', 'Max Lead Time (Month)',
+            'Average Lead Time (Month)', 'Safety Stock', 'Lead Time Demand',
+            'Reorder Point', 'Severity Equipment',
+        ], null, 'A1');
+        $reorder->fromArray([
+            'Peralatan Dalam Sinyal Elektrik', 'Interlocking Elektrik',
+            'Interlocking Elektrik', 'Modul relay', 4, 2, 3, 2, 8, 4, 12, 'High',
+        ], null, 'A2');
 
         (new Xlsx($spreadsheet))->save($path);
         $spreadsheet->disconnectWorksheets();

@@ -33,6 +33,8 @@ class AssetSubsystemController extends Controller
                     'asset_system_id' => $system->id,
                     'name' => $request->validated('name'),
                     'sort_order' => $request->validated('sort_order'),
+                    'dashboard_color' => $request->validated('dashboard_color'),
+                    'dashboard_color_source' => $request->validated('dashboard_color') ? 'manual' : null,
                 ]);
                 $this->auditLogger->record('asset_category.created', $subsystem, [], $this->auditValues($subsystem));
 
@@ -55,6 +57,8 @@ class AssetSubsystemController extends Controller
                 $assetSubsystem->update([
                     'name' => $request->validated('name'),
                     'sort_order' => $request->validated('sort_order'),
+                    'dashboard_color' => $request->validated('dashboard_color'),
+                    'dashboard_color_source' => $request->validated('dashboard_color') ? 'manual' : null,
                 ]);
                 $this->auditLogger->record('asset_category.updated', $assetSubsystem, $before, $this->auditValues($assetSubsystem->fresh()));
             });
@@ -136,6 +140,8 @@ class AssetSubsystemController extends Controller
             'parent_id' => $subsystem->asset_system_id,
             'name' => $subsystem->name,
             'sort_order' => $subsystem->sort_order,
+            'dashboard_color' => $subsystem->dashboard_color,
+            'dashboard_color_source' => $subsystem->dashboard_color_source,
             'is_active' => $subsystem->is_active,
         ];
     }

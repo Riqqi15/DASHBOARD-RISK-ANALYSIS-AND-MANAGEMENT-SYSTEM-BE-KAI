@@ -11,6 +11,7 @@ use App\Models\StockMovement;
 use App\Models\User;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -127,6 +128,9 @@ class SparePartManagementTest extends TestCase
 
     public function test_pusat_can_update_fields_without_changing_import_source_semantics_and_noop_does_not_write_or_audit(): void
     {
+        $clock = Carbon::parse('2026-08-08 10:00:00');
+        Carbon::setTestNow($clock);
+        $this->beforeApplicationDestroyed(fn () => Carbon::setTestNow());
         $pusat = User::factory()->pusat()->create();
         $targetSubsystem = AssetSubsystem::factory()->create();
         $part = SparePart::factory()->create([
@@ -176,6 +180,8 @@ class SparePartManagementTest extends TestCase
                 $writes[] = $sql;
             }
         });
+
+        Carbon::setTestNow($clock->addSecond());
 
         $this->actingAs($pusat)->put(route('admin.spare-parts.update', $part), $payload)
             ->assertRedirect(route('inventory', ['tab' => 'master']))

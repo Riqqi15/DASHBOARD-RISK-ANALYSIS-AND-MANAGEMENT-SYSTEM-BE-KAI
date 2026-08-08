@@ -34,15 +34,15 @@ class AssetCategoryController extends Controller
             ->orderBy('name')
             ->get()
             ->map(fn (AssetGroup $group): array => [
-                ...$group->only(['id', 'name', 'sort_order', 'is_active']),
+                ...$group->only(['id', 'name', 'sort_order', 'dashboard_color', 'dashboard_color_source', 'is_active']),
                 'systems_count' => $group->systems_count,
                 'aliases_count' => (int) ($aliases->get('group')?->get($group->id) ?? 0),
                 'systems' => $group->systems->map(fn ($system): array => [
-                    ...$system->only(['id', 'asset_group_id', 'name', 'sort_order', 'is_active']),
+                    ...$system->only(['id', 'asset_group_id', 'name', 'sort_order', 'dashboard_color', 'dashboard_color_source', 'is_active']),
                     'subsystems_count' => $system->subsystems_count,
                     'aliases_count' => (int) ($aliases->get('system')?->get($system->id) ?? 0),
                     'subsystems' => $system->subsystems->map(fn ($subsystem): array => [
-                        ...$subsystem->only(['id', 'asset_system_id', 'name', 'sort_order', 'is_active']),
+                        ...$subsystem->only(['id', 'asset_system_id', 'name', 'sort_order', 'dashboard_color', 'dashboard_color_source', 'is_active']),
                         'assets_count' => $subsystem->assets_count,
                         'aliases_count' => (int) ($aliases->get('subsystem')?->get($subsystem->id) ?? 0),
                     ])->values()->all(),

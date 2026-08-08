@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\StockMovementType;
+use App\Models\Asset;
 use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
@@ -10,6 +11,7 @@ use App\Models\InventoryStock;
 use App\Models\SparePart;
 use App\Models\StockMovement;
 use App\Models\UnitKerja;
+use App\Services\InventoryReconciliationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -23,11 +25,13 @@ class InventoryController extends Controller
 {
     private const STOCK_STATUSES = ['all', 'available', 'below_reorder', 'critical', 'empty'];
 
-    private const TABS = ['stock', 'history', 'master'];
+    private const TABS = ['stock', 'history', 'predictive', 'reconciliation', 'master'];
+
+    private const RECONCILIATION_STATUSES = ['all', 'matched', 'difference', 'missing_ledger', 'missing_excel', 'ambiguous'];
 
     private const MAX_PAGE = 1_000_000;
 
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request, InventoryReconciliationService $reconciliationService): Response
     {
         Gate::authorize('viewAny', InventoryStock::class);
 
@@ -85,6 +89,10 @@ class InventoryController extends Controller
             ],
             'stocks' => $stocks,
             'movements' => $movements,
+            'predictiveAssets' => $this->predictiveAssets($request, $filters),
+            'reconciliation' => $filters['tab'] === 'reconciliation'
+                ? $reconciliationService->reconcile($request->user(), $filters)
+                : ['rows' => [], 'stats' => ['total' => 0, 'matched' => 0, 'difference' => 0, 'missing_ledger' => 0, 'missing_excel' => 0, 'ambiguous' => 0]],
             'spareParts' => $this->spareParts($request, $filters),
             'categories' => $this->categories(),
             'units' => $request->user()->isPusat() ? $this->activeUnits() : [],
@@ -97,6 +105,57 @@ class InventoryController extends Controller
         ]);
     }
 
+    /** @param array<string, string> $filters
+     * @return array<int, array<string, mixed>>
+     */
+    private function predictiveAssets(Request $request, array $filters): array
+    {
+        return Asset::query()
+            ->visibleTo($request->user())
+            ->when($filters['unit_kerja_id'] !== '', fn (Builder $query): Builder => $query->where('unit_kerja_id', (int) $filters['unit_kerja_id']))
+            ->when($filters['asset_group_id'] !== '', fn (Builder $query): Builder => $query->whereHas(
+                'assetSubsystem.assetSystem',
+                fn (Builder $systems): Builder => $systems->where('asset_group_id', (int) $filters['asset_group_id']),
+            ))
+            ->when($filters['asset_subsystem_id'] !== '', fn (Builder $query): Builder => $query->where('asset_subsystem_id', (int) $filters['asset_subsystem_id']))
+            ->search($filters['search'])
+            ->whereHas('latestPredictiveAssetSnapshot')
+            ->with([
+                'unitKerja:id,code,name',
+                'assetSubsystem.assetSystem.assetGroup',
+                'latestPredictiveAssetSnapshot',
+            ])
+            ->orderBy('nama_aset')
+            ->get()
+            ->map(function (Asset $asset): array {
+                $snapshot = $asset->latestPredictiveAssetSnapshot;
+
+                return [
+                    'asset_id' => $asset->id,
+                    'name' => $asset->nama_aset,
+                    'unit' => $asset->unitKerja?->only(['id', 'code', 'name']),
+                    'category' => [
+                        'group' => $asset->assetSubsystem?->assetSystem?->assetGroup?->name,
+                        'system' => $asset->assetSubsystem?->assetSystem?->name,
+                        'subsystem' => $asset->assetSubsystem?->name,
+                    ],
+                    'current_stock' => $snapshot?->current_stock,
+                    'needed_stock' => $snapshot?->needed_stock,
+                    'proposal_quantity' => $snapshot?->proposal_quantity,
+                    'inventory_policy' => $snapshot?->inventory_policy,
+                    'final_safety_stock' => $snapshot?->final_safety_stock,
+                    'age_condition' => $snapshot?->age_condition,
+                    'lifetime_status' => $snapshot?->lifetime_status,
+                    'parity_status' => $snapshot?->parity_status,
+                    'parity_differences' => $snapshot?->parity_differences,
+                    'formula_version' => $snapshot?->formula_version,
+                    'calculated_at' => $snapshot?->calculated_at?->toIso8601String(),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
     /** @return array<string, string> */
     private function filters(Request $request): array
     {
@@ -106,6 +165,7 @@ class InventoryController extends Controller
         $stockStatus = $this->scalarString($request->input('stock_status'));
         $tab = $this->scalarString($request->input('tab'));
         $movementType = $this->scalarString($request->input('movement_type'));
+        $reconciliationStatus = $this->scalarString($request->input('reconciliation_status'));
         $dateFrom = $this->date($request->input('date_from'));
         $dateTo = $this->date($request->input('date_to'));
 
@@ -122,6 +182,7 @@ class InventoryController extends Controller
             'unit_kerja_id' => ($unitId = $this->activeUnitId($request)) ? (string) $unitId : '',
             'tab' => in_array($tab, self::TABS, true) ? $tab : 'stock',
             'movement_type' => StockMovementType::tryFrom($movementType)?->value ?? '',
+            'reconciliation_status' => in_array($reconciliationStatus, self::RECONCILIATION_STATUSES, true) ? $reconciliationStatus : 'all',
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
             'master_page' => (string) $this->page($request->input('master_page')),

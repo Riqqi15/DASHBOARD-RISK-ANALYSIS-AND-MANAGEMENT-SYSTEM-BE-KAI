@@ -42,6 +42,17 @@ class SparePartWorkbookImporter
         private readonly ReorderStockCalculator $reorderStockCalculator,
     ) {}
 
+    public function supports(string $workbookPath): bool
+    {
+        if (! is_file($workbookPath)) {
+            return false;
+        }
+
+        $reader = IOFactory::createReaderForFile($workbookPath);
+
+        return in_array(self::SHEET, $reader->listWorksheetNames($workbookPath), true);
+    }
+
     /**
      * @return array{created: int, updated: int, unchanged: int, skipped: int}
      */

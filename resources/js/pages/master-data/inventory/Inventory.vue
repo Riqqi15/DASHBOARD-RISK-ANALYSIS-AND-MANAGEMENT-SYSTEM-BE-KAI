@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
-import { AlertCircle, ArrowRightLeft, Building2, PackagePlus, Pencil, RefreshCw, Warehouse } from 'lucide-vue-next'
+import { AlertCircle, ArrowRightLeft, Building2, CheckCircle2, PackagePlus, Pencil, RefreshCw, Scale, TriangleAlert, Warehouse } from 'lucide-vue-next'
 import MainLayout from '@/layouts/MainLayout.vue'
 import InventoryStats from './Partials/InventoryStats.vue'
 import InventoryFilters from './Partials/InventoryFilters.vue'
@@ -14,6 +14,8 @@ const props = defineProps({
   stats: { type: Object, required: true },
   stocks: { type: Object, required: true },
   movements: { type: Object, required: true },
+  predictiveAssets: { type: Array, default: () => [] },
+  reconciliation: { type: Object, default: () => ({ rows: [], stats: {} }) },
   spareParts: { type: Array, required: true },
   categories: { type: Array, required: true },
   units: { type: Array, required: true },
@@ -24,6 +26,7 @@ const props = defineProps({
 const normalizedFilters = (filters) => ({
   ...filters,
   tab: filters.tab === 'master' && !props.can.manage_master ? 'stock' : filters.tab,
+  reconciliation_status: filters.reconciliation_status || 'all',
   master_page: String(filters.master_page || '1'),
 })
 const filterState = reactive(normalizedFilters(props.filters))
@@ -46,6 +49,8 @@ const activeTab = computed(() => filterState.tab)
 const tabs = computed(() => [
   { key: 'stock', label: 'Stok Saat Ini', count: props.stocks.total ?? props.stocks.data.length },
   { key: 'history', label: 'Riwayat Transaksi', count: props.movements.total ?? props.movements.data.length },
+  { key: 'predictive', label: 'Predictive Data Asset', count: props.predictiveAssets.length },
+  { key: 'reconciliation', label: 'Rekonsiliasi Excel', count: props.reconciliation.stats?.total ?? props.reconciliation.rows.length },
   ...(props.can.manage_master ? [{ key: 'master', label: 'Master Suku Cadang', count: props.spareParts.length }] : []),
 ])
 const selectedUnit = computed(() => props.units.find((unit) => String(unit.id) === String(filterState.unit_kerja_id)))
@@ -56,7 +61,8 @@ const unitContext = computed(() => props.can.choose_unit
 const hasActiveFilters = computed(() => Boolean(
   filterState.search || filterState.asset_group_id || filterState.asset_subsystem_id || filterState.unit_kerja_id
   || (activeTab.value === 'stock' && filterState.stock_status !== 'all')
-  || (activeTab.value === 'history' && (filterState.movement_type || filterState.date_from || filterState.date_to)),
+  || (activeTab.value === 'history' && (filterState.movement_type || filterState.date_from || filterState.date_to))
+  || (activeTab.value === 'reconciliation' && filterState.reconciliation_status !== 'all')
 ))
 const masterPageSize = 50
 const masterPageCount = computed(() => Math.max(1, Math.ceil(props.spareParts.length / masterPageSize)))
@@ -101,6 +107,7 @@ const resetFilters = () => {
   Object.assign(filterState, {
     search: '', asset_group_id: '', asset_subsystem_id: '', stock_status: 'all', unit_kerja_id: '',
     movement_type: '', date_from: '', date_to: '',
+    reconciliation_status: 'all',
     master_page: '1',
   })
   masterPage.value = 1
@@ -167,6 +174,21 @@ onBeforeUnmount(() => {
 const masterCategory = (part) => part.category
   ? `${part.category.group.name} / ${part.category.system.name} / ${part.category.subsystem.name}`
   : 'Tanpa kategori'
+
+const predictiveStockLabel = (value) => Number(value) < 0 ? `Defisit stok ${Math.abs(Number(value))}` : String(value ?? '—')
+const parityLabel = (status) => ({
+  matched: 'Sesuai Excel', corrected: 'Dikoreksi backend', excel_data_missing: 'Data Excel kurang', not_compared: 'Belum dibandingkan',
+})[status] ?? status ?? 'Belum dibandingkan'
+const reconciliationLabel = (status) => ({
+  matched: 'Sesuai', difference: 'Ada selisih', missing_ledger: 'Belum ada stok ledger', missing_excel: 'Tidak ada referensi Excel', ambiguous: 'Kecocokan ambigu',
+})[status] ?? status
+const reconciliationTone = (status) => ({
+  matched: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  difference: 'border-orange-200 bg-orange-50 text-orange-800',
+  missing_ledger: 'border-red-200 bg-red-50 text-red-700',
+  missing_excel: 'border-blue-200 bg-blue-50 text-blue-700',
+  ambiguous: 'border-amber-200 bg-amber-50 text-amber-800',
+})[status] || 'border-slate-200 bg-slate-50 text-slate-700'
 </script>
 
 <template>
@@ -203,6 +225,70 @@ const masterCategory = (part) => part.category
 
       <InventoryTable v-if="activeTab === 'stock'" :stocks="stocks" :show-unit="can.choose_unit" :loading="loading" :error="loadError" :can-reset="hasActiveFilters" :can-record="can.record_movement" @movement="openMovement" @retry="visit()" @reset="resetFilters" @record="openMovement()" />
       <MovementHistory v-else-if="activeTab === 'history'" :movements="movements" :show-unit="can.choose_unit" :loading="loading" :error="loadError" :can-reset="hasActiveFilters" @correct="openCorrection" @retry="visit()" @reset="resetFilters" />
+
+      <section v-else-if="activeTab === 'predictive'" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="predictive-assets-title">
+        <div class="flex flex-col gap-1 border-b border-slate-200 bg-slate-50 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><h2 id="predictive-assets-title" class="text-sm font-semibold text-slate-950">Predictive Data Asset</h2><p class="mt-0.5 text-sm text-slate-500">Nilai rekomendasi backend dengan bukti perbandingan Excel.</p></div>
+          <span class="font-mono text-sm uppercase tracking-wider text-slate-500">{{ predictiveAssets.length }} aset</span>
+        </div>
+        <div v-if="predictiveAssets.length" class="overflow-x-auto">
+          <table class="w-full min-w-[1080px] text-left text-sm">
+            <thead class="border-b border-slate-200 bg-white text-sm font-semibold uppercase tracking-[0.1em] text-slate-500"><tr><th class="px-5 py-3">Aset</th><th class="px-4 py-3">Kebijakan</th><th class="px-4 py-3 text-right">Stok saat ini</th><th class="px-4 py-3 text-right">Kebutuhan</th><th class="px-4 py-3 text-right">Proposal</th><th class="px-4 py-3 text-right">Safety stock</th><th class="px-4 py-3">Umur</th><th class="px-5 py-3">Audit Excel</th></tr></thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="item in predictiveAssets" :key="item.asset_id" class="hover:bg-slate-50">
+                <td class="px-5 py-3"><p class="font-semibold text-slate-950">{{ item.name }}</p><p class="mt-1 text-sm text-slate-500">{{ item.category.group }} / {{ item.category.system }} / {{ item.category.subsystem }}</p><p v-if="can.choose_unit" class="mt-1 font-mono text-sm text-[#2d2a70]">{{ item.unit?.code }}</p></td>
+                <td class="px-4 py-3 text-slate-700">{{ item.inventory_policy }}</td>
+                <td class="px-4 py-3 text-right font-mono font-semibold" :class="Number(item.current_stock) < 0 ? 'text-red-700' : 'text-slate-800'">{{ predictiveStockLabel(item.current_stock) }}</td>
+                <td class="px-4 py-3 text-right font-mono text-slate-800">{{ item.needed_stock }}</td>
+                <td class="px-4 py-3 text-right font-mono font-semibold text-[#d95418]">{{ item.proposal_quantity }}</td>
+                <td class="px-4 py-3 text-right font-mono text-slate-800">{{ item.final_safety_stock }}</td>
+                <td class="px-4 py-3"><p class="text-slate-800">{{ item.age_condition || '—' }}</p><p class="mt-1 text-sm text-slate-500">{{ item.lifetime_status || 'Belum ada data umur' }}</p></td>
+                <td class="px-5 py-3"><span class="inline-flex rounded-full border px-2.5 py-1 text-sm font-semibold" :class="item.parity_status === 'matched' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : item.parity_status === 'corrected' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-slate-200 bg-slate-100 text-slate-600'">{{ parityLabel(item.parity_status) }}</span><p v-if="item.parity_differences" class="mt-1 text-sm text-slate-500">{{ Object.keys(item.parity_differences).length }} nilai berbeda</p></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="px-5 py-12 text-center"><h3 class="text-sm font-semibold text-slate-900">Belum ada data predictive</h3><p class="mt-1 text-sm text-slate-500">Import workbook RAMS untuk menampilkan rekomendasi kebutuhan stok.</p></div>
+      </section>
+
+      <section v-else-if="activeTab === 'reconciliation'" data-reconciliation class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="reconciliation-title">
+        <div class="border-b border-slate-200 bg-slate-50 px-5 py-4">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div class="flex items-start gap-3">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#171650] text-white"><Scale :size="20" aria-hidden="true" /></span>
+              <div><h2 id="reconciliation-title" class="text-sm font-semibold text-slate-950">Rekonsiliasi stok Excel dan ledger</h2><p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Perbandingan ini hanya untuk pemeriksaan. Koreksi harus dicatat sebagai transaksi IN/OUT atau koreksi resmi agar jejak audit tetap utuh.</p></div>
+            </div>
+            <label class="flex min-w-56 flex-col gap-1 text-sm font-semibold text-slate-700">Status
+              <select v-model="filterState.reconciliation_status" class="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-[#2d2a70] focus:ring-2 focus:ring-indigo-100" @change="changeFilter({ key: 'reconciliation_status', value: filterState.reconciliation_status })">
+                <option value="all">Semua status</option><option value="matched">Sesuai</option><option value="difference">Ada selisih</option><option value="missing_ledger">Belum ada stok ledger</option><option value="missing_excel">Tidak ada referensi Excel</option><option value="ambiguous">Kecocokan ambigu</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div class="rounded-lg border border-slate-200 p-3"><p class="text-sm font-medium text-slate-500">Total pembanding</p><p class="mt-1 font-mono text-xl font-bold text-slate-950">{{ reconciliation.stats.total ?? 0 }}</p></div>
+          <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3"><p class="text-sm font-medium text-emerald-700">Sesuai</p><p class="mt-1 font-mono text-xl font-bold text-emerald-900">{{ reconciliation.stats.matched ?? 0 }}</p></div>
+          <div class="rounded-lg border border-orange-200 bg-orange-50 p-3"><p class="text-sm font-medium text-orange-700">Ada selisih</p><p class="mt-1 font-mono text-xl font-bold text-orange-900">{{ reconciliation.stats.difference ?? 0 }}</p></div>
+          <div class="rounded-lg border border-red-200 bg-red-50 p-3"><p class="text-sm font-medium text-red-700">Ledger belum ada</p><p class="mt-1 font-mono text-xl font-bold text-red-900">{{ reconciliation.stats.missing_ledger ?? 0 }}</p></div>
+          <div class="rounded-lg border border-amber-200 bg-amber-50 p-3"><p class="text-sm font-medium text-amber-700">Perlu pemeriksaan</p><p class="mt-1 font-mono text-xl font-bold text-amber-900">{{ (reconciliation.stats.missing_excel ?? 0) + (reconciliation.stats.ambiguous ?? 0) }}</p></div>
+        </div>
+        <div v-if="reconciliation.rows.length" class="overflow-x-auto">
+          <table class="w-full min-w-[980px] text-left text-sm">
+            <thead class="border-b border-slate-200 bg-white font-semibold uppercase tracking-[0.1em] text-slate-500"><tr><th class="px-5 py-3">Aset / suku cadang</th><th class="px-4 py-3">Unit / subsystem</th><th class="px-4 py-3 text-right">Stok Excel</th><th class="px-4 py-3 text-right">Stok ledger</th><th class="px-4 py-3 text-right">Selisih</th><th class="px-5 py-3">Status</th></tr></thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="row in reconciliation.rows" :key="row.id" class="hover:bg-slate-50">
+                <td class="px-5 py-3"><p class="font-semibold text-slate-950">{{ row.asset_name || row.part_name || 'Tanpa nama' }}</p><p class="mt-1 font-mono text-sm text-slate-500">{{ row.part_code || 'Belum dipasangkan ke master suku cadang' }}</p></td>
+                <td class="px-4 py-3"><p class="font-mono font-semibold text-[#2d2a70]">{{ row.unit?.code || '—' }}</p><p class="mt-1 text-sm text-slate-500">{{ row.category?.subsystem || 'Tanpa subsystem' }}</p></td>
+                <td class="px-4 py-3 text-right font-mono font-semibold text-slate-800">{{ row.excel_stock ?? '—' }}</td>
+                <td class="px-4 py-3 text-right font-mono font-semibold text-slate-800">{{ row.ledger_stock ?? '—' }}</td>
+                <td class="px-4 py-3 text-right font-mono font-semibold" :class="row.difference ? 'text-orange-700' : 'text-slate-500'">{{ row.difference === null ? '—' : row.difference === 0 ? '0' : `Selisih ${row.difference}` }}</td>
+                <td class="px-5 py-3"><span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm font-semibold" :class="reconciliationTone(row.status)"><CheckCircle2 v-if="row.status === 'matched'" :size="15" /><TriangleAlert v-else :size="15" />{{ reconciliationLabel(row.status) }}</span><p v-if="row.status === 'ambiguous'" class="mt-1 text-sm text-slate-500">{{ row.candidate_count }} kandidat perlu dipilih manual</p></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="px-5 py-12 text-center"><Scale :size="34" class="mx-auto text-slate-300" /><h3 class="mt-3 text-sm font-semibold text-slate-900">Belum ada data rekonsiliasi</h3><p class="mt-1 text-sm text-slate-500">Import workbook dan catat stok pembukaan untuk mulai membandingkan.</p></div>
+      </section>
 
       <section v-else-if="activeTab === 'master' && can.manage_master" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="master-parts-title">
         <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3"><div><h2 id="master-parts-title" class="text-sm font-semibold text-slate-950">Master suku cadang global</h2><p class="mt-0.5 text-sm text-slate-500">{{ spareParts.length }} identitas barang dalam hasil filter</p></div><span class="font-mono text-sm uppercase tracking-wider text-slate-400">Pusat</span></div>

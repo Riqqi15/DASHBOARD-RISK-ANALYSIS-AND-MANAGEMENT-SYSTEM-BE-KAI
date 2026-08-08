@@ -65,6 +65,36 @@ defineEmits(['close', 'submit'])
             <p v-if="form.errors.sort_order" id="category-sort-error" role="alert" class="mt-2 text-sm text-red-600">{{ form.errors.sort_order }}</p>
           </div>
 
+          <div>
+            <div class="mb-2 flex items-center justify-between gap-3">
+              <label for="category-dashboard-color" class="text-sm font-medium text-slate-800">Warna aset di dashboard</label>
+              <span class="text-xs text-slate-500">Opsional</span>
+            </div>
+            <div class="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <input
+                id="category-dashboard-color"
+                type="color"
+                :value="form.dashboard_color || '#171650'"
+                :disabled="form.processing"
+                class="h-11 w-14 cursor-pointer rounded-md border border-slate-300 bg-white p-1 disabled:cursor-not-allowed"
+                aria-label="Pilih warna dashboard"
+                @input="form.dashboard_color = $event.target.value.toUpperCase()"
+              />
+              <input
+                v-model="form.dashboard_color"
+                type="text"
+                maxlength="7"
+                placeholder="#FF0000"
+                :disabled="form.processing"
+                :aria-invalid="Boolean(form.errors.dashboard_color)"
+                class="h-11 min-w-0 flex-1 rounded-lg border border-slate-300 px-3 font-mono text-sm uppercase outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10 disabled:bg-slate-100"
+              />
+              <button type="button" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-100" :disabled="form.processing || !form.dashboard_color" @click="form.dashboard_color = null">Reset</button>
+            </div>
+            <p class="mt-2 text-xs leading-5 text-slate-500">Warna manual tidak akan ditimpa saat workbook diimpor ulang. Reset untuk memakai warna Excel pada import berikutnya.</p>
+            <p v-if="form.errors.dashboard_color" role="alert" class="mt-2 text-sm text-red-600">{{ form.errors.dashboard_color }}</p>
+          </div>
+
           <div class="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
             <button type="button" class="h-11 rounded-lg border border-slate-300 px-5 text-sm font-medium text-slate-700 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#171650] disabled:opacity-60" :disabled="form.processing" @click="$emit('close')">Batal</button>
             <button type="submit" class="h-11 rounded-lg bg-[#F15A24] px-5 text-sm font-semibold text-white outline-none hover:bg-orange-700 focus-visible:ring-2 focus-visible:ring-[#171650] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60" :disabled="form.processing">

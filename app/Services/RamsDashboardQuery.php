@@ -24,12 +24,16 @@ class RamsDashboardQuery
     /** @return array<string, mixed> */
     public function dashboard(User $user, ?UnitKerja $unit): array
     {
+        $dashboardAssets = $this->dashboardAssetModels($user, $unit);
+
         return [
             'selected_area' => $unit?->code,
             'units' => $user->isPusat() ? $this->units() : [],
             'summary' => $this->summary($user, $unit),
-            'assets' => $this->assets($user, $unit),
-            'asset_categories' => $this->assetCategories(),
+            'assets' => $dashboardAssets
+                ->map(fn (Asset $asset): array => $this->assetPayload($asset))
+                ->all(),
+            'asset_categories' => $this->assetCategories($dashboardAssets),
         ];
     }
 
@@ -95,18 +99,6 @@ class RamsDashboardQuery
             'units' => $user->isPusat() ? $this->units() : [],
             'items' => $stocks->map(fn (InventoryStock $stock): array => $this->stockPayload($stock))->all(),
         ];
-    }
-
-    /** @return array<string, mixed> */
-    public function reorder(User $user, ?UnitKerja $unit): array
-    {
-        $inventory = $this->inventory($user, $unit);
-        $inventory['items'] = collect($inventory['items'])
-            ->filter(fn (array $item): bool => $item['quantity'] <= $item['reorder_point'])
-            ->values()
-            ->all();
-
-        return $inventory;
     }
 
     /** @return array<string, mixed> */
@@ -190,18 +182,21 @@ class RamsDashboardQuery
             ->get()
             ->unique('asset_id')
             ->filter(fn (ReliabilitySummary $summary): bool => $summary->calculation_status === 'calculated');
-        $calculatedReliability = $latestReliability->filter(
-            fn (ReliabilitySummary $summary): bool => $summary->reliability !== null && $summary->availability !== null,
+        $validReliability = $latestReliability->filter(
+            fn (ReliabilitySummary $summary): bool => $summary->reliability !== null,
         );
-        $overallReliability = $calculatedReliability->isEmpty()
+        $validAvailability = $latestReliability->filter(
+            fn (ReliabilitySummary $summary): bool => $summary->availability !== null,
+        );
+        $overallReliability = $validReliability->isEmpty()
             ? null
-            : $calculatedReliability->reduce(
+            : $validReliability->reduce(
                 fn (float $product, ReliabilitySummary $summary): float => $product * (float) $summary->reliability,
                 1.0,
             );
-        $overallAvailability = $calculatedReliability->isEmpty()
+        $overallAvailability = $validAvailability->isEmpty()
             ? null
-            : $calculatedReliability->reduce(
+            : $validAvailability->reduce(
                 fn (float $product, ReliabilitySummary $summary): float => $product * (float) $summary->availability,
                 1.0,
             );
@@ -229,7 +224,7 @@ class RamsDashboardQuery
                 ? (int) CarbonImmutable::parse($operatingStartDate)->startOfDay()->diffInDays(now()->startOfDay())
                 : null,
             'operatingStartDate' => $operatingStartDate,
-            'reliabilityGroups' => $this->reliabilityGroups($calculatedReliability),
+            'reliabilityGroups' => $this->reliabilityGroups($latestReliability),
             'totalFailure' => FailureLog::query()->whereIn('asset_id', $assetIds)->count(),
             'totalProposalReorder' => $latestPredictive
                 ->filter(fn (PredictiveAssetSnapshot $snapshot): bool => $snapshot->proposal_quantity > 0)
@@ -240,6 +235,14 @@ class RamsDashboardQuery
     /** @return array<int, array<string, mixed>> */
     private function assets(User $user, ?UnitKerja $unit): array
     {
+        return $this->dashboardAssetModels($user, $unit)
+            ->map(fn (Asset $asset): array => $this->assetPayload($asset))
+            ->all();
+    }
+
+    /** @return Collection<int, Asset> */
+    private function dashboardAssetModels(User $user, ?UnitKerja $unit): Collection
+    {
         return $this->assetQuery($user, $unit)
             ->with([
                 'unitKerja:id,code,name',
@@ -247,32 +250,57 @@ class RamsDashboardQuery
                 'latestPredictiveAssetSnapshot',
             ])
             ->orderBy('id')
-            ->get()
-            ->map(fn (Asset $asset): array => $this->assetPayload($asset))
-            ->all();
+            ->get();
     }
 
-    /** @return array<int, array<string, mixed>> */
-    private function assetCategories(): array
+    /**
+     * Build the category tree only from subsystem IDs owned by the selected area's assets.
+     *
+     * @param  Collection<int, Asset>  $assets
+     * @return array<int, array<string, mixed>>
+     */
+    private function assetCategories(Collection $assets): array
     {
+        $subsystemIds = $assets->pluck('asset_subsystem_id')->filter()->unique()->values();
+
+        if ($subsystemIds->isEmpty()) {
+            return [];
+        }
+
         return AssetGroup::query()
-            ->with(['systems.subsystems'])
+            ->whereHas(
+                'systems.subsystems',
+                fn (Builder $query): Builder => $query->whereIn('asset_subsystems.id', $subsystemIds),
+            )
+            ->with([
+                'systems' => fn ($query) => $query->whereHas(
+                    'subsystems',
+                    fn (Builder $subsystems): Builder => $subsystems->whereIn('asset_subsystems.id', $subsystemIds),
+                ),
+                'systems.subsystems' => fn ($query) => $query->whereIn('asset_subsystems.id', $subsystemIds),
+            ])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
             ->map(fn (AssetGroup $group): array => [
                 'id' => $group->id,
                 'name' => $group->name,
+                'dashboard_color' => $group->dashboard_color,
+                'dashboard_color_source' => $group->dashboard_color_source,
                 'is_active' => $group->is_active,
                 'systems' => $group->systems
                     ->map(fn (AssetSystem $system): array => [
                         'id' => $system->id,
                         'name' => $system->name,
+                        'dashboard_color' => $system->dashboard_color,
+                        'dashboard_color_source' => $system->dashboard_color_source,
                         'is_active' => $system->is_active,
                         'subsystems' => $system->subsystems
                             ->map(fn (AssetSubsystem $subsystem): array => [
                                 'id' => $subsystem->id,
                                 'name' => $subsystem->name,
+                                'dashboard_color' => $subsystem->dashboard_color,
+                                'dashboard_color_source' => $subsystem->dashboard_color_source,
                                 'is_active' => $subsystem->is_active,
                             ])
                             ->values()
@@ -461,16 +489,18 @@ class RamsDashboardQuery
         return collect($labels)
             ->map(function (string $label, string $code) use ($grouped): array {
                 $items = $grouped->get($code, collect());
+                $reliabilityItems = $items->whereNotNull('reliability');
+                $availabilityItems = $items->whereNotNull('availability');
 
                 return [
                     'code' => $code,
                     'name' => $label,
                     'asset_count' => $items->count(),
-                    'reliability' => $items->isEmpty() ? null : $items->reduce(
+                    'reliability' => $reliabilityItems->isEmpty() ? null : $reliabilityItems->reduce(
                         fn (float $product, ReliabilitySummary $summary): float => $product * (float) $summary->reliability,
                         1.0,
                     ),
-                    'availability' => $items->isEmpty() ? null : $items->reduce(
+                    'availability' => $availabilityItems->isEmpty() ? null : $availabilityItems->reduce(
                         fn (float $product, ReliabilitySummary $summary): float => $product * (float) $summary->availability,
                         1.0,
                     ),

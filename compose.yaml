@@ -23,6 +23,20 @@ services:
       timeout: 5s
       retries: 20
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_FORWARD_PORT:-6379}:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - rams_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   phpmyadmin:
     image: phpmyadmin:5.2-apache
     restart: unless-stopped
@@ -61,3 +75,4 @@ services:
 
 volumes:
   rams_mysql_data:
+  rams_redis_data:

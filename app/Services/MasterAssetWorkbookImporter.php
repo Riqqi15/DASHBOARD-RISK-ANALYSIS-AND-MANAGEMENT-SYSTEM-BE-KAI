@@ -52,12 +52,41 @@ class MasterAssetWorkbookImporter
         'consequences' => 'consequence',
     ];
 
+    /** @var array<string, string> */
+    private const EXCEL_OUTPUT_HEADERS = [
+        'criticality' => 'criticality',
+        'lead time period' => 'lead_time_category',
+        'level inventory' => 'inventory_policy',
+        'stock saat ini' => 'current_stock',
+        'kebutuhan' => 'needed_stock',
+        'proposal qty' => 'proposal_quantity',
+        'status kategori qty' => 'proposal_reasonableness',
+        'safety stok based usage' => 'safety_stock_usage',
+        'safety stock based on mca' => 'safety_stock_mca',
+        'safety stock' => 'final_safety_stock',
+        'umur peralatan (tahun)' => 'age_years',
+        'lifetime' => 'age_condition',
+        'rating' => 'risk_rating',
+        'desc' => 'risk_level',
+    ];
+
     public function __construct(
         private readonly AuditLogger $auditLogger,
         private readonly AssetCategoryResolver $categoryResolver,
         private readonly PredictiveInventoryCalculator $predictiveInventoryCalculator,
         private readonly RiskAssessmentCalculator $riskAssessmentCalculator,
     ) {}
+
+    public function supports(string $workbookPath): bool
+    {
+        if (! is_file($workbookPath)) {
+            return false;
+        }
+
+        $reader = IOFactory::createReaderForFile($workbookPath);
+
+        return in_array(self::SHEET, $reader->listWorksheetNames($workbookPath), true);
+    }
 
     /**
      * @return array{created: int, updated: int, skipped: int, openings_created: int, openings_updated: int, predictive_snapshots: int}
@@ -69,7 +98,7 @@ class MasterAssetWorkbookImporter
         }
 
         $reader = IOFactory::createReaderForFile($workbookPath);
-        $reader->setReadDataOnly(true);
+        $reader->setReadDataOnly(false);
         $reader->setLoadSheetsOnly([self::SHEET]);
         $reader->setReadEmptyCells(false);
         $reader->setIgnoreRowsWithNoCells(true);
@@ -114,7 +143,7 @@ class MasterAssetWorkbookImporter
             $header = $this->text($sheet->getCell([$column, 2])->getValue());
             $key = mb_strtolower($header);
 
-            $headers = [...self::REQUIRED_HEADERS, ...self::OPTIONAL_PREDICTIVE_HEADERS];
+            $headers = [...self::REQUIRED_HEADERS, ...self::OPTIONAL_PREDICTIVE_HEADERS, ...self::EXCEL_OUTPUT_HEADERS];
             if (isset($headers[$key])) {
                 $columns[$headers[$key]] = $column;
             }
@@ -340,9 +369,9 @@ class MasterAssetWorkbookImporter
         $rawSla = $this->decimalValue($sheet, $columns['sla'], $row, 'SLA');
         $slaPercentage = $rawSla <= 1 ? $rawSla * 100 : $rawSla;
         $failureSafetyStock = $this->decimalValue($sheet, $columns['failure_safety_stock'], $row, 'Safety Stock Based on Failure');
-        $sparepartIn = $this->quantity($sheet->getCell([$columns['sparepart_in'], $row])->getCalculatedValue(), $workbookName, $row, 'Sparepart IN');
-        $sparepartOut = $this->quantity($sheet->getCell([$columns['sparepart_out'], $row])->getCalculatedValue(), $workbookName, $row, 'Sparepart OUT');
-        $currentStock = max(0, $sparepartIn - $sparepartOut - (int) ceil($failureSafetyStock));
+        $sparepartIn = $this->quantity($this->cachedCellValue($sheet, $columns['sparepart_in'], $row), $workbookName, $row, 'Sparepart IN');
+        $sparepartOut = $this->quantity($this->cachedCellValue($sheet, $columns['sparepart_out'], $row), $workbookName, $row, 'Sparepart OUT');
+        $currentStock = $sparepartIn - $sparepartOut - (int) ceil($failureSafetyStock);
         $installedAt = $assetValues['tanggal_pemasangan'];
         $lifetimeYears = $this->nullableDecimalValue($sheet, $columns['lifetime_years'], $row, 'Lifetime (Years)');
         $vandalismCount = $this->integerValue($sheet, $columns['vandalism_count'], $row, 'Jumlah Vandalisme');
@@ -364,6 +393,25 @@ class MasterAssetWorkbookImporter
         $risk = $likelihood !== null && $consequence !== null
             ? $this->riskAssessmentCalculator->calculate($likelihood, $consequence)
             : ['rating' => null, 'level' => null];
+        $backendValues = [
+            'criticality' => $calculation['criticality'],
+            'lead_time_category' => $calculation['lead_time_category'],
+            'inventory_policy' => $calculation['inventory_policy'],
+            'current_stock' => $currentStock,
+            'needed_stock' => $calculation['needed_stock'],
+            'proposal_quantity' => $calculation['proposal_quantity'],
+            'proposal_reasonableness' => $calculation['proposal_reasonableness'],
+            'safety_stock_usage' => $calculation['safety_stock_usage'],
+            'safety_stock_mca' => $calculation['safety_stock_mca'],
+            'safety_stock_failure' => $calculation['safety_stock_failure'],
+            'final_safety_stock' => $calculation['final_safety_stock'],
+            'age_years' => $calculation['age_years'],
+            'age_condition' => $calculation['age_condition'],
+            'risk_rating' => $risk['rating'],
+            'risk_level' => $risk['level'],
+        ];
+        [$excelValues, $excelFormulas] = $this->excelAuditValues($sheet, $columns, $row);
+        $parityDifferences = $this->parityDifferences($excelValues, $backendValues);
         $sourceKey = hash('sha256', implode('|', [$workbookHash, self::SHEET, $row]));
 
         PredictiveAssetSnapshot::query()->updateOrCreate(
@@ -393,11 +441,72 @@ class MasterAssetWorkbookImporter
                 ...$calculation,
                 'risk_rating' => $risk['rating'],
                 'risk_level' => $risk['level'],
+                'excel_values' => $excelValues,
+                'excel_formulas' => $excelFormulas,
+                'parity_status' => $excelValues === []
+                    ? 'not_compared'
+                    : ($parityDifferences === [] ? 'matched' : 'corrected'),
+                'parity_differences' => $parityDifferences === [] ? null : $parityDifferences,
                 'calculated_at' => now(),
             ],
         );
 
         return 1;
+    }
+
+    /** @param array<string, int> $columns
+     * @return array{array<string, mixed>, array<string, string>}
+     */
+    private function excelAuditValues(Worksheet $sheet, array $columns, int $row): array
+    {
+        $values = [];
+        $formulas = [];
+        foreach (array_values(self::EXCEL_OUTPUT_HEADERS) as $key) {
+            if (! isset($columns[$key])) {
+                continue;
+            }
+            $cell = $sheet->getCell([$columns[$key], $row]);
+            $value = $this->cachedCellValue($sheet, $columns[$key], $row);
+            if ($value !== null && $value !== '') {
+                $values[$key] = $value;
+            }
+            if ($cell->isFormula()) {
+                $formulas[$key] = (string) $cell->getValue();
+            }
+        }
+
+        if (isset($columns['failure_safety_stock'])) {
+            $cell = $sheet->getCell([$columns['failure_safety_stock'], $row]);
+            $values['safety_stock_failure'] = $this->cachedCellValue($sheet, $columns['failure_safety_stock'], $row);
+            if ($cell->isFormula()) {
+                $formulas['safety_stock_failure'] = (string) $cell->getValue();
+            }
+        }
+
+        return [$values, $formulas];
+    }
+
+    /** @param array<string, mixed> $excelValues
+     * @param  array<string, mixed>  $backendValues
+     * @return array<string, array{excel: mixed, backend: mixed}>
+     */
+    private function parityDifferences(array $excelValues, array $backendValues): array
+    {
+        $differences = [];
+        foreach ($excelValues as $key => $excelValue) {
+            if (! array_key_exists($key, $backendValues)) {
+                continue;
+            }
+            $backendValue = $backendValues[$key];
+            $matches = is_numeric($excelValue) && is_numeric($backendValue)
+                ? abs((float) $excelValue - (float) $backendValue) < 0.0001
+                : mb_strtolower(trim((string) $excelValue)) === mb_strtolower(trim((string) $backendValue));
+            if (! $matches) {
+                $differences[$key] = ['excel' => $excelValue, 'backend' => $backendValue];
+            }
+        }
+
+        return $differences;
     }
 
     private function lockAndRevalidateCategories(

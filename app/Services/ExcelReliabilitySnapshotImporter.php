@@ -212,7 +212,30 @@ final class ExcelReliabilitySnapshotImporter
             'failure_count_mode' => str_contains($failureCountFormula, '#all') ? 'counta_all_minus_1' : 'counta',
             'spare_part_count_mode' => str_contains($sparePartFormula, 'counta') ? 'counta' : 'countif_ya',
             'vandalism_count_mode' => str_contains($vandalismFormula, 'counta') ? 'counta' : 'countif_ya',
+            'failure_interval_row_count' => $this->failureIntervalRowCount($sheet),
         ];
+    }
+
+    private function failureIntervalRowCount(Worksheet $sheet): ?int
+    {
+        foreach ($sheet->getTableCollection() as $table) {
+            [$start, $end] = Coordinate::rangeBoundaries($table->getRange());
+            if ($start[0] !== 2 || $start[1] !== 9 || $end[0] < 19) {
+                continue;
+            }
+
+            $count = 0;
+            for ($row = $start[1] + 1; $row <= $end[1]; $row++) {
+                $value = $sheet->getCell([19, $row])->getValue();
+                if ($value !== null && $value !== '') {
+                    $count++;
+                }
+            }
+
+            return $count;
+        }
+
+        return null;
     }
 
     private function baselineDate(?Worksheet $dashboard): ?CarbonImmutable

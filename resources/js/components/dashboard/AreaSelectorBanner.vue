@@ -1,92 +1,74 @@
 <template>
   <section
     v-if="currentUser.isPusat()"
-    class="relative mb-8 overflow-hidden rounded-2xl border border-sky-200/80 bg-white shadow-[0_18px_50px_-35px_rgba(23,22,80,0.65)]"
-    aria-labelledby="area-lintas-title"
+    class="area-selector"
+    aria-labelledby="area-selector-title"
   >
-    <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#171650] via-[#304da1] to-[#f58220]" aria-hidden="true" />
-
-    <header class="relative flex flex-col gap-4 border-b border-sky-100 bg-gradient-to-r from-[#eaf7fc] via-[#f4fbfe] to-white px-5 pb-5 pt-6 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-      <div class="flex min-w-0 items-center gap-3.5">
-        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#171650] text-white shadow-lg shadow-[#171650]/15">
-          <MapPinned :size="21" :stroke-width="1.9" aria-hidden="true" />
+    <div class="area-selector__intro">
+      <div class="flex min-w-0 items-start gap-3">
+        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#171650] text-white" aria-hidden="true">
+          <MapPinned :size="21" :stroke-width="2" />
         </span>
         <div class="min-w-0">
-          <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-[#f26a21]">Navigasi wilayah</p>
-          <h2 id="area-lintas-title" class="mt-1 text-xl font-extrabold tracking-tight text-[#171650] sm:text-2xl">Area Lintas</h2>
+          <h2 id="area-selector-title" class="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">Wilayah data</h2>
+          <p class="mt-1 text-sm leading-6 text-slate-600">Pilih wilayah kerja untuk menyesuaikan isi dashboard.</p>
         </div>
       </div>
 
-      <div class="self-start rounded-xl border border-sky-200/80 bg-white/90 px-3.5 py-2 shadow-sm sm:self-auto" aria-live="polite">
-        <span class="block text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">Area aktif</span>
-        <span class="mt-0.5 flex items-center gap-1.5 text-xs font-bold text-[#171650]">
-          <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 ring-4 ring-emerald-50" aria-hidden="true" />
-          {{ activeAreaLabel }}
-        </span>
-      </div>
-    </header>
-
-    <div class="relative bg-[radial-gradient(circle_at_top_right,rgba(186,230,253,0.34),transparent_38%)] px-5 py-5 sm:px-7 sm:py-6">
-      <p class="mb-3 text-[11px] font-semibold uppercase tracking-[0.13em] text-slate-500">Pilih cakupan data</p>
-
-      <div class="flex w-full flex-wrap gap-2.5" role="group" aria-label="Pilih area lintas">
-        <button
-          v-for="area in units"
-          :key="area.id"
-          type="button"
-          :data-area-code="area.code"
-          :aria-pressed="isActive(area.code)"
-          :title="area.name || area.code"
-          class="inline-flex min-h-11 min-w-[88px] items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-200"
-          :class="isActive(area.code)
-            ? 'border-[#171650] bg-[#171650] text-white shadow-lg shadow-[#171650]/20 ring-2 ring-orange-400 ring-offset-2'
-            : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:-translate-y-0.5 hover:border-orange-300 hover:text-[#171650] hover:shadow-md'"
-          @click="selectArea(area.code)"
-        >
-          <Check v-if="isActive(area.code)" :size="15" :stroke-width="2.6" aria-hidden="true" />
-          {{ area.code }}
-        </button>
+      <div class="area-selector__active" aria-live="polite">
+        <span class="h-2 w-2 rounded-full bg-emerald-500 ring-4 ring-emerald-100" aria-hidden="true" />
+        <div>
+          <span class="block text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Sedang melihat</span>
+          <strong class="mt-0.5 block text-base text-[#171650]">{{ activeAreaLabel }}</strong>
+        </div>
       </div>
     </div>
 
-    <footer class="relative flex flex-col gap-3 border-t border-slate-100 bg-slate-50/80 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-      <div class="flex min-w-0 items-center gap-3">
-        <span class="h-10 w-1 shrink-0 rounded-full bg-[#f58220]" aria-hidden="true" />
-        <div class="min-w-0">
-          <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Executive overview</p>
-          <h1 class="mt-1 text-lg font-extrabold uppercase leading-tight tracking-[0.04em] text-[#171650] sm:text-xl lg:text-2xl">
-            Dashboard Risk Analysis and Management System
-          </h1>
-        </div>
+    <div class="area-selector__control">
+      <label for="area-select" class="block text-sm font-bold text-slate-800">Wilayah kerja</label>
+      <div class="relative mt-2">
+        <select
+          id="area-select"
+          :value="displayedArea || ''"
+          class="area-selector__select"
+          aria-describedby="area-selector-help"
+          @change="selectArea($event.target.value)"
+        >
+          <option v-if="!units.length" value="">Belum ada wilayah</option>
+          <option v-for="area in units" :key="area.id" :value="area.code" :data-area-code="area.code">
+            {{ area.code }}{{ area.name && area.name !== area.code ? ` — ${area.name}` : '' }}
+          </option>
+        </select>
+        <ChevronDown class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" :size="20" aria-hidden="true" />
       </div>
-      <span class="self-start rounded-lg bg-[#171650] px-3 py-1.5 text-[10px] font-bold tracking-[0.18em] text-white sm:self-auto">KAI RAMS</span>
-    </footer>
+      <p id="area-selector-help" class="mt-2 text-sm leading-6 text-slate-600">
+        Data keandalan, aset, dan laporan akan mengikuti wilayah ini.
+      </p>
+    </div>
   </section>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { router } from '@inertiajs/vue3'
-import { Check, MapPinned } from 'lucide-vue-next'
+import { ChevronDown, MapPinned } from 'lucide-vue-next'
 import { useAuth } from '@/application/composables/useAuth'
 
 const props = defineProps({
-  units: {
-    type: Array,
-    default: () => [],
-  },
-  selectedArea: {
-    type: String,
-    default: null,
-  },
+  units: { type: Array, default: () => [] },
+  selectedArea: { type: String, default: null },
 })
 
 const { currentUser } = useAuth()
 const displayedArea = computed(() => props.selectedArea || props.units[0]?.code || null)
-const activeAreaLabel = computed(() => displayedArea.value || 'Pilih DAOP/DIVRE')
-const isActive = (code) => code === displayedArea.value
+const activeAreaLabel = computed(() => {
+  const area = props.units.find((unit) => unit.code === displayedArea.value)
+  return area?.name && area.name !== area.code ? `${area.code} — ${area.name}` : (displayedArea.value || 'Pilih wilayah')
+})
 
 const selectArea = (code) => {
+  if (!code) return
+
   router.get(
     window.location.pathname,
     { area: code },
@@ -94,3 +76,69 @@ const selectArea = (code) => {
   )
 }
 </script>
+
+<style scoped>
+.area-selector {
+  overflow: hidden;
+  margin-bottom: 2rem;
+  border: 1px solid #dbe3ef;
+  border-radius: 0.875rem;
+  background: #fff;
+  box-shadow: 0 10px 24px -22px rgb(15 23 42 / 55%);
+}
+
+.area-selector__intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  border-bottom: 1px solid #dbe3ef;
+  padding: 1.25rem;
+}
+
+.area-selector__active {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  border: 1px solid #bbf7d0;
+  border-radius: 0.75rem;
+  background: #f0fdf4;
+  padding: 0.625rem 0.875rem;
+}
+
+.area-selector__control { padding: 1.25rem; }
+
+.area-selector__select {
+  display: block;
+  width: 100%;
+  min-height: 3.25rem;
+  appearance: none;
+  cursor: pointer;
+  border: 1px solid #94a3b8;
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 0.75rem 3rem 0.75rem 1rem;
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.area-selector__select:hover { border-color: #f26522; }
+
+.area-selector__select:focus-visible {
+  outline: 3px solid #fed7aa;
+  outline-offset: 2px;
+  border-color: #f26522;
+}
+
+@media (max-width: 640px) {
+  .area-selector__intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .area-selector__active { width: 100%; }
+}
+</style>

@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Models\PredictiveAssetSnapshot;
 use App\Models\RamsImportBatch;
-use App\Models\RiskMatrix;
 use App\Models\UnitKerja;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -21,6 +19,8 @@ final class RamsWorkbookImportCoordinator
         private readonly SparePartWorkbookImporter $sparePartImporter,
         private readonly FailureLogWorkbookImporter $failureLogImporter,
         private readonly RiskRegisterWorkbookImporter $riskRegisterImporter,
+        private readonly RiskMatrixWorkbookImporter $riskMatrixImporter,
+        private readonly ?RamsUnitDetector $unitDetector = null,
     ) {}
 
     /** @return array<int, array<string, mixed>> */
@@ -36,7 +36,7 @@ final class RamsWorkbookImportCoordinator
         $paths = array_values(array_filter(
             glob(rtrim($directory, '\\/').DIRECTORY_SEPARATOR.'*.xlsm') ?: [],
             fn (string $path): bool => ! str_starts_with(basename($path), '~$')
-                && $this->unitCodeFromFilename(basename($path)) !== null,
+                && $this->detector()->detectCode(basename($path)) !== null,
         ));
         sort($paths, SORT_NATURAL | SORT_FLAG_CASE);
 
@@ -61,7 +61,7 @@ final class RamsWorkbookImportCoordinator
         }
 
         $workbookName = basename($path);
-        $unitCode = $this->unitCodeFromFilename($workbookName);
+        $unitCode = $this->detector()->detectCode($workbookName);
         if ($unitCode === null) {
             throw new RuntimeException("Nama workbook tidak dapat dipetakan ke Daop/Divre: {$workbookName}");
         }
@@ -127,7 +127,7 @@ final class RamsWorkbookImportCoordinator
         try {
             $summary = $this->runImporters($path, $unit, $bootstrapCategories);
             DB::commit();
-            foreach (['risk_registers', 'failure_logs'] as $section) {
+            foreach (['risk_matrices', 'risk_registers', 'failure_logs'] as $section) {
                 foreach ($summary[$section]['issues'] ?? [] as $issue) {
                     $batch->issues()->create([
                         'sheet_name' => $issue['sheet_name'] ?? null,
@@ -180,49 +180,15 @@ final class RamsWorkbookImportCoordinator
 
         return [
             'master_assets' => $masterAssets,
-            'risk_matrices' => $this->syncRiskMatrices($unit),
+            'risk_matrices' => $this->riskMatrixImporter->import($path, $unit),
             'risk_registers' => $this->riskRegisterImporter->import($path, $unit),
             'spare_parts' => $this->sparePartImporter->import($path, $bootstrapCategories, $unit),
             'failure_logs' => $this->failureLogImporter->import($path, $unit),
         ];
     }
 
-    private function syncRiskMatrices(UnitKerja $unit): int
+    private function detector(): RamsUnitDetector
     {
-        $snapshots = PredictiveAssetSnapshot::query()
-            ->whereHas('asset', fn ($query) => $query->where('unit_kerja_id', $unit->id))
-            ->whereNotNull('likelihood')
-            ->whereNotNull('consequence')
-            ->orderByDesc('calculated_at')
-            ->orderByDesc('id')
-            ->get()
-            ->unique('asset_id');
-
-        foreach ($snapshots as $snapshot) {
-            RiskMatrix::query()->updateOrCreate(
-                ['asset_id' => $snapshot->asset_id],
-                [
-                    'likelihood' => $snapshot->likelihood,
-                    'consequence' => $snapshot->consequence,
-                    'assessed_at' => $snapshot->calculated_at,
-                ],
-            );
-        }
-
-        return $snapshots->count();
-    }
-
-    private function unitCodeFromFilename(string $filename): ?string
-    {
-        $normalized = mb_strtolower($filename);
-
-        return match (true) {
-            preg_match('/daop\s*1\b/u', $normalized) === 1 => 'DAOP-1',
-            preg_match('/daop\s*4\b/u', $normalized) === 1 => 'DAOP-4',
-            preg_match('/daop\s*8\b/u', $normalized) === 1 => 'DAOP-8',
-            preg_match('/divre\s*iii\b/u', $normalized) === 1 => 'DIVRE-III',
-            preg_match('/divre\s*iv\b/u', $normalized) === 1 => 'DIVRE-IV',
-            default => null,
-        };
+        return $this->unitDetector ?? new RamsUnitDetector;
     }
 }

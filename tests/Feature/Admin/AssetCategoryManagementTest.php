@@ -173,6 +173,37 @@ class AssetCategoryManagementTest extends TestCase
         ])->assertSessionHasErrors('asset_system_id');
     }
 
+    public function test_pusat_can_override_and_reset_dashboard_color_with_hex_validation(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $group = AssetGroup::factory()->create([
+            'dashboard_color' => '#FF0000',
+            'dashboard_color_source' => 'excel',
+        ]);
+
+        $this->actingAs($pusat)->put("/admin/asset-groups/{$group->id}", [
+            'name' => $group->name,
+            'sort_order' => $group->sort_order,
+            'dashboard_color' => '#12abef',
+        ])->assertSessionDoesntHaveErrors();
+        $this->assertSame('#12ABEF', $group->fresh()->dashboard_color);
+        $this->assertSame('manual', $group->fresh()->dashboard_color_source);
+
+        $this->actingAs($pusat)->put("/admin/asset-groups/{$group->id}", [
+            'name' => $group->name,
+            'sort_order' => $group->sort_order,
+            'dashboard_color' => 'merah',
+        ])->assertSessionHasErrors('dashboard_color');
+
+        $this->actingAs($pusat)->put("/admin/asset-groups/{$group->id}", [
+            'name' => $group->name,
+            'sort_order' => $group->sort_order,
+            'dashboard_color' => '',
+        ])->assertSessionDoesntHaveErrors();
+        $this->assertNull($group->fresh()->dashboard_color);
+        $this->assertNull($group->fresh()->dashboard_color_source);
+    }
+
     public function test_renames_preserve_ids_relations_assets_aliases_and_audit_old_and_new_values(): void
     {
         $pusat = User::factory()->pusat()->create();

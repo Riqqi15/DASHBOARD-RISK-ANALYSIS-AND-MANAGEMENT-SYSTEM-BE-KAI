@@ -19,6 +19,7 @@ class StoreAssetGroupRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'normalized_name' => ['required', 'string', 'max:255', 'unique:asset_groups,normalized_name'],
             'sort_order' => ['required', 'integer', 'min:0', 'max:65535'],
+            'dashboard_color' => ['nullable', 'regex:/^#[0-9A-F]{6}$/i'],
         ];
     }
 
@@ -29,6 +30,7 @@ class StoreAssetGroupRequest extends FormRequest
             'name' => $name,
             'normalized_name' => mb_strtolower($name),
             'sort_order' => $this->input('sort_order') ?? 0,
+            'dashboard_color' => ($color = mb_strtoupper(trim((string) $this->input('dashboard_color')))) !== '' ? $color : null,
         ]);
     }
 

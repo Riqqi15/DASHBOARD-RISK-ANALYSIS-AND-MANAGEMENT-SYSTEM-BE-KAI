@@ -52,6 +52,8 @@ final class ExcelReliabilitySnapshotImporterTest extends TestCase
         $this->assertSame('2017-01-01', $snapshot->formula_profile['interval_baseline_date']);
         $this->assertSame('counta_all_minus_1', $snapshot->formula_profile['failure_count_mode']);
         $this->assertSame('counta', $snapshot->formula_profile['spare_part_count_mode']);
+        $this->assertArrayHasKey('failure_interval_row_count', $snapshot->formula_profile);
+        $this->assertNull($snapshot->formula_profile['failure_interval_row_count']);
     }
 
     /** @return array{UnitKerja, Asset} */

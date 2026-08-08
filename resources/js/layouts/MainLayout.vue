@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import {
   Activity,
@@ -7,11 +7,14 @@ import {
   Building2,
   ChevronDown,
   Database,
+  FileSpreadsheet,
   LayoutDashboard,
   LogOut,
   Menu,
   Network,
   Package,
+  PanelLeftClose,
+  PanelLeftOpen,
   ShieldCheck,
   UploadCloud,
   X,
@@ -21,6 +24,7 @@ import logoKai from '../assets/logo-kai.png'
 
 const page = usePage()
 const isSidebarOpen = ref(false)
+const isSidebarCollapsed = ref(false)
 const isUserMenuOpen = ref(false)
 const isDashboardMenuOpen = ref(false)
 
@@ -41,8 +45,10 @@ const menuItems = [
   { name: 'overview', label: 'Executive Overview', to: '/overview', icon: Activity },
   { name: 'master-asset', label: 'Master Aset', to: '/master-asset', icon: Database },
   { name: 'risk-matrix', label: 'Matriks Risiko', to: '/risk-matrix', icon: AlertTriangle },
+  { name: 'risk-register', label: 'Risk Register', to: '/risk-register', icon: ShieldCheck },
   { name: 'inventory', label: 'Inventori Suku Cadang', to: '/inventory', icon: Package },
-  { name: 'trouble-report-import', label: 'Import Trouble Report', to: '/trouble-report/import', icon: UploadCloud },
+  { name: 'reports', label: 'Laporan RAMS', to: '/reports', icon: FileSpreadsheet },
+  { name: 'trouble-report-import', label: 'Import Data RAMS', to: '/trouble-report/import', icon: UploadCloud },
 ]
 
 const adminMenuItems = [
@@ -62,6 +68,26 @@ const activeMenu = computed(() => {
 const closeSidebar = () => {
   isSidebarOpen.value = false
 }
+
+const toggleNavigation = () => {
+  if (window.innerWidth < 1024) {
+    isSidebarOpen.value = !isSidebarOpen.value
+    return
+  }
+
+  isSidebarCollapsed.value = !isSidebarCollapsed.value
+  window.localStorage.setItem('rams.sidebar-collapsed', String(isSidebarCollapsed.value))
+}
+
+const navigationToggleLabel = computed(() => {
+  if (isSidebarCollapsed.value) return 'Tampilkan navigasi'
+  if (isSidebarOpen.value) return 'Tutup navigasi'
+  return 'Sembunyikan navigasi'
+})
+
+onMounted(() => {
+  isSidebarCollapsed.value = window.localStorage.getItem('rams.sidebar-collapsed') === 'true'
+})
 </script>
 
 <template>
@@ -74,8 +100,11 @@ const closeSidebar = () => {
     />
 
     <aside
-      class="fixed inset-y-0 left-0 z-50 flex w-[272px] flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:translate-x-0"
-      :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+      class="fixed inset-y-0 left-0 z-50 flex w-[272px] flex-col border-r border-slate-200 bg-white transition-transform duration-200"
+      :class="[
+        isSidebarOpen ? 'translate-x-0' : '-translate-x-full',
+        isSidebarCollapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0',
+      ]"
       aria-label="Navigasi utama"
     >
       <div class="flex h-[76px] items-center justify-between border-b border-slate-100 px-5">
@@ -189,12 +218,20 @@ const closeSidebar = () => {
       </div>
     </aside>
 
-    <div class="min-h-screen lg:pl-[272px]">
+    <div class="min-h-screen transition-[padding] duration-200" :class="isSidebarCollapsed ? 'lg:pl-0' : 'lg:pl-[272px]'">
       <header class="sticky top-0 z-30 h-[76px] border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="flex h-full items-center justify-between gap-4 px-4 sm:px-6 xl:px-8">
           <div class="flex min-w-0 items-center gap-3">
-            <button type="button" class="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 lg:hidden" aria-label="Buka navigasi" @click="isSidebarOpen = true">
-              <Menu :size="20" aria-hidden="true" />
+            <button
+              type="button"
+              class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-700 transition hover:border-orange-300 hover:bg-orange-50 hover:text-[#171650] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-100"
+              :aria-label="navigationToggleLabel"
+              :title="navigationToggleLabel"
+              @click="toggleNavigation"
+            >
+              <Menu class="lg:hidden" :size="21" aria-hidden="true" />
+              <PanelLeftClose v-if="!isSidebarCollapsed" class="hidden lg:block" :size="21" aria-hidden="true" />
+              <PanelLeftOpen v-else class="hidden lg:block" :size="21" aria-hidden="true" />
             </button>
             <div class="min-w-0">
               <p class="text-xs font-medium text-slate-400">KAI RAMS / Ruang kerja</p>
@@ -234,7 +271,7 @@ const closeSidebar = () => {
         </div>
       </header>
 
-      <main class="mx-auto max-w-[1600px] p-4 sm:p-6 xl:p-8">
+      <main class="w-full p-4 sm:p-6 xl:p-8">
         <FlashMessage :success="flash.success" :error="flash.error" />
         <slot />
       </main>

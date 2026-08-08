@@ -14,6 +14,9 @@ use App\Http\Controllers\FailureLogImportController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MasterAssetController;
 use App\Http\Controllers\RamsDashboardController;
+use App\Http\Controllers\RamsImportRollbackController;
+use App\Http\Controllers\RamsReportController;
+use App\Http\Controllers\RiskRegisterController;
 use App\Http\Controllers\StockMovementController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,6 +32,8 @@ Route::middleware(['auth', 'active'])->group(function (): void {
     Route::get('/overview', [RamsDashboardController::class, 'overview'])->name('overview');
     Route::get('/trouble-report/import', [FailureLogImportController::class, 'index'])->name('failure-logs.import.index');
     Route::post('/trouble-report/import', [FailureLogImportController::class, 'store'])->name('failure-logs.import.store');
+    Route::get('/trouble-report/import/batch/{batch}', [FailureLogImportController::class, 'show'])->name('failure-logs.import.show');
+    Route::post('/trouble-report/import/batch/{batch}/rollback', RamsImportRollbackController::class)->name('failure-logs.import.rollback');
     Route::get('/trouble-report/import/batch/{batchId}/issues/csv', [FailureLogImportController::class, 'downloadIssues'])->name('failure-logs.import.issues.csv');
     Route::get('/trouble-report', [RamsDashboardController::class, 'troubleReport'])->name('trouble-report');
     Route::post('/trouble-report', [FailureLogController::class, 'store'])->name('failure-logs.store');
@@ -46,6 +51,13 @@ Route::middleware(['auth', 'active'])->group(function (): void {
             'destroy' => 'master-assets.destroy',
         ]);
     Route::get('/risk-matrix', [RamsDashboardController::class, 'riskMatrix'])->name('risk-matrix');
+    Route::resource('risk-register', RiskRegisterController::class)
+        ->only(['index', 'store', 'update', 'destroy'])
+        ->parameters(['risk-register' => 'riskRegister'])
+        ->names('risk-register');
+    Route::get('/reports', [RamsReportController::class, 'index'])->name('reports.index');
+    Route::get('/reports/{report}/xlsx', [RamsReportController::class, 'download'])->name('reports.download');
+    Route::get('/reports/{report}/pdf', [RamsReportController::class, 'downloadPdf'])->name('reports.download.pdf');
     Route::get('/inventory', InventoryController::class)->name('inventory');
     Route::get('/inventory/stock-state', [StockMovementController::class, 'state'])->name('stock-movements.state');
     Route::post('/inventory/movements', [StockMovementController::class, 'store'])->name('stock-movements.store');

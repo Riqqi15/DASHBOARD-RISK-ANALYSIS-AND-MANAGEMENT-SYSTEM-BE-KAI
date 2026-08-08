@@ -54,15 +54,68 @@ describe('Dashboard', () => {
     expect(wrapper.get('[data-subsystem-name="1"]').text()).toContain('1')
   })
 
+  it('uses imported Excel colors for the matching asset hierarchy', () => {
+    const wrapper = mountPage({
+      asset_categories: [{
+        id: 1,
+        name: 'Catu Daya Sintel',
+        dashboard_color: '#FF0000',
+        systems: [{
+          id: 2,
+          name: 'Catu Daya Sinyal',
+          dashboard_color: '#FF0000',
+          subsystems: [{ id: 3, name: 'Catu Daya Sinyal', dashboard_color: '#FF0000' }],
+        }],
+      }],
+      assets: [{
+        id: 1,
+        aset_prasarana_sintel: 'Catu Daya Sintel',
+        system: 'Catu Daya Sinyal',
+        subsystem: 'Catu Daya Sinyal',
+        jumlah_unit: 1,
+      }],
+    })
+
+    expect(wrapper.get('[data-asset-group="Catu Daya Sintel"] summary span[style]').attributes('style')).toContain('rgb(255, 0, 0)')
+    expect(wrapper.get('[data-subsystem-name="Catu Daya Sinyal"]').attributes('style')).toContain('rgb(255, 0, 0)')
+  })
+
+  it('keeps the Excel asset-family abbreviations and colors visible', () => {
+    const wrapper = mountPage({
+      summary: {
+        reliabilityGroups: [
+          { code: 'PDSM', reliability: 1, availability: 1 },
+          { code: 'PLSM', reliability: 1, availability: 1 },
+          { code: 'PDSE', reliability: 0.99974, availability: 0.9988 },
+          { code: 'PLSE', reliability: 1, availability: 1 },
+          { code: 'CDS', reliability: 1, availability: 1 },
+        ],
+      },
+    })
+
+    expect(wrapper.findAll('[data-family-code]')).toHaveLength(5)
+    expect(wrapper.get('[data-family-code="PDSM"]').text()).toContain('PDSM')
+    expect(wrapper.get('[data-family-code="PLSM"]').text()).toContain('PLSM')
+    expect(wrapper.get('[data-family-code="PDSE"]').text()).toContain('PDSE')
+    expect(wrapper.get('[data-family-code="PLSE"]').text()).toContain('PLSE')
+    expect(wrapper.get('[data-family-code="CDS"]').text()).toContain('CDS')
+    expect(wrapper.get('[data-family-code="PDSM"] header').attributes('style')).toContain('rgb(146, 208, 80)')
+    expect(wrapper.get('[data-family-code="PLSM"] header').attributes('style')).toContain('rgb(75, 172, 198)')
+    expect(wrapper.get('[data-family-code="PDSE"] header').attributes('style')).toContain('rgb(255, 255, 0)')
+    expect(wrapper.get('[data-family-code="PLSE"] header').attributes('style')).toContain('rgb(255, 192, 0)')
+    expect(wrapper.get('[data-family-code="CDS"] header').attributes('style')).toContain('rgb(255, 0, 0)')
+  })
+
   it('renders operating start date and operating days for the selected daop or divre', () => {
     const wrapper = mountPage()
 
-    expect(wrapper.text()).toContain('Tahun awal pemasangan equipment')
+    expect(wrapper.text()).toContain('Ringkasan kinerja persinyalan')
     expect(wrapper.text()).toContain('01/01/2020')
-    expect(wrapper.text()).toContain('2409 hari operasi')
+    expect(wrapper.text()).toContain('2.409 hari')
+    expect(wrapper.text()).toContain('Lama operasi')
   })
 
-  it('renders asset categories even when they do not have linked master assets yet', () => {
+  it('hides asset categories and hierarchy nodes without assets in the selected area', () => {
     const wrapper = mountPage({
       assets: [],
       asset_categories: [
@@ -74,9 +127,27 @@ describe('Dashboard', () => {
       ],
     })
 
-    expect(wrapper.text()).toContain('1234')
-    expect(wrapper.text()).toContain('0 system')
-    expect(wrapper.text()).toContain('Belum ada system atau subsystem aktif')
+    expect(wrapper.text()).not.toContain('1234')
+    expect(wrapper.text()).toContain('Belum ada peralatan terhubung')
+  })
+
+  it('does not render an empty subsystem from another area', () => {
+    const wrapper = mountPage({
+      asset_categories: [
+        {
+          id: 6,
+          name: 'SINTEL DAOP',
+          systems: [{
+            id: 7,
+            name: 'SYSTEM DAOP',
+            subsystems: [{ id: 8, name: 'SUBSYSTEM AREA LAIN' }],
+          }],
+        },
+      ],
+    })
+
+    expect(wrapper.text()).not.toContain('SUBSYSTEM AREA LAIN')
+    expect(wrapper.get('[data-subsystem-name="1"]')).toBeTruthy()
   })
 
   it('opens trouble report for the selected subsystem and area', async () => {

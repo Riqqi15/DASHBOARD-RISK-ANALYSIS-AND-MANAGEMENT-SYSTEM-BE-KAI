@@ -29,11 +29,6 @@ class RamsDashboardController extends Controller
         return Inertia::render('master-data/inventory/Inventory', $query->inventory($request->user(), $request->selectedUnit()));
     }
 
-    public function reorderStock(RamsAreaRequest $request, RamsDashboardQuery $query): Response
-    {
-        return Inertia::render('master-data/inventory/ReorderStock', $query->reorder($request->user(), $request->selectedUnit()));
-    }
-
     public function troubleReport(RamsAreaRequest $request, RamsDashboardQuery $query): Response
     {
         $subsystem = $request->validated('subsystem') ?? 'Subsystem Tidak Diketahui';

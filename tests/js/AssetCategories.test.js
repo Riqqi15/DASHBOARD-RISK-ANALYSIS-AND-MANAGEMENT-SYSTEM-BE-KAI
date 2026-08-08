@@ -219,7 +219,7 @@ describe('AssetCategories', () => {
     await wrapper.get('#category-sort-order').setValue(35)
     await wrapper.get('[role="dialog"] form').trigger('submit')
 
-    const expected = { name: `Kategori ${level}`, sort_order: 35 }
+    const expected = { name: `Kategori ${level}`, sort_order: 35, dashboard_color: null }
     if (groupId) expected.asset_group_id = groupId
     if (systemId) expected.asset_system_id = systemId
     expect(inertia.post).toHaveBeenCalledWith(endpoint, expected, expect.objectContaining({ preserveScroll: true }))

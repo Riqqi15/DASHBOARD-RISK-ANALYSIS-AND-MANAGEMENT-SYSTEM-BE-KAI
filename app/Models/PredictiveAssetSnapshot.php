@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'proposal_reasonableness', 'safety_stock_usage', 'safety_stock_mca',
     'safety_stock_failure', 'final_safety_stock', 'age_years', 'age_condition',
     'lifetime_status', 'risk_rating', 'risk_level', 'calculation_status',
+    'excel_values', 'excel_formulas', 'parity_status', 'parity_differences',
     'formula_version', 'calculated_at',
 ])]
 final class PredictiveAssetSnapshot extends Model
@@ -52,6 +53,9 @@ final class PredictiveAssetSnapshot extends Model
             'final_safety_stock' => 'integer',
             'age_years' => 'decimal:4',
             'risk_rating' => 'integer',
+            'excel_values' => 'array',
+            'excel_formulas' => 'array',
+            'parity_differences' => 'array',
             'calculated_at' => 'immutable_datetime',
         ];
     }

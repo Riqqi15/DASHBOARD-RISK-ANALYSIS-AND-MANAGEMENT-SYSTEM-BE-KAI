@@ -287,6 +287,7 @@ class InventoryIndexTest extends TestCase
             'movement_page' => ['bad'],
             'master_page' => ['bad'],
             'movement_type' => ['transfer'],
+            'reconciliation_status' => ['mismatch'],
             'date_from' => 'not-a-date',
             'date_to' => '2026-99-99',
         ]))->assertOk()
@@ -298,6 +299,7 @@ class InventoryIndexTest extends TestCase
                 'unit_kerja_id' => '',
                 'tab' => 'stock',
                 'movement_type' => '',
+                'reconciliation_status' => 'all',
                 'date_from' => '',
                 'date_to' => '',
                 'master_page' => '1',

@@ -83,6 +83,26 @@ final class PredictiveInventoryCalculatorTest extends TestCase
         $this->assertSame(4, $result['final_safety_stock']);
     }
 
+    public function test_negative_current_stock_is_treated_as_a_deficit_when_proposing_stock(): void
+    {
+        $result = (new PredictiveInventoryCalculator)->calculate([
+            'function_criterion' => 3,
+            'production_impact' => 3,
+            'lead_time_months' => 12,
+            'price_category' => 'High',
+            'current_stock' => -7,
+            'total_assets' => 100,
+            'average_yearly_usage' => 0,
+            'sla_percentage' => 1.5,
+            'failure_safety_stock' => 7,
+            'installed_at' => null,
+            'lifetime_years' => null,
+        ], CarbonImmutable::parse('2026-08-01'));
+
+        $this->assertSame(2, $result['needed_stock']);
+        $this->assertSame(9, $result['proposal_quantity']);
+    }
+
     #[DataProvider('leadTimeProvider')]
     public function test_lead_time_boundaries_are_complete(float $months, string $expected): void
     {

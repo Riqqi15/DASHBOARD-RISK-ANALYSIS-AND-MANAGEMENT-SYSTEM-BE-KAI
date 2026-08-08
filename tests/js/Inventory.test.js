@@ -97,6 +97,8 @@ const props = {
     unit_kerja_id: '', tab: 'stock', movement_type: '', date_from: '', date_to: '', master_page: '1',
   },
   can: { choose_unit: true, manage_master: true, record_movement: true },
+  predictiveAssets: [],
+  reconciliation: { rows: [], stats: { total: 0, matched: 0, difference: 0, missing_ledger: 0, missing_excel: 0, ambiguous: 0 } },
 }
 
 const mountPage = (overrides = {}, options = {}) => mount(Inventory, {
@@ -153,6 +155,56 @@ describe('Inventory', () => {
     expect(wrapper.get('[data-master-mobile]').text()).toContain('Safety stock')
     expect(wrapper.get('[data-master-mobile]').text()).not.toContain('Safety / reorder')
     expect(wrapper.get('[data-master-mobile]').text()).not.toContain('2 / 6')
+  })
+
+  it('shows signed predictive stock as a deficit with Excel parity status', () => {
+    const wrapper = mountPage({
+      filters: { ...props.filters, tab: 'predictive' },
+      predictiveAssets: [{
+        asset_id: 91,
+        name: 'Interlocking Elektrik',
+        unit,
+        category: { group: 'Peralatan Dalam Sinyal Elektrik', system: 'Interlocking Elektrik', subsystem: 'Interlocking Elektrik' },
+        current_stock: -7,
+        needed_stock: 2,
+        proposal_quantity: 9,
+        inventory_policy: 'More Pieces in Stock',
+        final_safety_stock: 7,
+        age_condition: 'Menengah',
+        lifetime_status: 'Melewati Umur Teknis',
+        parity_status: 'corrected',
+        parity_differences: { current_stock: { excel: -7, backend: -7 } },
+      }],
+    })
+
+    expect(wrapper.text()).toContain('Defisit stok 7')
+    expect(wrapper.text()).toContain('Dikoreksi backend')
+    expect(wrapper.text()).toContain('9')
+  })
+
+  it('shows Excel versus ledger reconciliation without an automatic overwrite action', () => {
+    const wrapper = mountPage({
+      filters: { ...props.filters, tab: 'reconciliation', reconciliation_status: 'all' },
+      reconciliation: {
+        stats: { total: 2, matched: 0, difference: 1, missing_ledger: 1, missing_excel: 0, ambiguous: 0 },
+        rows: [{
+          id: 'asset-91', asset_id: 91, asset_name: 'Catu Daya Sinyal', part_code: 'SP-CD-01', part_name: 'Catu Daya Sinyal',
+          unit, category: { group: 'Peralatan Dalam', system: 'Sinyal Elektrik', subsystem: 'Catu Daya' },
+          excel_stock: 10, ledger_stock: 8, difference: 2, status: 'difference', match_strategy: 'exact', candidate_count: 1,
+        }, {
+          id: 'asset-92', asset_id: 92, asset_name: 'Rectifier', part_code: null, part_name: null,
+          unit, category: { group: 'Peralatan Dalam', system: 'Sinyal Elektrik', subsystem: 'Catu Daya' },
+          excel_stock: 3, ledger_stock: null, difference: null, status: 'missing_ledger', match_strategy: null, candidate_count: 0,
+        }],
+      },
+    })
+
+    expect(wrapper.get('[data-tab="reconciliation"]').text()).toContain('Rekonsiliasi Excel')
+    expect(wrapper.get('[data-reconciliation]').text()).toContain('Catu Daya Sinyal')
+    expect(wrapper.get('[data-reconciliation]').text()).toContain('Selisih 2')
+    expect(wrapper.get('[data-reconciliation]').text()).toContain('Belum ada stok ledger')
+    expect(wrapper.get('[data-reconciliation]').text()).toContain('Koreksi harus dicatat sebagai transaksi')
+    expect(wrapper.get('[data-reconciliation]').text()).not.toMatch(/samakan otomatis|timpa stok/i)
   })
 
   it('exposes master controls only to Pusat and normalizes a regional master URL', async () => {

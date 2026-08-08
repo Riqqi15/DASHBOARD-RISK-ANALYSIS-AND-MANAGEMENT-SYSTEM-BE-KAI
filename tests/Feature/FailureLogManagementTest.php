@@ -34,7 +34,11 @@ class FailureLogManagementTest extends TestCase
         $this->assertSame(120, $failure->downtime_minutes);
         $this->assertSame(3, $stock->fresh()->quantity);
         $this->assertSame(1, StockMovement::query()->where('type', StockMovementType::Out)->count());
-        $this->assertSame(1, ReliabilitySummary::query()->where('asset_id', $asset->id)->count());
+        $this->assertSame(2, ReliabilitySummary::query()->where('asset_id', $asset->id)->count());
+        $this->assertEqualsCanonicalizing(
+            ['2026-07-01', now()->startOfMonth()->toDateString()],
+            ReliabilitySummary::query()->where('asset_id', $asset->id)->pluck('period')->map->toDateString()->all(),
+        );
         $this->assertSame(1, AuditLog::query()->where('action', 'failure_log.created')->count());
 
         $this->actingAs($user)->post('/trouble-report', $payload)->assertRedirect();

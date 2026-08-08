@@ -26,6 +26,8 @@ class AssetGroupController extends Controller
                 $group = AssetGroup::query()->create([
                     'name' => $request->validated('name'),
                     'sort_order' => $request->validated('sort_order'),
+                    'dashboard_color' => $request->validated('dashboard_color'),
+                    'dashboard_color_source' => $request->validated('dashboard_color') ? 'manual' : null,
                 ]);
                 $this->auditLogger->record('asset_category.created', $group, [], $this->auditValues($group));
             });
@@ -45,6 +47,8 @@ class AssetGroupController extends Controller
                 $assetGroup->update([
                     'name' => $request->validated('name'),
                     'sort_order' => $request->validated('sort_order'),
+                    'dashboard_color' => $request->validated('dashboard_color'),
+                    'dashboard_color_source' => $request->validated('dashboard_color') ? 'manual' : null,
                 ]);
                 $this->auditLogger->record('asset_category.updated', $assetGroup, $before, $this->auditValues($assetGroup->fresh()));
             });
@@ -117,6 +121,8 @@ class AssetGroupController extends Controller
             'parent_id' => null,
             'name' => $group->name,
             'sort_order' => $group->sort_order,
+            'dashboard_color' => $group->dashboard_color,
+            'dashboard_color_source' => $group->dashboard_color_source,
             'is_active' => $group->is_active,
         ];
     }

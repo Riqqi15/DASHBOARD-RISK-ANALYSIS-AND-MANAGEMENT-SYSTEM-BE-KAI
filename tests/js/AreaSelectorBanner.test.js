@@ -40,16 +40,17 @@ describe('AreaSelectorBanner', () => {
   it('renders all areas and marks the current selection', () => {
     const wrapper = mountBanner('DAOP-1')
 
-    expect(wrapper.text()).toContain('Area Lintas')
-    expect(wrapper.text()).toContain('Dashboard Risk Analysis and Management System')
-    expect(wrapper.get('[data-area-code="DAOP-1"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.text()).toContain('Wilayah data')
+    expect(wrapper.text()).toContain('Wilayah kerja')
+    expect(wrapper.get('#area-select').element.value).toBe('DAOP-1')
+    expect(wrapper.get('[data-area-code="DAOP-1"]').exists()).toBe(true)
     expect(wrapper.find('[data-area-code="national"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Nasional (Pusat)')
   })
 
   it('navigates with the selected unit code', async () => {
     const wrapper = mountBanner()
-    await wrapper.get('[data-area-code="DIVRE-I"]').trigger('click')
+    await wrapper.get('#area-select').setValue('DIVRE-I')
 
     expect(routerGet).toHaveBeenCalledWith('/overview', { area: 'DIVRE-I' }, {
       preserveScroll: true,
