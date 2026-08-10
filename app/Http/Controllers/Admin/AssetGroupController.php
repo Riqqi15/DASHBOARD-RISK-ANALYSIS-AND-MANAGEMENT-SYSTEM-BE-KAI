@@ -24,6 +24,7 @@ class AssetGroupController extends Controller
         try {
             DB::transaction(function () use ($request): void {
                 $group = AssetGroup::query()->create([
+                    'unit_kerja_id' => $request->validated('unit_kerja_id'),
                     'name' => $request->validated('name'),
                     'sort_order' => $request->validated('sort_order'),
                     'dashboard_color' => $request->validated('dashboard_color'),
@@ -36,7 +37,8 @@ class AssetGroupController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('admin.asset-categories.index')->with('success', 'Kelompok aset berhasil ditambahkan.');
+        return redirect()->route('admin.asset-categories.index', ['unit_kerja_id' => $request->validated('unit_kerja_id')])
+            ->with('success', 'Kelompok aset berhasil ditambahkan.');
     }
 
     public function update(UpdateAssetGroupRequest $request, AssetGroup $assetGroup): RedirectResponse
@@ -57,7 +59,7 @@ class AssetGroupController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('admin.asset-categories.index', ['group' => $assetGroup->id])
+        return redirect()->route('admin.asset-categories.index', ['unit_kerja_id' => $assetGroup->unit_kerja_id, 'group' => $assetGroup->id])
             ->with('success', 'Kelompok aset berhasil diperbarui.');
     }
 
@@ -79,7 +81,7 @@ class AssetGroupController extends Controller
             return true;
         });
 
-        return redirect()->route('admin.asset-categories.index', ['group' => $groupId])
+        return redirect()->route('admin.asset-categories.index', ['unit_kerja_id' => $assetGroup->unit_kerja_id, 'group' => $groupId])
             ->with('success', $changed ? 'Status kelompok aset berhasil diperbarui.' : 'Status kelompok aset tidak berubah.');
     }
 
@@ -110,7 +112,8 @@ class AssetGroupController extends Controller
             return redirect()->back()->withErrors(['category' => $this->blockedMessage($blockers)]);
         }
 
-        return redirect()->route('admin.asset-categories.index')->with('success', 'Kelompok aset berhasil dihapus.');
+        return redirect()->route('admin.asset-categories.index', ['unit_kerja_id' => $assetGroup->unit_kerja_id])
+            ->with('success', 'Kelompok aset berhasil dihapus.');
     }
 
     private function auditValues(AssetGroup $group): array
@@ -118,6 +121,7 @@ class AssetGroupController extends Controller
         return [
             'level' => 'group',
             'id' => $group->id,
+            'unit_kerja_id' => $group->unit_kerja_id,
             'parent_id' => null,
             'name' => $group->name,
             'sort_order' => $group->sort_order,

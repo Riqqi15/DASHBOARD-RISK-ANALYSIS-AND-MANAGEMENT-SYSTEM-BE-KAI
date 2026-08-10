@@ -13,6 +13,7 @@ use App\Models\RiskRegister;
 use App\Models\SparePart;
 use App\Models\UnitKerja;
 use App\Models\User;
+use App\Services\FailureLogImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -132,6 +133,33 @@ final class FailureLogImportUploadTest extends TestCase
             User::query()->orderBy('id')->get()->map->getRawOriginal()->all(),
             'Import workbook tidak boleh membuat atau mengubah akun pengguna.',
         );
+    }
+
+    public function test_identical_workbook_reimport_keeps_batch_history_and_skips_active_duplicates(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
+        $subsystem = AssetSubsystem::factory()->create(['name' => 'Interlocking Elektrik']);
+        Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create(['jumlah_unit' => 2]);
+        $user = User::factory()->unit($unit)->create();
+        $workbook = $this->uploadedWorkbook();
+        $service = app(FailureLogImportService::class);
+
+        $service->import($workbook, $unit, false, $user);
+        $second = $service->import($workbook, $unit, false, $user);
+
+        $this->assertSame('succeeded', $second['status']);
+        $this->assertSame(0, $second['data_updated']);
+        $this->assertSame(3, $second['data_unchanged']);
+        $this->assertSame(3, $second['duplicates_skipped']);
+        $this->assertSame([
+            'Interlocking Elektrik!10',
+            'LxC!2',
+            'Reorder Stock!2',
+        ], $second['duplicate_locations']);
+        $this->assertDatabaseCount('rams_import_batches', 2);
+        $this->assertDatabaseCount('failure_logs', 1);
+        $this->assertDatabaseCount('risk_registers', 1);
+        $this->assertDatabaseCount('spare_parts', 1);
     }
 
     private function uploadedWorkbook(): UploadedFile

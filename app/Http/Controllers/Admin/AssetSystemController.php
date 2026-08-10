@@ -44,7 +44,7 @@ class AssetSystemController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('admin.asset-categories.index', ['group' => $group->id])
+        return redirect()->route('admin.asset-categories.index', ['unit_kerja_id' => $group->unit_kerja_id, 'group' => $group->id])
             ->with('success', 'Sistem aset berhasil ditambahkan.');
     }
 
@@ -66,7 +66,11 @@ class AssetSystemController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('admin.asset-categories.index', ['group' => $assetSystem->asset_group_id, 'system' => $assetSystem->id])
+        return redirect()->route('admin.asset-categories.index', [
+            'unit_kerja_id' => $assetSystem->assetGroup()->value('unit_kerja_id'),
+            'group' => $assetSystem->asset_group_id,
+            'system' => $assetSystem->id,
+        ])
             ->with('success', 'Sistem aset berhasil diperbarui.');
     }
 
@@ -89,7 +93,11 @@ class AssetSystemController extends Controller
             return true;
         });
 
-        return redirect()->route('admin.asset-categories.index', ['group' => $groupId, 'system' => $systemId])
+        return redirect()->route('admin.asset-categories.index', [
+            'unit_kerja_id' => $assetSystem->assetGroup()->value('unit_kerja_id'),
+            'group' => $groupId,
+            'system' => $systemId,
+        ])
             ->with('success', $changed ? 'Status sistem aset berhasil diperbarui.' : 'Status sistem aset tidak berubah.');
     }
 
@@ -121,7 +129,10 @@ class AssetSystemController extends Controller
             return redirect()->back()->withErrors(['category' => $this->blockedMessage($blockers)]);
         }
 
-        return redirect()->route('admin.asset-categories.index', ['group' => $groupId])->with('success', 'Sistem aset berhasil dihapus.');
+        return redirect()->route('admin.asset-categories.index', [
+            'unit_kerja_id' => $assetSystem->assetGroup()->value('unit_kerja_id'),
+            'group' => $groupId,
+        ])->with('success', 'Sistem aset berhasil dihapus.');
     }
 
     private function auditValues(AssetSystem $system): array

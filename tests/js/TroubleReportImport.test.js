@@ -131,6 +131,10 @@ describe('TroubleReportImport', () => {
         created: 3,
         updated: 2,
         unchanged: 4,
+        data_updated: 7,
+        data_unchanged: 4,
+        duplicates_skipped: 4,
+        duplicate_locations: ['Interlocking Elektrik!10', 'LxC!2'],
         skipped: 1,
         sheets: 19,
         snapshots: 18,
@@ -159,6 +163,11 @@ describe('TroubleReportImport', () => {
     expect(wrapper.text()).toContain('19')
     expect(wrapper.text()).toContain('Dibuat')
     expect(wrapper.text()).toContain('Diperbarui')
+    expect(wrapper.text()).toContain('Data diperbarui')
+    expect(wrapper.text()).toContain('Tidak berubah')
+    expect(wrapper.text()).toContain('Duplikat dilewati')
+    expect(wrapper.get('[data-duplicate-locations]').text()).toContain('Interlocking Elektrik!10')
+    expect(wrapper.get('[data-duplicate-locations]').text()).toContain('LxC!2')
     expect(wrapper.text()).toContain('Log Tetap')
     expect(wrapper.text()).toContain('Dilewati')
     expect(wrapper.text()).toContain('Snapshot Excel')
@@ -209,7 +218,12 @@ describe('TroubleReportImport', () => {
       progress_percent: 100,
       unit: { code: 'DAOP-1' },
       issues_count: 2,
-      summary: {},
+      summary: {
+        data_updated: 2,
+        data_unchanged: 3,
+        duplicates_skipped: 3,
+        duplicate_locations: ['Reorder Stock!2'],
+      },
       issues: [
         {
           id: 101,
@@ -246,6 +260,10 @@ describe('TroubleReportImport', () => {
     expect(detail.text()).toContain('Nilai likelihood tidak ditemukan.')
     expect(detail.text()).toContain('Peringatan (1)')
     expect(detail.text()).toContain('Error (1)')
+    expect(detail.text()).toContain('Data diperbarui')
+    expect(detail.text()).toContain('Tidak berubah')
+    expect(detail.text()).toContain('Duplikat dilewati')
+    expect(detail.get('[data-batch-duplicate-locations="18"]').text()).toContain('Reorder Stock!2')
 
     await detail.get('[data-metric-help^="detail-colors-updated-"]').trigger('click')
     expect(detail.text()).toContain('Jumlah kategori, system, atau subsystem yang warnanya disesuaikan mengikuti warna dari Excel.')
@@ -276,6 +294,43 @@ describe('TroubleReportImport', () => {
     await wrapper.get('[data-batch-detail="12"]').trigger('click')
     expect(wrapper.text()).toContain('Risk Register dibuat')
     expect(wrapper.text()).toContain('6')
+    vi.unstubAllGlobals()
+  })
+
+  it('starts polling when a newly submitted batch becomes queued', async () => {
+    vi.useFakeTimers()
+    const completedBatch = {
+      id: 31,
+      workbook_name: 'RAMS Daop 1.xlsm',
+      status: 'failed',
+      progress_stage: 'Import gagal',
+      progress_percent: 10,
+      unit: { code: 'DAOP-1' },
+      issues_count: 0,
+      summary: null,
+      error_message: 'Baris workbook tidak dapat dipetakan ke aset.',
+      started_at: '2026-08-10T09:41:00+07:00',
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: completedBatch }),
+    }))
+    const wrapper = mountPage()
+
+    await wrapper.setProps({
+      history: [{ ...completedBatch, status: 'queued', progress_stage: 'Menunggu antrean', progress_percent: 0 }],
+    })
+    await vi.advanceTimersByTimeAsync(2500)
+    await wrapper.vm.$nextTick()
+
+    expect(fetch).toHaveBeenCalledWith('/trouble-report/import/batch/31', expect.objectContaining({
+      credentials: 'same-origin',
+    }))
+    expect(wrapper.text()).toContain('Gagal')
+    expect(wrapper.text()).not.toContain('Menunggu antrean')
+
+    wrapper.unmount()
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 

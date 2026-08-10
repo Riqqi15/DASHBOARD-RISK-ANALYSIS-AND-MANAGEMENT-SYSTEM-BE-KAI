@@ -52,6 +52,8 @@ class FailureLogWorkbookImporter
             'created' => 0,
             'updated' => 0,
             'unchanged' => 0,
+            'duplicates_skipped' => 0,
+            'duplicate_locations' => [],
             'skipped' => 0,
             'sheets' => 0,
             'summaries' => 0,
@@ -94,6 +96,7 @@ class FailureLogWorkbookImporter
                                 'source_column' => null,
                                 'message' => "Aset (AssetGroup/System/Subsystem) untuk sheet {$sheetName} tidak ditemukan atau ambigu.",
                             ];
+
                             continue;
                         }
 
@@ -171,25 +174,35 @@ class FailureLogWorkbookImporter
             throw new RuntimeException("Kolom tanggal dan waktu penanganan tidak ditemukan pada sheet {$sheetName}.");
         }
 
+        $conflictingRows = [];
+        foreach ($this->conflictingOperationalRows($sheet, $headerRow, $columns, $asset, $sheetName) as $rows) {
+            $locations = array_map(fn (int $row): string => $this->sourceLocation($sheetName, $row), $rows);
+            foreach ($rows as $row) {
+                $conflictingRows[$row] = true;
+                $result['skipped']++;
+                $result['duplicates_skipped']++;
+                $result['duplicate_locations'][] = $this->sourceLocation($sheetName, $row);
+                $result['issues'][] = [
+                    'sheet_name' => $sheetName,
+                    'source_row' => $row,
+                    'source_column' => 'Baris Utuh',
+                    'message' => 'Konflik: '.implode(' dan ', $locations)
+                        .' memiliki identitas operasional yang sama; seluruh baris konflik dilewati.',
+                    'severity' => 'error',
+                ];
+            }
+        }
+
         for ($row = $headerRow + 1; $row <= $sheet->getHighestDataRow(); $row++) {
             $event = $this->text($this->cellValue($sheet, $columns['failure_event'], $row));
             if ($event === '') {
                 continue;
             }
-            $cause = $this->text($this->cellValue($sheet, $columns['cause'], $row));
-            $action = $this->text($this->cellValue($sheet, $columns['action_taken'], $row));
-            if ($cause === '' || $action === '') {
-                $result['skipped']++;
-                $result['issues'][] = [
-                    'sheet_name' => $sheetName,
-                    'source_row' => $row,
-                    'source_column' => $cause === '' ? 'Penyebab' : 'Tindakan',
-                    'message' => 'Penyebab atau tindakan kosong.',
-                    'severity' => 'error',
-                ];
-
+            if (isset($conflictingRows[$row])) {
                 continue;
             }
+            $cause = $this->importText($this->cellValue($sheet, $columns['cause'], $row));
+            $action = $this->importText($this->cellValue($sheet, $columns['action_taken'], $row));
             try {
                 $startedAt = $this->rowDateTime(
                     $sheet,
@@ -240,9 +253,13 @@ class FailureLogWorkbookImporter
             $values = [
                 'asset_id' => $asset->id,
                 'created_by' => null,
-                'location' => $this->text($this->cellValue($sheet, $columns['location'], $row)) ?: ($asset->lokasi ?: $sheetName),
-                'resort' => isset($columns['resort']) ? ($this->text($this->cellValue($sheet, $columns['resort'], $row)) ?: null) : null,
-                'qc' => isset($columns['qc']) ? ($this->text($this->cellValue($sheet, $columns['qc'], $row)) ?: null) : null,
+                'location' => $this->importText($this->cellValue($sheet, $columns['location'], $row)),
+                'resort' => isset($columns['resort'])
+                    ? $this->importText($this->cellValue($sheet, $columns['resort'], $row))
+                    : '-',
+                'qc' => isset($columns['qc'])
+                    ? $this->importText($this->cellValue($sheet, $columns['qc'], $row))
+                    : '-',
                 'failure_event' => $event,
                 'cause' => $cause,
                 'action_taken' => $action,
@@ -252,14 +269,14 @@ class FailureLogWorkbookImporter
                 'spare_part_replaced' => isset($columns['spare_part_replaced'])
                     && $this->yesNo($this->cellValue($sheet, $columns['spare_part_replaced'], $row)),
                 'spare_part_marker' => isset($columns['spare_part_replaced'])
-                    ? ($this->text($this->cellValue($sheet, $columns['spare_part_replaced'], $row)) ?: null)
-                    : null,
+                    ? $this->importText($this->cellValue($sheet, $columns['spare_part_replaced'], $row))
+                    : '-',
                 'spare_part_quantity' => null,
                 'vandalism' => isset($columns['vandalism'])
                     && $this->yesNo($this->cellValue($sheet, $columns['vandalism'], $row)),
                 'vandalism_marker' => isset($columns['vandalism'])
-                    ? ($this->text($this->cellValue($sheet, $columns['vandalism'], $row)) ?: null)
-                    : null,
+                    ? $this->importText($this->cellValue($sheet, $columns['vandalism'], $row))
+                    : '-',
                 'workbook_hash' => $workbookHash,
                 'workbook_name' => $workbookName,
                 'sheet_name' => $sheetName,
@@ -284,6 +301,8 @@ class FailureLogWorkbookImporter
                 $result['updated']++;
             } else {
                 $result['unchanged']++;
+                $result['duplicates_skipped']++;
+                $result['duplicate_locations'][] = $this->sourceLocation($sheetName, $row);
                 $result['issues'][] = [
                     'sheet_name' => $sheetName,
                     'source_row' => $row,
@@ -293,6 +312,74 @@ class FailureLogWorkbookImporter
                 ];
             }
         }
+
+        $result['duplicate_locations'] = array_values(array_unique($result['duplicate_locations']));
+    }
+
+    /**
+     * @param  array<string, int>  $columns
+     * @return list<list<int>>
+     */
+    private function conflictingOperationalRows(
+        Worksheet $sheet,
+        int $headerRow,
+        array $columns,
+        Asset $asset,
+        string $sheetName,
+    ): array {
+        $rowsByIdentity = [];
+
+        for ($row = $headerRow + 1; $row <= $sheet->getHighestDataRow(); $row++) {
+            if ($this->text($this->cellValue($sheet, $columns['failure_event'], $row)) === '') {
+                continue;
+            }
+
+            try {
+                $startedAt = $this->rowDateTime(
+                    $sheet,
+                    $columns,
+                    $row,
+                    'started_at',
+                    'event_date',
+                    'start_time',
+                    $sheetName,
+                );
+            } catch (RuntimeException) {
+                continue;
+            }
+
+            $identity = hash('sha256', implode('|', [
+                (string) $asset->unit_kerja_id,
+                $this->assetResolver->comparable($sheetName),
+                $this->normalize($this->importText($this->cellValue($sheet, $columns['location'], $row))),
+                isset($columns['resort'])
+                    ? $this->normalize($this->importText($this->cellValue($sheet, $columns['resort'], $row)))
+                    : '-',
+                isset($columns['qc'])
+                    ? $this->normalize($this->importText($this->cellValue($sheet, $columns['qc'], $row)))
+                    : '-',
+                $startedAt->format('Y-m-d H:i:s'),
+                $this->normalize($this->text($this->cellValue($sheet, $columns['failure_event'], $row))),
+            ]));
+            $rowsByIdentity[$identity][] = $row;
+        }
+
+        return array_values(array_filter(
+            $rowsByIdentity,
+            fn (array $rows): bool => count($rows) > 1,
+        ));
+    }
+
+    private function importText(mixed $value): string
+    {
+        $text = $this->text($value);
+
+        return $text === '' ? '-' : $text;
+    }
+
+    private function sourceLocation(string $sheetName, int $row): string
+    {
+        return "{$sheetName}!{$row}";
     }
 
     private function resolveAsset(Worksheet $sheet, UnitKerja $unit, string $sheetName): ?Asset

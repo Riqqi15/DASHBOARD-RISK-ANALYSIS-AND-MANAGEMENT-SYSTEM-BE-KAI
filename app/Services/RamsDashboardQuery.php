@@ -33,7 +33,7 @@ class RamsDashboardQuery
             'assets' => $dashboardAssets
                 ->map(fn (Asset $asset): array => $this->assetPayload($asset))
                 ->all(),
-            'asset_categories' => $this->assetCategories($dashboardAssets),
+            'asset_categories' => $this->assetCategories($dashboardAssets, $unit),
         ];
     }
 
@@ -254,48 +254,35 @@ class RamsDashboardQuery
     }
 
     /**
-     * Build the category tree only from subsystem IDs owned by the selected area's assets.
+     * Build the category tree from the selected area's assets plus empty categories
+     * that are still being prepared in the master taxonomy.
+     *
+     * Categories with assets only in another area stay hidden from the current
+     * area, but newly-created empty categories appear immediately.
      *
      * @param  Collection<int, Asset>  $assets
      * @return array<int, array<string, mixed>>
      */
-    private function assetCategories(Collection $assets): array
+    private function assetCategories(Collection $assets, ?UnitKerja $unit): array
     {
         $subsystemIds = $assets->pluck('asset_subsystem_id')->filter()->unique()->values();
 
-        if ($subsystemIds->isEmpty()) {
-            return [];
-        }
-
         return AssetGroup::query()
-            ->whereHas(
-                'systems.subsystems',
-                fn (Builder $query): Builder => $query->whereIn('asset_subsystems.id', $subsystemIds),
-            )
+            ->when($unit, fn (Builder $query): Builder => $query->forUnit($unit))
             ->with([
-                'systems' => fn ($query) => $query->whereHas(
-                    'subsystems',
-                    fn (Builder $subsystems): Builder => $subsystems->whereIn('asset_subsystems.id', $subsystemIds),
-                ),
-                'systems.subsystems' => fn ($query) => $query->whereIn('asset_subsystems.id', $subsystemIds),
+                'systems.subsystems' => fn ($query) => $query->withCount('assets'),
             ])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
-            ->map(fn (AssetGroup $group): array => [
-                'id' => $group->id,
-                'name' => $group->name,
-                'dashboard_color' => $group->dashboard_color,
-                'dashboard_color_source' => $group->dashboard_color_source,
-                'is_active' => $group->is_active,
-                'systems' => $group->systems
-                    ->map(fn (AssetSystem $system): array => [
-                        'id' => $system->id,
-                        'name' => $system->name,
-                        'dashboard_color' => $system->dashboard_color,
-                        'dashboard_color_source' => $system->dashboard_color_source,
-                        'is_active' => $system->is_active,
-                        'subsystems' => $system->subsystems
+            ->map(function (AssetGroup $group) use ($subsystemIds): ?array {
+                $systems = $group->systems
+                    ->map(function (AssetSystem $system) use ($subsystemIds): ?array {
+                        $subsystems = $system->subsystems
+                            ->filter(
+                                fn (AssetSubsystem $subsystem): bool => $subsystemIds->contains($subsystem->id)
+                                    || (int) ($subsystem->assets_count ?? 0) === 0,
+                            )
                             ->map(fn (AssetSubsystem $subsystem): array => [
                                 'id' => $subsystem->id,
                                 'name' => $subsystem->name,
@@ -303,12 +290,38 @@ class RamsDashboardQuery
                                 'dashboard_color_source' => $subsystem->dashboard_color_source,
                                 'is_active' => $subsystem->is_active,
                             ])
-                            ->values()
-                            ->all(),
-                    ])
-                    ->values()
-                    ->all(),
-            ])
+                            ->values();
+
+                        if ($system->subsystems->isNotEmpty() && $subsystems->isEmpty()) {
+                            return null;
+                        }
+
+                        return [
+                            'id' => $system->id,
+                            'name' => $system->name,
+                            'dashboard_color' => $system->dashboard_color,
+                            'dashboard_color_source' => $system->dashboard_color_source,
+                            'is_active' => $system->is_active,
+                            'subsystems' => $subsystems->all(),
+                        ];
+                    })
+                    ->filter()
+                    ->values();
+
+                if ($group->systems->isNotEmpty() && $systems->isEmpty()) {
+                    return null;
+                }
+
+                return [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    'dashboard_color' => $group->dashboard_color,
+                    'dashboard_color_source' => $group->dashboard_color_source,
+                    'is_active' => $group->is_active,
+                    'systems' => $systems->all(),
+                ];
+            })
+            ->filter()
             ->values()
             ->all();
     }

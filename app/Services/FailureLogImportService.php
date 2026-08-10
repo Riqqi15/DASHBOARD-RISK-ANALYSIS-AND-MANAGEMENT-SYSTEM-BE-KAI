@@ -55,7 +55,7 @@ final class FailureLogImportService
             null,
             true,
         );
-        $result = $this->import($workbook, $unit, $batch->dry_run, $actor);
+        $result = $this->import($workbook, $unit, $batch->dry_run, $actor, $batch);
         $batch->refresh()->update([
             'progress_stage' => $result['status'] === 'succeeded' ? 'Import selesai' : 'Import gagal',
             'progress_percent' => $result['status'] === 'succeeded' ? 100 : $batch->progress_percent,
@@ -81,8 +81,13 @@ final class FailureLogImportService
     }
 
     /** @return array<string, mixed> */
-    public function import(UploadedFile $workbook, UnitKerja $unit, bool $dryRun = false, ?User $actor = null): array
-    {
+    public function import(
+        UploadedFile $workbook,
+        UnitKerja $unit,
+        bool $dryRun = false,
+        ?User $actor = null,
+        ?RamsImportBatch $batch = null,
+    ): array {
         $path = $workbook->getRealPath();
         if (! is_string($path) || $path === '') {
             throw new RuntimeException('Temporary file workbook tidak tersedia.');
@@ -98,10 +103,11 @@ final class FailureLogImportService
             (string) $unit->id,
             self::IMPORT_VERSION,
         ]));
-        $batch = RamsImportBatch::query()->firstOrNew(['fingerprint' => $fingerprint]);
+        $batch ??= new RamsImportBatch;
         $batch->fill([
             'unit_kerja_id' => $unit->id,
             'uploaded_by_user_id' => $actor?->id,
+            'fingerprint' => $fingerprint,
             'import_version' => self::IMPORT_VERSION,
             'workbook_name' => $workbook->getClientOriginalName(),
             'file_size' => $workbook->getSize() ?: 0,
@@ -124,6 +130,9 @@ final class FailureLogImportService
             $masterSummary = [
                 'created' => 0,
                 'updated' => 0,
+                'unchanged' => 0,
+                'duplicates_skipped' => 0,
+                'duplicate_locations' => [],
                 'issues' => [],
             ];
             if ($this->masterAssetImporter->supports($path)) {
@@ -138,7 +147,15 @@ final class FailureLogImportService
             $this->progress($batch, 'Memproses Risk Matrix dan warna dashboard', 35);
             $riskMatrixSummary = $this->riskMatrixImporter->supports($path)
                 ? $this->riskMatrixImporter->import($path, $unit)
-                : ['created' => 0, 'updated' => 0, 'colors_updated' => 0, 'issues' => []];
+                : [
+                    'created' => 0,
+                    'updated' => 0,
+                    'unchanged' => 0,
+                    'duplicates_skipped' => 0,
+                    'duplicate_locations' => [],
+                    'colors_updated' => 0,
+                    'issues' => [],
+                ];
             $this->progress($batch, 'Memproses Risk Register', 50);
             $riskRegisterSummary = $this->riskRegisterImporter->supports($path)
                 ? $this->riskRegisterImporter->import($path, $unit)
@@ -146,6 +163,8 @@ final class FailureLogImportService
                     'created' => 0,
                     'updated' => 0,
                     'unchanged' => 0,
+                    'duplicates_skipped' => 0,
+                    'duplicate_locations' => [],
                     'skipped' => 0,
                     'issues' => [[
                         'sheet_name' => 'LxC',
@@ -160,6 +179,8 @@ final class FailureLogImportService
                     'created' => 0,
                     'updated' => 0,
                     'unchanged' => 0,
+                    'duplicates_skipped' => 0,
+                    'duplicate_locations' => [],
                     'skipped' => 0,
                     'issues' => [[
                         'sheet_name' => 'Reorder Stock',
@@ -178,8 +199,10 @@ final class FailureLogImportService
             $summary['parity'] = $paritySummary['counts'];
             $summary['master_assets_created'] = (int) ($masterSummary['created'] ?? 0);
             $summary['master_assets_updated'] = (int) ($masterSummary['updated'] ?? 0);
+            $summary['master_assets_unchanged'] = (int) ($masterSummary['unchanged'] ?? 0);
             $summary['risk_matrices_created'] = (int) ($riskMatrixSummary['created'] ?? 0);
             $summary['risk_matrices_updated'] = (int) ($riskMatrixSummary['updated'] ?? 0);
+            $summary['risk_matrices_unchanged'] = (int) ($riskMatrixSummary['unchanged'] ?? 0);
             $summary['dashboard_colors_updated'] = (int) ($riskMatrixSummary['colors_updated'] ?? 0);
             $summary['risk_registers_created'] = (int) ($riskRegisterSummary['created'] ?? 0);
             $summary['risk_registers_updated'] = (int) ($riskRegisterSummary['updated'] ?? 0);
@@ -189,6 +212,29 @@ final class FailureLogImportService
             $summary['spare_parts_updated'] = (int) ($sparePartSummary['updated'] ?? 0);
             $summary['spare_parts_unchanged'] = (int) ($sparePartSummary['unchanged'] ?? 0);
             $summary['spare_parts_skipped'] = (int) ($sparePartSummary['skipped'] ?? 0);
+            $summary['data_updated'] = (int) ($summary['updated'] ?? 0)
+                + $summary['master_assets_updated']
+                + $summary['risk_matrices_updated']
+                + $summary['risk_registers_updated']
+                + $summary['spare_parts_updated'];
+            $summary['data_unchanged'] = (int) ($summary['unchanged'] ?? 0)
+                + $summary['master_assets_unchanged']
+                + $summary['risk_matrices_unchanged']
+                + $summary['risk_registers_unchanged']
+                + $summary['spare_parts_unchanged'];
+            $summary['duplicates_skipped'] = (int) ($summary['duplicates_skipped'] ?? 0)
+                + (int) ($masterSummary['duplicates_skipped'] ?? 0)
+                + (int) ($riskMatrixSummary['duplicates_skipped'] ?? 0)
+                + (int) ($riskRegisterSummary['duplicates_skipped'] ?? 0)
+                + (int) ($sparePartSummary['duplicates_skipped'] ?? 0);
+            $summary['duplicate_locations'] = array_values(array_unique(array_merge(
+                $summary['duplicate_locations'] ?? [],
+                $masterSummary['duplicate_locations'] ?? [],
+                $riskMatrixSummary['duplicate_locations'] ?? [],
+                $riskRegisterSummary['duplicate_locations'] ?? [],
+                $sparePartSummary['duplicate_locations'] ?? [],
+            )));
+            sort($summary['duplicate_locations'], SORT_NATURAL | SORT_FLAG_CASE);
             $summary['issues'] = [
                 ...($summary['issues'] ?? []),
                 ...($masterSummary['issues'] ?? []),
@@ -255,6 +301,10 @@ final class FailureLogImportService
                 'created' => 0,
                 'updated' => 0,
                 'unchanged' => 0,
+                'data_updated' => 0,
+                'data_unchanged' => 0,
+                'duplicates_skipped' => 0,
+                'duplicate_locations' => [],
                 'skipped' => 0,
                 'sheets' => 0,
                 'snapshots' => 0,
@@ -293,9 +343,14 @@ final class FailureLogImportService
             'unit' => $unit->only(['id', 'code', 'name']),
             'master_assets_created' => (int) ($summary['master_assets_created'] ?? 0),
             'master_assets_updated' => (int) ($summary['master_assets_updated'] ?? 0),
+            'master_assets_unchanged' => (int) ($summary['master_assets_unchanged'] ?? 0),
             'created' => (int) ($summary['created'] ?? 0),
             'updated' => (int) ($summary['updated'] ?? 0),
             'unchanged' => (int) ($summary['unchanged'] ?? 0),
+            'data_updated' => (int) ($summary['data_updated'] ?? 0),
+            'data_unchanged' => (int) ($summary['data_unchanged'] ?? 0),
+            'duplicates_skipped' => (int) ($summary['duplicates_skipped'] ?? 0),
+            'duplicate_locations' => array_values($summary['duplicate_locations'] ?? []),
             'skipped' => (int) ($summary['skipped'] ?? 0),
             'sheets' => (int) ($summary['sheets'] ?? 0),
             'snapshots' => (int) ($summary['snapshots'] ?? 0),
@@ -303,6 +358,9 @@ final class FailureLogImportService
             'risk_registers_updated' => (int) ($summary['risk_registers_updated'] ?? 0),
             'risk_registers_unchanged' => (int) ($summary['risk_registers_unchanged'] ?? 0),
             'risk_registers_skipped' => (int) ($summary['risk_registers_skipped'] ?? 0),
+            'risk_matrices_created' => (int) ($summary['risk_matrices_created'] ?? 0),
+            'risk_matrices_updated' => (int) ($summary['risk_matrices_updated'] ?? 0),
+            'risk_matrices_unchanged' => (int) ($summary['risk_matrices_unchanged'] ?? 0),
             'spare_parts_created' => (int) ($summary['spare_parts_created'] ?? 0),
             'spare_parts_updated' => (int) ($summary['spare_parts_updated'] ?? 0),
             'spare_parts_unchanged' => (int) ($summary['spare_parts_unchanged'] ?? 0),

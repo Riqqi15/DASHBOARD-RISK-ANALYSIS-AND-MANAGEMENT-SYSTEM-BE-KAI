@@ -115,7 +115,7 @@ describe('Dashboard', () => {
     expect(wrapper.text()).toContain('Lama operasi')
   })
 
-  it('hides asset categories and hierarchy nodes without assets in the selected area', () => {
+  it('renders empty asset categories from the master taxonomy', () => {
     const wrapper = mountPage({
       assets: [],
       asset_categories: [
@@ -127,27 +127,30 @@ describe('Dashboard', () => {
       ],
     })
 
-    expect(wrapper.text()).not.toContain('1234')
-    expect(wrapper.text()).toContain('Belum ada peralatan terhubung')
+    expect(wrapper.text()).toContain('1234')
+    expect(wrapper.text()).toContain('0 aset · 0 unit · 0 system')
+    expect(wrapper.text()).toContain('Belum ada system aktif.')
   })
 
-  it('does not render an empty subsystem from another area', () => {
+  it('renders empty systems and subsystems supplied by the backend taxonomy', () => {
     const wrapper = mountPage({
+      assets: [],
       asset_categories: [
         {
           id: 6,
-          name: 'SINTEL DAOP',
+          name: 'KATEGORI BARU',
           systems: [{
             id: 7,
-            name: 'SYSTEM DAOP',
-            subsystems: [{ id: 8, name: 'SUBSYSTEM AREA LAIN' }],
+            name: 'SYSTEM BARU',
+            subsystems: [{ id: 8, name: 'SUBSYSTEM BARU' }],
           }],
         },
       ],
     })
 
-    expect(wrapper.text()).not.toContain('SUBSYSTEM AREA LAIN')
-    expect(wrapper.get('[data-subsystem-name="1"]')).toBeTruthy()
+    expect(wrapper.text()).toContain('KATEGORI BARU')
+    expect(wrapper.text()).toContain('SYSTEM BARU')
+    expect(wrapper.get('[data-subsystem-name="SUBSYSTEM BARU"]').text()).toContain('0 aset · 0 unit')
   })
 
   it('opens trouble report for the selected subsystem and area', async () => {

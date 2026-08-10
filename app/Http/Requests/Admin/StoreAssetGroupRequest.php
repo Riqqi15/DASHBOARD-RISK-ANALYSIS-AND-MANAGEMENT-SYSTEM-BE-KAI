@@ -5,6 +5,7 @@ namespace App\Http\Requests\Admin;
 use App\Models\AssetGroup;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class StoreAssetGroupRequest extends FormRequest
 {
@@ -16,8 +17,19 @@ class StoreAssetGroupRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'unit_kerja_id' => [
+                'required',
+                'integer',
+                Rule::exists('unit_kerjas', 'id')->where(fn ($query) => $query->where('is_active', true)),
+            ],
             'name' => ['required', 'string', 'max:255'],
-            'normalized_name' => ['required', 'string', 'max:255', 'unique:asset_groups,normalized_name'],
+            'normalized_name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('asset_groups', 'normalized_name')
+                    ->where(fn ($query) => $query->where('unit_kerja_id', $this->input('unit_kerja_id'))),
+            ],
             'sort_order' => ['required', 'integer', 'min:0', 'max:65535'],
             'dashboard_color' => ['nullable', 'regex:/^#[0-9A-F]{6}$/i'],
         ];

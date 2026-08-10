@@ -17,7 +17,7 @@ class RamsDashboardBackendTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_dashboard_hides_asset_category_tree_without_assets_in_selected_area(): void
+    public function test_dashboard_exposes_empty_asset_categories_without_assets_in_selected_area(): void
     {
         $pusat = User::factory()->pusat()->create(['is_active' => true]);
         AssetGroup::query()->create([
@@ -31,7 +31,9 @@ class RamsDashboardBackendTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('dashboard/Dashboard')
-                ->has('asset_categories', 0)
+                ->has('asset_categories', 1)
+                ->where('asset_categories.0.name', '1234')
+                ->where('asset_categories.0.systems', [])
                 ->has('assets', 0));
     }
 

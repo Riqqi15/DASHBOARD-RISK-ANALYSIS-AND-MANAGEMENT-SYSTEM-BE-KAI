@@ -7,6 +7,7 @@ use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
 use App\Models\SparePart;
+use App\Services\SparePartWorkbookImporter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -46,8 +47,11 @@ class SparePartImportTest extends TestCase
             ->expectsOutputToContain('Dibuat: 0')
             ->expectsOutputToContain('Tidak berubah: 1')
             ->assertSuccessful();
+        $unchanged = app(SparePartWorkbookImporter::class)->import($path);
 
         $this->assertDatabaseCount('spare_parts', 1);
+        $this->assertSame(1, $unchanged['duplicates_skipped']);
+        $this->assertSame(['Reorder Stock!2'], $unchanged['duplicate_locations']);
         $part = SparePart::query()->sole();
         $this->assertTrue($part->assetSubsystem->is($subsystem));
         $this->assertSame('Track Circuit', $part->equipment);

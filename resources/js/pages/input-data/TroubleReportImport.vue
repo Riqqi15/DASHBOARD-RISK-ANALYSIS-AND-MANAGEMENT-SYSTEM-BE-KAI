@@ -47,6 +47,7 @@ let pollingTimer = null
 
 watch(() => props.history, (history) => {
   batchHistory.value = history.map(batch => ({ ...batch }))
+  syncPolling()
 }, { deep: true })
 
 const detectUnitCode = (filename = '') => {
@@ -76,6 +77,9 @@ const submit = () => {
 }
 
 const counters = computed(() => props.result ? [
+  { key: 'data-updated', label: 'Data diperbarui', help: 'Jumlah seluruh data operasional lama yang isinya diperbarui dari workbook terbaru.', value: props.result.data_updated ?? 0, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
+  { key: 'data-unchanged', label: 'Tidak berubah', help: 'Jumlah data operasional yang identitas dan isinya sama persis dengan data aktif.', value: props.result.data_unchanged ?? 0, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
+  { key: 'duplicates-skipped', label: 'Duplikat dilewati', help: 'Jumlah data identik atau konflik identitas yang tidak disimpan ulang.', value: props.result.duplicates_skipped ?? 0, tone: 'text-amber-700 bg-amber-50 border-amber-100' },
   { key: 'assets-created', label: 'Aset Dibuat', help: 'Jumlah aset baru yang berhasil ditambahkan dari workbook.', value: props.result.master_assets_created ?? 0, tone: 'text-fuchsia-700 bg-fuchsia-50 border-fuchsia-100' },
   { key: 'assets-updated', label: 'Aset Diperbarui', help: 'Jumlah aset yang sudah ada lalu datanya disesuaikan dari workbook.', value: props.result.master_assets_updated ?? 0, tone: 'text-pink-700 bg-pink-50 border-pink-100' },
   { key: 'risk-register-created', label: 'Risk Register Baru', help: 'Jumlah daftar risiko baru yang ditambahkan ke sistem.', value: props.result.risk_registers_created ?? 0, tone: 'text-rose-700 bg-rose-50 border-rose-100' },
@@ -124,6 +128,9 @@ const statusLabel = (status) => ({
 const detailMetrics = (batch) => {
   const summary = batch?.summary || {}
   return [
+    { key: `detail-data-updated-${batch?.id}`, label: 'Data diperbarui', help: 'Jumlah seluruh data operasional lama yang isinya diperbarui dari workbook terbaru.', value: summary.data_updated ?? 0 },
+    { key: `detail-data-unchanged-${batch?.id}`, label: 'Tidak berubah', help: 'Jumlah data operasional yang identitas dan isinya sama persis dengan data aktif.', value: summary.data_unchanged ?? 0 },
+    { key: `detail-duplicates-skipped-${batch?.id}`, label: 'Duplikat dilewati', help: 'Jumlah data identik atau konflik identitas yang tidak disimpan ulang.', value: summary.duplicates_skipped ?? 0 },
     { key: `detail-assets-created-${batch?.id}`, label: 'Master aset dibuat', help: 'Jumlah aset baru yang berhasil ditambahkan dari workbook.', value: summary.master_assets_created ?? 0 },
     { key: `detail-assets-updated-${batch?.id}`, label: 'Master aset diperbarui', help: 'Jumlah aset yang sudah ada lalu datanya disesuaikan dari workbook.', value: summary.master_assets_updated ?? 0 },
     { key: `detail-risk-matrix-created-${batch?.id}`, label: 'Risk Matrix dibuat', help: 'Jumlah data matriks risiko baru yang dibuat dari workbook.', value: summary.risk_matrices_created ?? 0 },
@@ -184,6 +191,7 @@ const fetchBatch = async (id) => {
     batchDetails.value = { ...batchDetails.value, [id]: payload }
     const index = batchHistory.value.findIndex(batch => batch.id === id)
     if (index >= 0) batchHistory.value[index] = { ...batchHistory.value[index], ...payload }
+    syncPolling()
   } catch (error) {
     batchDetailErrors.value = {
       ...batchDetailErrors.value,
@@ -211,14 +219,27 @@ const pollActiveBatches = () => {
   batchHistory.value.filter(isActiveBatch).forEach(batch => fetchBatch(batch.id))
 }
 
-onMounted(() => {
-  if (import.meta.env.MODE !== 'test' && batchHistory.value.some(isActiveBatch)) {
-    pollingTimer = window.setInterval(pollActiveBatches, 2500)
+const stopPolling = () => {
+  if (!pollingTimer) return
+  window.clearInterval(pollingTimer)
+  pollingTimer = null
+}
+
+const syncPolling = () => {
+  if (batchHistory.value.some(isActiveBatch)) {
+    if (!pollingTimer) pollingTimer = window.setInterval(pollActiveBatches, 2500)
+    return
   }
+
+  stopPolling()
+}
+
+onMounted(() => {
+  syncPolling()
 })
 
 onBeforeUnmount(() => {
-  if (pollingTimer) window.clearInterval(pollingTimer)
+  stopPolling()
 })
 </script>
 
@@ -366,6 +387,15 @@ onBeforeUnmount(() => {
               {{ counter.help }}
             </div>
           </div>
+        </div>
+
+        <div v-if="result.duplicate_locations?.length" data-duplicate-locations class="border-t border-amber-100 bg-amber-50/70 px-5 py-4">
+          <p class="text-sm font-semibold text-amber-900">Lokasi duplikat</p>
+          <ul class="mt-2 flex flex-wrap gap-2">
+            <li v-for="location in result.duplicate_locations" :key="location" class="rounded-md border border-amber-200 bg-white px-2.5 py-1 text-xs font-semibold text-amber-800">
+              {{ location }}
+            </li>
+          </ul>
         </div>
 
         <div v-if="result.issues?.length" class="border-t border-slate-200 bg-slate-50">
@@ -523,6 +553,19 @@ onBeforeUnmount(() => {
                           {{ metric.help }}
                         </div>
                       </div>
+                    </div>
+
+                    <div
+                      v-if="expandedBatch.summary?.duplicate_locations?.length"
+                      :data-batch-duplicate-locations="expandedBatch.id"
+                      class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3"
+                    >
+                      <p class="text-sm font-bold text-amber-900">Lokasi duplikat</p>
+                      <ul class="mt-2 flex flex-wrap gap-2">
+                        <li v-for="location in expandedBatch.summary.duplicate_locations" :key="location" class="rounded-md border border-amber-200 bg-white px-2.5 py-1 text-xs font-semibold text-amber-800">
+                          {{ location }}
+                        </li>
+                      </ul>
                     </div>
 
                     <div v-if="expandedBatch.issues?.length" class="mt-5 overflow-hidden rounded-lg border border-slate-200 bg-white">

@@ -9,6 +9,7 @@ use App\Models\RamsImportBatch;
 use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 final class RamsImportSubmissionService
@@ -31,19 +32,17 @@ final class RamsImportSubmissionService
             (string) $unit->id,
             FailureLogImportService::IMPORT_VERSION,
         ]));
-        $existing = RamsImportBatch::query()->where('fingerprint', $fingerprint)->first();
-        if ($existing !== null && in_array($existing->status, ['queued', 'processing', 'succeeded'], true)) {
-            return ['batch' => $existing, 'duplicate' => true];
-        }
-
         $extension = strtolower($workbook->getClientOriginalExtension()) ?: 'xlsx';
-        $storedPath = $workbook->storeAs('rams-imports', "{$fingerprint}.{$extension}", 'local');
+        $storedPath = $workbook->storeAs(
+            'rams-imports',
+            $fingerprint.'-'.Str::uuid().'.'.$extension,
+            'local',
+        );
         if (! is_string($storedPath) || $storedPath === '') {
             throw new RuntimeException('Workbook gagal disimpan ke penyimpanan private.');
         }
 
-        $batch = $existing ?? new RamsImportBatch;
-        $batch->fill([
+        $batch = RamsImportBatch::query()->create([
             'unit_kerja_id' => $unit->id,
             'uploaded_by_user_id' => $actor->id,
             'fingerprint' => $fingerprint,
@@ -63,8 +62,7 @@ final class RamsImportSubmissionService
             'rolled_back_by_user_id' => null,
             'rolled_back_at' => null,
             'rollback_error' => null,
-        ])->save();
-        $batch->issues()->delete();
+        ]);
 
         ProcessRamsWorkbookImport::dispatch($batch->id)->onQueue('rams-imports');
 

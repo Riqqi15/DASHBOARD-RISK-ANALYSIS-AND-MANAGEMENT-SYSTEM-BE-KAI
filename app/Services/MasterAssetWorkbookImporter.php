@@ -89,7 +89,7 @@ class MasterAssetWorkbookImporter
     }
 
     /**
-     * @return array{created: int, updated: int, skipped: int, openings_created: int, openings_updated: int, predictive_snapshots: int}
+     * @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int, openings_created: int, openings_updated: int, predictive_snapshots: int}
      */
     public function import(string $workbookPath, UnitKerja $unit): array
     {
@@ -160,7 +160,7 @@ class MasterAssetWorkbookImporter
 
     /**
      * @param  array<string, int>  $columns
-     * @return array{created: int, updated: int, skipped: int, openings_created: int, openings_updated: int, predictive_snapshots: int}
+     * @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int, openings_created: int, openings_updated: int, predictive_snapshots: int}
      */
     private function importRows(
         Worksheet $sheet,
@@ -172,6 +172,9 @@ class MasterAssetWorkbookImporter
         $result = [
             'created' => 0,
             'updated' => 0,
+            'unchanged' => 0,
+            'duplicates_skipped' => 0,
+            'duplicate_locations' => [],
             'skipped' => 0,
             'openings_created' => 0,
             'openings_updated' => 0,
@@ -206,6 +209,7 @@ class MasterAssetWorkbookImporter
                 $workbookName,
                 self::SHEET,
                 $row,
+                $unit->id,
             );
             $this->lockAndRevalidateCategories(
                 $categories['group'],
@@ -279,6 +283,21 @@ class MasterAssetWorkbookImporter
                 ->lockForUpdate()
                 ->get();
 
+            if ($matchingAssets->isEmpty()) {
+                $normalizedSubsystem = $this->categoryResolver->normalize($subsystem);
+                $matchingAssets = Asset::withTrashed()
+                    ->where('unit_kerja_id', $unit->id)
+                    ->whereNotNull('source_key')
+                    ->with('assetSubsystem')
+                    ->lockForUpdate()
+                    ->get()
+                    ->filter(function (Asset $candidate) use ($normalizedSubsystem): bool {
+                        return $this->categoryResolver->normalize($candidate->subsystem) === $normalizedSubsystem
+                            || $this->categoryResolver->normalize($candidate->assetSubsystem->name) === $normalizedSubsystem;
+                    })
+                    ->values();
+            }
+
             if ($matchingAssets->count() > 1) {
                 throw new RuntimeException(
                     "Konflik kandidat aset impor pada workbook {$workbookName}, sheet ".self::SHEET
@@ -308,6 +327,10 @@ class MasterAssetWorkbookImporter
                         $this->auditValues($asset->refresh()),
                     );
                     $result['updated']++;
+                } else {
+                    $result['unchanged']++;
+                    $result['duplicates_skipped']++;
+                    $result['duplicate_locations'][] = self::SHEET.'!'.$row;
                 }
             } else {
                 $asset = Asset::query()->create([

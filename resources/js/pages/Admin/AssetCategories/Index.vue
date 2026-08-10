@@ -9,6 +9,8 @@ import DeactivateCategoryDialog from './Partials/DeactivateCategoryDialog.vue'
 import DeleteCategoryDialog from './Partials/DeleteCategoryDialog.vue'
 
 const props = defineProps({
+  units: { type: Array, default: () => [] },
+  selectedUnitId: { type: Number, default: null },
   groups: { type: Array, required: true },
   selectedGroupId: { type: Number, default: null },
   selectedSystemId: { type: Number, default: null },
@@ -17,6 +19,7 @@ const props = defineProps({
 
 const activeGroupId = ref(props.selectedGroupId)
 const activeSystemId = ref(props.selectedSystemId)
+const activeUnitId = ref(props.selectedUnitId)
 const categoryDialog = ref(null)
 const categoryForm = ref(null)
 const statusDialog = ref(null)
@@ -27,7 +30,9 @@ const mobileLevel = ref('group')
 
 watch(() => props.selectedGroupId, (value) => { activeGroupId.value = value })
 watch(() => props.selectedSystemId, (value) => { activeSystemId.value = value })
+watch(() => props.selectedUnitId, (value) => { activeUnitId.value = value })
 
+const selectedUnit = computed(() => props.units.find((unit) => unit.id === activeUnitId.value) ?? null)
 const selectedGroup = computed(() => props.groups.find((group) => group.id === activeGroupId.value) ?? null)
 const systems = computed(() => selectedGroup.value?.systems ?? [])
 const selectedSystem = computed(() => systems.value.find((system) => system.id === activeSystemId.value) ?? null)
@@ -45,9 +50,17 @@ watch(canManage, (value) => {
 })
 
 const visitSelection = () => router.get('/admin/asset-categories', {
+  unit_kerja_id: activeUnitId.value,
   group: activeGroupId.value,
   system: activeSystemId.value,
 }, { preserveState: true, preserveScroll: true, replace: true })
+
+const selectUnit = () => {
+  activeGroupId.value = null
+  activeSystemId.value = null
+  mobileLevel.value = 'group'
+  visitSelection()
+}
 
 const selectGroup = (group) => {
   activeGroupId.value = group.id
@@ -71,6 +84,7 @@ const levelDetails = {
 const openCreate = (level) => {
   if (!canManage.value) return
   const data = { name: '', sort_order: 0, dashboard_color: null }
+  if (level === 'group') data.unit_kerja_id = activeUnitId.value
   if (level === 'system') data.asset_group_id = activeGroupId.value
   if (level === 'subsystem') data.asset_system_id = activeSystemId.value
   categoryForm.value = useForm(data)
@@ -148,9 +162,23 @@ const submitDelete = () => {
   <Head title="Kategori Aset" />
   <MainLayout>
     <div class="mb-6">
-      <p class="text-sm font-medium text-orange-600">Taksonomi aset global</p>
+      <p class="text-sm font-medium text-orange-600">Taksonomi aset per wilayah</p>
       <h2 data-dialog-focus-fallback tabindex="-1" class="mt-1 rounded text-2xl font-semibold tracking-tight text-slate-950 outline-none focus-visible:ring-2 focus-visible:ring-[#171650] focus-visible:ring-offset-2">Kategori Aset</h2>
-      <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Jaga susunan kategori aset yang digunakan bersama oleh seluruh Daop dan Divre.</p>
+      <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Jaga susunan kategori aset sesuai Daop atau Divre yang sedang dipilih.</p>
+      <label class="mt-5 block max-w-xl text-sm font-semibold text-slate-800" for="asset-category-unit">
+        Wilayah kerja
+        <select
+          id="asset-category-unit"
+          v-model.number="activeUnitId"
+          class="mt-2 block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-[#f26522] focus:ring-2 focus:ring-[#f26522]/25"
+          @change="selectUnit"
+        >
+          <option v-for="unit in units" :key="unit.id" :value="unit.id">{{ unit.code }} — {{ unit.name }}</option>
+        </select>
+      </label>
+      <p v-if="selectedUnit" class="mt-2 text-xs font-medium text-slate-500">
+        Sedang mengelola kategori untuk {{ selectedUnit.code }} — {{ selectedUnit.name }}.
+      </p>
     </div>
 
     <nav aria-label="Jalur kategori" class="mb-4 flex min-h-11 items-center gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-600 md:hidden">
@@ -256,7 +284,7 @@ const submitDelete = () => {
       v-if="canManage && categoryDialog && categoryForm"
       :title="`${categoryDialog.mode === 'edit' ? 'Ubah' : 'Tambah'} ${levelDetails[categoryDialog.level].label}`"
       :level-label="levelDetails[categoryDialog.level].label"
-      :description="categoryDialog.mode === 'edit' ? 'Perbarui nama dan urutan tanpa mengubah data yang sudah terhubung.' : categoryDialog.level === 'group' ? 'Kategori baru tersedia untuk seluruh wilayah.' : `Tambahkan di bawah ${categoryDialog.level === 'system' ? selectedGroup?.name : selectedSystem?.name}.`"
+      :description="categoryDialog.mode === 'edit' ? 'Perbarui nama dan urutan tanpa mengubah data yang sudah terhubung.' : categoryDialog.level === 'group' ? `Kategori baru tersedia untuk ${selectedUnit?.code ?? 'wilayah terpilih'}.` : `Tambahkan di bawah ${categoryDialog.level === 'system' ? selectedGroup?.name : selectedSystem?.name}.`"
       :form="categoryForm"
       @close="dismissCategoryDialog"
       @submit="submitCategory"

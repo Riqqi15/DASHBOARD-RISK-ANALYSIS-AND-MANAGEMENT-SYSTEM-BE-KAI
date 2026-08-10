@@ -23,6 +23,7 @@ class AssetCategoryResolver
         string $workbookName,
         string $sheetName,
         ?int $sourceRow = null,
+        ?int $unitKerjaId = null,
     ): array {
         $sourceNames = [
             'group' => $groupName,
@@ -39,6 +40,7 @@ class AssetCategoryResolver
             $workbookName,
             $sheetName,
             $sourceRow,
+            $unitKerjaId,
         ): array {
             $groupPath = $sourceNames['group'];
             $normalizedGroupPath = $normalizedNames['group'];
@@ -50,6 +52,7 @@ class AssetCategoryResolver
                 $workbookName,
                 $sheetName,
                 $sourceRow,
+                $unitKerjaId,
             );
 
             $systemPath = $groupPath.'|'.$sourceNames['system'];
@@ -108,8 +111,9 @@ class AssetCategoryResolver
         string $workbookName,
         string $sheetName,
         ?int $sourceRow,
+        ?int $unitKerjaId,
     ): AssetGroup {
-        $alias = $this->findAlias('group', $normalizedPath);
+        $alias = $this->findAlias('group', $normalizedPath, $unitKerjaId);
         if ($alias) {
             $group = AssetGroup::query()->whereKey($alias->category_id)->first();
             if (! $group) {
@@ -124,7 +128,7 @@ class AssetCategoryResolver
         /** @var AssetGroup $group */
         $group = $this->findOrCreateCategory(
             AssetGroup::class,
-            [],
+            ['unit_kerja_id' => $unitKerjaId],
             $name,
             $normalizedName,
             $normalizedPath,
@@ -153,7 +157,7 @@ class AssetCategoryResolver
         string $sheetName,
         ?int $sourceRow,
     ): AssetSystem {
-        $alias = $this->findAlias('system', $normalizedPath);
+        $alias = $this->findAlias('system', $normalizedPath, $group->unit_kerja_id);
         if ($alias) {
             $system = AssetSystem::query()->whereKey($alias->category_id)->first();
             if (! $system || $system->asset_group_id !== $group->id) {
@@ -198,7 +202,7 @@ class AssetCategoryResolver
         string $sheetName,
         ?int $sourceRow,
     ): AssetSubsystem {
-        $alias = $this->findAlias('subsystem', $normalizedPath);
+        $alias = $this->findAlias('subsystem', $normalizedPath, $system->assetGroup()->value('unit_kerja_id'));
         if ($alias) {
             $subsystem = AssetSubsystem::query()->whereKey($alias->category_id)->first();
             if (! $subsystem || $subsystem->asset_system_id !== $system->id) {
@@ -233,10 +237,11 @@ class AssetCategoryResolver
         );
     }
 
-    private function findAlias(string $type, string $normalizedPath): ?AssetCategorySourceAlias
+    private function findAlias(string $type, string $normalizedPath, ?int $unitKerjaId): ?AssetCategorySourceAlias
     {
         return AssetCategorySourceAlias::query()
             ->where('category_type', $type)
+            ->where('unit_kerja_id', $unitKerjaId)
             ->where('normalized_source_path', $normalizedPath)
             ->lockForUpdate()
             ->first();
@@ -313,10 +318,12 @@ class AssetCategoryResolver
         string $sheetName,
     ): AssetCategorySourceAlias {
         $now = now();
+        $unitKerjaId = $this->categoryUnitKerjaId($category);
 
         return AssetCategorySourceAlias::query()->firstOrCreate(
             [
                 'category_type' => $type,
+                'unit_kerja_id' => $unitKerjaId,
                 'normalized_source_path' => $normalizedPath,
             ],
             [
@@ -328,6 +335,23 @@ class AssetCategoryResolver
                 'last_imported_at' => $now,
             ],
         );
+    }
+
+    private function categoryUnitKerjaId(Model $category): ?int
+    {
+        if ($category instanceof AssetGroup) {
+            return $category->unit_kerja_id;
+        }
+
+        if ($category instanceof AssetSystem) {
+            return $category->assetGroup()->value('unit_kerja_id');
+        }
+
+        if ($category instanceof AssetSubsystem) {
+            return $category->assetSystem()->firstOrFail()->assetGroup()->value('unit_kerja_id');
+        }
+
+        return null;
     }
 
     private function refreshAlias(

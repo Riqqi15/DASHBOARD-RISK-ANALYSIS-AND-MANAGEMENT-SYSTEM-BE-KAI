@@ -8,6 +8,7 @@ use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
 use App\Models\AuditLog;
+use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -56,21 +57,52 @@ class AssetCategoryManagementTest extends TestCase
         }
     }
 
+    public function test_index_only_shows_legacy_categories_connected_to_the_selected_unit(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $daopOne = UnitKerja::factory()->create(['code' => 'DAOP-1', 'name' => 'Daerah Operasi 1']);
+        $daopTwo = UnitKerja::factory()->create(['code' => 'DAOP-2', 'name' => 'Daerah Operasi 2']);
+        $legacyGroup = AssetGroup::factory()->create(['unit_kerja_id' => null, 'name' => 'Legacy DAOP 1']);
+        $legacySystem = AssetSystem::factory()->for($legacyGroup)->create();
+        $legacySubsystem = AssetSubsystem::factory()->for($legacySystem)->create();
+        Asset::factory()->for($daopOne, 'unitKerja')->for($legacySubsystem)->create();
+        AssetGroup::factory()->create(['unit_kerja_id' => $daopOne->id, 'name' => 'Manual DAOP 1']);
+
+        $this->actingAs($pusat)
+            ->get('/admin/asset-categories?unit_kerja_id='.$daopTwo->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('selectedUnitId', $daopTwo->id)
+                ->has('groups', 0)
+                ->where('selectedGroupId', null)
+                ->where('selectedSystemId', null));
+
+        $this->actingAs($pusat)
+            ->get('/admin/asset-categories?unit_kerja_id='.$daopOne->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('selectedUnitId', $daopOne->id)
+                ->has('groups', 2)
+                ->where('groups.0.name', 'Legacy DAOP 1')
+                ->where('groups.1.name', 'Manual DAOP 1'));
+    }
+
     public function test_index_returns_complete_ordered_hierarchy_counts_and_valid_selection(): void
     {
         $pusat = User::factory()->pusat()->create();
-        $second = AssetGroup::factory()->create(['name' => 'Zulu', 'sort_order' => 20, 'is_active' => false]);
-        $first = AssetGroup::factory()->create(['name' => 'Alpha', 'sort_order' => 10]);
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $second = AssetGroup::factory()->create(['unit_kerja_id' => $unit->id, 'name' => 'Zulu', 'sort_order' => 20, 'is_active' => false]);
+        $first = AssetGroup::factory()->create(['unit_kerja_id' => $unit->id, 'name' => 'Alpha', 'sort_order' => 10]);
         $firstSystem = AssetSystem::factory()->for($first)->create(['name' => 'First', 'sort_order' => 10, 'is_active' => false]);
         $secondSystem = AssetSystem::factory()->for($first)->create(['name' => 'Second', 'sort_order' => 20]);
         $subsystem = AssetSubsystem::factory()->for($firstSystem)->create(['name' => 'Child', 'is_active' => false]);
-        Asset::factory()->for($subsystem)->create();
+        Asset::factory()->for($unit, 'unitKerja')->for($subsystem)->create();
         AssetCategorySourceAlias::query()->create($this->aliasAttributes('group', $first->id, 'Alpha'));
         AssetCategorySourceAlias::query()->create($this->aliasAttributes('system', $firstSystem->id, 'Alpha|First'));
         $deleted = AssetGroup::factory()->create(['name' => 'Deleted']);
         $deleted->delete();
 
-        $this->actingAs($pusat)->get("/admin/asset-categories?group={$first->id}&system={$firstSystem->id}")
+        $this->actingAs($pusat)->get("/admin/asset-categories?unit_kerja_id={$unit->id}&group={$first->id}&system={$firstSystem->id}")
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Admin/AssetCategories/Index', false)
@@ -90,24 +122,26 @@ class AssetCategoryManagementTest extends TestCase
                 ->where('selectedSystemId', $firstSystem->id)
                 ->where('capabilities.manage', true));
 
-        $this->actingAs($pusat)->get('/admin/asset-categories?group=999999&system=999999')
+        $this->actingAs($pusat)->get("/admin/asset-categories?unit_kerja_id={$unit->id}&group=999999&system=999999")
             ->assertInertia(fn (Assert $page) => $page
                 ->where('selectedGroupId', $first->id)
                 ->where('selectedSystemId', $firstSystem->id));
 
-        $this->actingAs($pusat)->get("/admin/asset-categories?group={$first->id}&system={$secondSystem->id}")
+        $this->actingAs($pusat)->get("/admin/asset-categories?unit_kerja_id={$unit->id}&group={$first->id}&system={$secondSystem->id}")
             ->assertInertia(fn (Assert $page) => $page->where('selectedSystemId', $secondSystem->id));
     }
 
     public function test_pusat_creates_all_levels_with_server_normalization_and_scoped_uniqueness(): void
     {
         $pusat = User::factory()->pusat()->create();
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
 
         $this->actingAs($pusat)->post('/admin/asset-groups', [
+            'unit_kerja_id' => $unit->id,
             'name' => "  Peralatan\u{00A0}\tDalam   Sinyal  ",
             'normalized_name' => 'malicious',
             'sort_order' => null,
-        ])->assertRedirect('/admin/asset-categories');
+        ])->assertRedirect('/admin/asset-categories?unit_kerja_id='.$unit->id);
 
         $group = AssetGroup::query()->where('name', 'Peralatan Dalam Sinyal')->firstOrFail();
         $this->assertSame('peralatan dalam sinyal', $group->normalized_name);
@@ -124,11 +158,12 @@ class AssetCategoryManagementTest extends TestCase
         $this->assertSame('Peralatan Dalam Sinyal', $createdAudit->new_values['name']);
 
         $this->actingAs($pusat)->post('/admin/asset-groups', [
+            'unit_kerja_id' => $unit->id,
             'name' => ' PERALATAN   DALAM SINYAL ',
             'normalized_name' => 'unique-lie',
         ])->assertSessionHasErrors('normalized_name');
 
-        $otherGroup = AssetGroup::factory()->create(['name' => 'Other Group']);
+        $otherGroup = AssetGroup::factory()->create(['unit_kerja_id' => $unit->id, 'name' => 'Other Group']);
         $this->actingAs($pusat)->post('/admin/asset-systems', [
             'asset_group_id' => $group->id,
             'name' => "  Interlocking\u{2003}Elektrik ",

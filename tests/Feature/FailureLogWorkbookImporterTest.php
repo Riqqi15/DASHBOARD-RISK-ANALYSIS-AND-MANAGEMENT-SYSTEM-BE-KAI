@@ -83,6 +83,8 @@ final class FailureLogWorkbookImporterTest extends TestCase
 
         $this->assertSame(1, $first['created']);
         $this->assertSame(1, $second['unchanged']);
+        $this->assertSame(1, $second['duplicates_skipped']);
+        $this->assertSame(['Interlocking Elektrik!10'], $second['duplicate_locations']);
         $this->assertSame(1, $third['updated']);
         $this->assertDatabaseCount('failure_logs', 1);
         $this->assertSame('Mengganti modul dan menguji ulang', FailureLog::query()->sole()->action_taken);
@@ -113,6 +115,54 @@ final class FailureLogWorkbookImporterTest extends TestCase
         $this->assertNotNull($failure->source_key);
         $this->assertSame('Interlocking Elektrik', $failure->sheet_name);
         $this->assertSame('2020-03-09 13:15:00', $failure->started_at->format('Y-m-d H:i:s'));
+    }
+
+    public function test_blank_text_cells_are_imported_as_dashes_instead_of_dropping_the_row(): void
+    {
+        [$unit] = $this->assetContext('Interlocking Elektrik');
+        $path = $this->workbook([$this->validRow([
+            'location' => '',
+            'resort' => '',
+            'qc' => '',
+            'cause' => '',
+            'action' => '',
+            'spare_part' => '',
+            'vandalism' => '',
+        ])]);
+
+        $result = app(FailureLogWorkbookImporter::class)->import($path, $unit);
+
+        $failure = FailureLog::query()->sole();
+        $this->assertSame(1, $result['created']);
+        $this->assertSame(0, $result['skipped']);
+        $this->assertSame('-', $failure->location);
+        $this->assertSame('-', $failure->resort);
+        $this->assertSame('-', $failure->qc);
+        $this->assertSame('-', $failure->cause);
+        $this->assertSame('-', $failure->action_taken);
+        $this->assertSame('-', $failure->spare_part_marker);
+        $this->assertSame('-', $failure->vandalism_marker);
+    }
+
+    public function test_two_rows_with_the_same_operational_identity_are_both_rejected_as_conflicts(): void
+    {
+        [$unit] = $this->assetContext('Interlocking Elektrik');
+        $path = $this->workbook([
+            $this->validRow(),
+            $this->validRow(['action' => 'Tindakan berbeda pada identitas kejadian yang sama']),
+        ]);
+
+        $result = app(FailureLogWorkbookImporter::class)->import($path, $unit);
+
+        $this->assertSame(0, $result['created']);
+        $this->assertSame(2, $result['duplicates_skipped']);
+        $this->assertSame(['Interlocking Elektrik!10', 'Interlocking Elektrik!11'], $result['duplicate_locations']);
+        $this->assertDatabaseCount('failure_logs', 0);
+        $this->assertCount(2, array_filter(
+            $result['issues'],
+            fn (array $issue): bool => $issue['severity'] === 'error'
+                && str_contains($issue['message'], 'identitas operasional yang sama'),
+        ));
     }
 
     public function test_it_accepts_combined_datetime_columns_when_split_columns_are_absent(): void
