@@ -8,7 +8,7 @@
     FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
   -->
   <MainLayout>
-    <AreaSelectorBanner :units="units" :selected-area="selected_area" />
+    <AreaSelectorBanner collapsible :units="units" :selected-area="selected_area" />
 
     <div class="dashboard-shell space-y-8 pb-12">
       <section class="dashboard-hero" aria-labelledby="dashboard-heading">

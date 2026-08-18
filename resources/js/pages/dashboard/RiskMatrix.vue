@@ -1,6 +1,6 @@
 <template>
   <MainLayout>
-    <AreaSelectorBanner :units="units" :selected-area="selected_area" />
+    <AreaSelectorBanner collapsible :units="units" :selected-area="selected_area" />
     <div class="space-y-6 pb-12">
       <!-- Premium Header Banner -->
       <div class="relative bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 overflow-hidden shadow-lg border border-slate-700">

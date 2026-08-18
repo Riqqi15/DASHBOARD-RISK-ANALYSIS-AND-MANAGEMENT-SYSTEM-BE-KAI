@@ -1,6 +1,6 @@
 <template>
   <MainLayout>
-    <AreaSelectorBanner :units="units" :selected-area="selected_area" />
+    <AreaSelectorBanner collapsible :units="units" :selected-area="selected_area" />
 
     <!-- Asymmetrical Grid Layout -->
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6 2xl:gap-7.5">

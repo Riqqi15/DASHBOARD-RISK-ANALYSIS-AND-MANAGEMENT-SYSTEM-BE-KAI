@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 
 const { routerGet } = vi.hoisted(() => ({ routerGet: vi.fn() }))
 
@@ -27,14 +28,19 @@ const units = [
   { id: 2, code: 'DIVRE-I', name: 'Divisi Regional I' },
 ]
 
-const mountBanner = (selectedArea = null) => mount(AreaSelectorBanner, {
-  props: { units, selectedArea },
+const mountBanner = (selectedArea = null, extraProps = {}) => mount(AreaSelectorBanner, {
+  props: { units, selectedArea, ...extraProps },
 })
 
 describe('AreaSelectorBanner', () => {
   beforeEach(() => {
     routerGet.mockReset()
     window.history.replaceState({}, '', '/overview')
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0, writable: true })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('renders all areas and marks the current selection', () => {
@@ -57,5 +63,36 @@ describe('AreaSelectorBanner', () => {
       preserveState: false,
       replace: true,
     })
+  })
+
+  it('collapses at the sticky threshold and expands when returning to the top', async () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback()
+      return 1
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 300,
+      height: 200,
+      left: 0,
+      right: 1000,
+      top: 100,
+      width: 1000,
+      x: 0,
+      y: 100,
+      toJSON: () => ({}),
+    })
+
+    const wrapper = mountBanner('DAOP-1', { collapsible: true })
+
+    window.scrollY = 40
+    window.dispatchEvent(new Event('scroll'))
+    await nextTick()
+    expect(wrapper.classes()).toContain('area-selector--compact')
+
+    window.scrollY = 0
+    window.dispatchEvent(new Event('scroll'))
+    await nextTick()
+    expect(wrapper.classes()).not.toContain('area-selector--compact')
   })
 })
