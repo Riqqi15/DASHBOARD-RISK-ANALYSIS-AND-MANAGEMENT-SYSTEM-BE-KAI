@@ -161,6 +161,9 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* Keep Chrome from counter-scrolling when the sticky panel changes height. */
+:global(html:has(.area-selector--collapsible)) { overflow-anchor: none; }
+
 .area-selector {
   overflow: hidden;
   margin-bottom: 2rem;
