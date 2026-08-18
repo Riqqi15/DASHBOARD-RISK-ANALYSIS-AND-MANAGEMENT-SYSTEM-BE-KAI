@@ -59,6 +59,29 @@ final class RamsImportQueueTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_reuploading_the_same_workbook_creates_a_new_history_batch(): void
+    {
+        Queue::fake();
+        Storage::fake('local');
+        UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
+        $user = User::factory()->pusat()->create();
+
+        foreach ([1, 2] as $attempt) {
+            $this->actingAs($user)->post('/trouble-report/import', [
+                'workbook' => UploadedFile::fake()->createWithContent(
+                    'Risk Analysis And Management System RAMS Daop 1.xlsx',
+                    'identical workbook bytes',
+                ),
+            ])->assertRedirect('/trouble-report/import')->assertSessionHasNoErrors();
+        }
+
+        $batches = RamsImportBatch::query()->orderBy('id')->get();
+        $this->assertCount(2, $batches);
+        $this->assertSame($batches[0]->fingerprint, $batches[1]->fingerprint);
+        $this->assertNotSame($batches[0]->stored_path, $batches[1]->stored_path);
+        Queue::assertPushed(ProcessRamsWorkbookImport::class, 2);
+    }
+
     public function test_unit_user_cannot_import_a_workbook_detected_for_another_unit(): void
     {
         Queue::fake();

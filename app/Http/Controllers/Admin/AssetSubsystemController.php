@@ -146,11 +146,14 @@ class AssetSubsystemController extends Controller
         ];
     }
 
-    /** @return array{group: int, system: int} */
+    /** @return array{unit_kerja_id: ?int, group: int, system: int} */
     private function selection(AssetSubsystem $subsystem): array
     {
+        $group = $subsystem->assetSystem()->firstOrFail()->assetGroup()->firstOrFail();
+
         return [
-            'group' => $subsystem->assetSystem()->value('asset_group_id'),
+            'unit_kerja_id' => $group->unit_kerja_id,
+            'group' => $group->id,
             'system' => $subsystem->asset_system_id,
         ];
     }

@@ -89,21 +89,13 @@ final class ExcelParityReliabilityCalculator
     }
 
     /** @param list<array<string, mixed>> $rows */
-    private function markerCount(array $rows, string $mode, string $markerKey, string $booleanKey): int
+    private function markerCount(array $rows, string $_mode, string $markerKey, string $booleanKey): int
     {
         $count = 0;
 
         foreach ($rows as $row) {
             $marker = trim((string) ($row[$markerKey] ?? ''));
-            if ($mode === 'counta') {
-                if ($marker !== '' || (bool) ($row[$booleanKey] ?? false)) {
-                    $count++;
-                }
-
-                continue;
-            }
-
-            if ($this->isYes($marker) || ((bool) ($row[$booleanKey] ?? false) && $marker === '')) {
+            if ($this->isYes($marker) || (bool) ($row[$booleanKey] ?? false)) {
                 $count++;
             }
         }

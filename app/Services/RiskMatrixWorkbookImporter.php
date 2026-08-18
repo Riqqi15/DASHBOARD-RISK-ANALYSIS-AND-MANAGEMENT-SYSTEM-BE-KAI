@@ -19,6 +19,8 @@ class RiskMatrixWorkbookImporter
 {
     public const FORMULA_VERSION = 'kai-risk-matrix-v1.0.0';
 
+    private const IMPORT_VERSION = 'risk-matrix-import-v2';
+
     private const SHEET = 'Risk Matrix';
 
     public function __construct(
@@ -37,7 +39,7 @@ class RiskMatrixWorkbookImporter
         return in_array(self::SHEET, $reader->listWorksheetNames($workbookPath), true);
     }
 
-    /** @return array{created: int, updated: int, skipped: int, colors_updated: int, issues: array<int, array<string, mixed>>} */
+    /** @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int, colors_updated: int, issues: array<int, array<string, mixed>>} */
     public function import(string $workbookPath, UnitKerja $unit): array
     {
         $reader = IOFactory::createReaderForFile($workbookPath);
@@ -72,12 +74,40 @@ class RiskMatrixWorkbookImporter
         }
     }
 
-    /** @return array{created: int, updated: int, skipped: int, colors_updated: int, issues: array<int, array<string, mixed>>} */
+    /** @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int, colors_updated: int, issues: array<int, array<string, mixed>>} */
     private function importRows(Worksheet $sheet, UnitKerja $unit, string $workbookName, string $hash): array
     {
-        $result = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'colors_updated' => 0, 'issues' => []];
+        $result = [
+            'created' => 0,
+            'updated' => 0,
+            'unchanged' => 0,
+            'duplicates_skipped' => 0,
+            'duplicate_locations' => [],
+            'skipped' => 0,
+            'colors_updated' => 0,
+            'issues' => [],
+        ];
         $currentGroup = '';
         $currentSystem = '';
+        $conflictingRows = [];
+
+        foreach ($this->conflictingMatrixRows($sheet) as $rows) {
+            $locations = array_map(fn (int $row): string => self::SHEET.'!'.$row, $rows);
+            foreach ($rows as $row) {
+                $conflictingRows[$row] = true;
+                $result['skipped']++;
+                $result['duplicates_skipped']++;
+                $result['duplicate_locations'][] = self::SHEET.'!'.$row;
+                $result['issues'][] = [
+                    'sheet_name' => self::SHEET,
+                    'source_row' => $row,
+                    'source_column' => 'Baris Utuh',
+                    'severity' => 'error',
+                    'message' => 'Konflik: '.implode(' dan ', $locations)
+                        .' memiliki identitas Risk Matrix yang sama; seluruh baris konflik dilewati.',
+                ];
+            }
+        }
 
         for ($row = 2; $row <= $sheet->getHighestDataRow(); $row++) {
             $groupValue = $this->text($this->cachedValue($sheet, 1, $row));
@@ -85,6 +115,10 @@ class RiskMatrixWorkbookImporter
             $subsystemValue = $this->text($this->cachedValue($sheet, 3, $row));
             $currentGroup = $groupValue !== '' ? $groupValue : $currentGroup;
             $currentSystem = $systemValue !== '' ? $systemValue : $currentSystem;
+
+            if (isset($conflictingRows[$row])) {
+                continue;
+            }
 
             if ($currentGroup === '' || $currentSystem === '' || $subsystemValue === '') {
                 $result['skipped']++;
@@ -99,6 +133,7 @@ class RiskMatrixWorkbookImporter
                     $subsystemValue,
                     $workbookName,
                     $row,
+                    $unit,
                 );
                 if ($groupValue !== '') {
                     $result['colors_updated'] += $this->applyExcelColor($categories['group'], $this->cellColor($sheet, 1, $row));
@@ -139,10 +174,14 @@ class RiskMatrixWorkbookImporter
 
                 foreach ($assets as $asset) {
                     $matrix = RiskMatrix::query()->firstOrNew(['asset_id' => $asset->id]);
-                    $matrix->fill([
-                        'source_key' => hash('sha256', implode('|', [$hash, self::SHEET, $row, $asset->id])),
-                        'workbook_hash' => $hash,
-                        'workbook_name' => $workbookName,
+                    $values = [
+                        'source_key' => hash('sha256', implode('|', [
+                            self::IMPORT_VERSION,
+                            (string) $unit->id,
+                            mb_strtolower(self::SHEET),
+                            (string) $row,
+                            (string) $asset->id,
+                        ])),
                         'sheet_name' => self::SHEET,
                         'source_row' => $row,
                         'likelihood' => $likelihood,
@@ -152,9 +191,36 @@ class RiskMatrixWorkbookImporter
                         'parity_status' => $differences === [] ? 'matched' : 'corrected',
                         'parity_differences' => $differences === [] ? null : $differences,
                         'formula_version' => self::FORMULA_VERSION,
-                        'assessed_at' => now(),
-                    ])->save();
-                    $result[$matrix->wasRecentlyCreated ? 'created' : 'updated']++;
+                    ];
+                    $operationallyChanged = $matrix->exists && $this->matrixValuesDiffer($matrix, $values);
+                    $matrix->fill($values);
+
+                    if (! $matrix->exists) {
+                        $matrix->fill([
+                            'workbook_hash' => $hash,
+                            'workbook_name' => $workbookName,
+                            'assessed_at' => now(),
+                        ])->save();
+                        $result['created']++;
+                    } elseif ($operationallyChanged) {
+                        $matrix->fill([
+                            'workbook_hash' => $hash,
+                            'workbook_name' => $workbookName,
+                            'assessed_at' => now(),
+                        ])->save();
+                        $result['updated']++;
+                    } else {
+                        $result['unchanged']++;
+                        $result['duplicates_skipped']++;
+                        $result['duplicate_locations'][] = self::SHEET.'!'.$row;
+                        $result['issues'][] = [
+                            'sheet_name' => self::SHEET,
+                            'source_row' => $row,
+                            'source_column' => 'Baris Utuh',
+                            'severity' => 'info',
+                            'message' => 'Data duplikat atau sudah ada di sistem dan tidak ada perubahan (dilewati).',
+                        ];
+                    }
                 }
             } catch (RuntimeException $exception) {
                 $result['issues'][] = $this->issue($row, $exception->getMessage());
@@ -162,7 +228,62 @@ class RiskMatrixWorkbookImporter
             }
         }
 
+        $result['duplicate_locations'] = array_values(array_unique($result['duplicate_locations']));
+
         return $result;
+    }
+
+    /** @return list<list<int>> */
+    private function conflictingMatrixRows(Worksheet $sheet): array
+    {
+        $currentGroup = '';
+        $currentSystem = '';
+        $rowsByIdentity = [];
+
+        for ($row = 2; $row <= $sheet->getHighestDataRow(); $row++) {
+            $group = $this->text($this->cachedValue($sheet, 1, $row));
+            $system = $this->text($this->cachedValue($sheet, 2, $row));
+            $subsystem = $this->text($this->cachedValue($sheet, 3, $row));
+            $currentGroup = $group !== '' ? $group : $currentGroup;
+            $currentSystem = $system !== '' ? $system : $currentSystem;
+
+            if ($currentGroup === '' || $currentSystem === '' || $subsystem === '') {
+                continue;
+            }
+
+            $identity = hash('sha256', implode('|', [
+                $this->canonical($currentGroup),
+                $this->canonical($currentSystem),
+                $this->canonical($subsystem),
+            ]));
+            $rowsByIdentity[$identity][] = $row;
+        }
+
+        return array_values(array_filter(
+            $rowsByIdentity,
+            fn (array $rows): bool => count($rows) > 1,
+        ));
+    }
+
+    /** @param array<string, mixed> $values */
+    private function matrixValuesDiffer(RiskMatrix $matrix, array $values): bool
+    {
+        foreach ($values as $key => $value) {
+            $current = $matrix->getAttribute($key);
+            if (is_array($current) || is_array($value)) {
+                if ($current != $value) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if ((string) ($current ?? '') !== (string) ($value ?? '')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function applyExcelColor(AssetGroup|AssetSystem|AssetSubsystem $category, ?string $color): int
@@ -186,8 +307,10 @@ class RiskMatrixWorkbookImporter
         string $subsystemName,
         string $workbookName,
         int $row,
+        UnitKerja $unit,
     ): array {
         $group = AssetGroup::query()
+            ->where('unit_kerja_id', $unit->id)
             ->with('systems.subsystems')
             ->get()
             ->first(fn (AssetGroup $candidate): bool => $this->canonical($candidate->name) === $this->canonical($groupName));
@@ -208,6 +331,7 @@ class RiskMatrixWorkbookImporter
             $workbookName,
             self::SHEET,
             $row,
+            $unit->id,
         );
     }
 

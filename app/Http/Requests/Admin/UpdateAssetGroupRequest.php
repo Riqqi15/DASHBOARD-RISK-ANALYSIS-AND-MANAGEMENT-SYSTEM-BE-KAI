@@ -16,9 +16,19 @@ class UpdateAssetGroupRequest extends FormRequest
 
     public function rules(): array
     {
+        /** @var AssetGroup $group */
+        $group = $this->route('asset_group');
+
         return [
             'name' => ['required', 'string', 'max:255'],
-            'normalized_name' => ['required', 'string', 'max:255', Rule::unique('asset_groups', 'normalized_name')->ignore($this->route('asset_group'))],
+            'normalized_name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('asset_groups', 'normalized_name')
+                    ->where(fn ($query) => $query->where('unit_kerja_id', $group->unit_kerja_id))
+                    ->ignore($group),
+            ],
             'sort_order' => ['required', 'integer', 'min:0', 'max:65535'],
             'dashboard_color' => ['nullable', 'regex:/^#[0-9A-F]{6}$/i'],
         ];

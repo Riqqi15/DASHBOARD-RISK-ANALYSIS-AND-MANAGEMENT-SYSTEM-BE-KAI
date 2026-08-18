@@ -54,7 +54,7 @@ class SparePartWorkbookImporter
     }
 
     /**
-     * @return array{created: int, updated: int, unchanged: int, skipped: int}
+     * @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int}
      */
     public function import(
         string $workbookPath,
@@ -119,7 +119,7 @@ class SparePartWorkbookImporter
     }
 
     /**
-     * @return array{created: int, updated: int, unchanged: int, skipped: int}
+     * @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int}
      */
     private function importRows(
         Worksheet $sheet,
@@ -128,7 +128,14 @@ class SparePartWorkbookImporter
         ?UnitKerja $unit,
         string $workbookHash,
     ): array {
-        $result = ['created' => 0, 'updated' => 0, 'unchanged' => 0, 'skipped' => 0];
+        $result = [
+            'created' => 0,
+            'updated' => 0,
+            'unchanged' => 0,
+            'duplicates_skipped' => 0,
+            'duplicate_locations' => [],
+            'skipped' => 0,
+        ];
         $currentGroup = '';
         $currentSystem = '';
         $currentEquipment = '';
@@ -182,6 +189,7 @@ class SparePartWorkbookImporter
                 $workbookName,
                 $row,
                 $bootstrapCategories,
+                $unit?->id,
             );
             $reorderInputs = [
                 'max_yearly_failure' => $this->nullableDecimal($sheet, 5, $row, $workbookName, self::HEADERS[4]),
@@ -241,6 +249,8 @@ class SparePartWorkbookImporter
                     $result['updated']++;
                 } else {
                     $result['unchanged']++;
+                    $result['duplicates_skipped']++;
+                    $result['duplicate_locations'][] = self::SHEET.'!'.$row;
                 }
 
                 $this->syncUnitPolicy($unit, $part, $sourceValues, $workbookName, $workbookHash, $row);
@@ -280,10 +290,14 @@ class SparePartWorkbookImporter
                     $result['updated']++;
                 } else {
                     $result['unchanged']++;
+                    $result['duplicates_skipped']++;
+                    $result['duplicate_locations'][] = self::SHEET.'!'.$row;
                 }
                 $this->syncUnitPolicy($unit, $concurrent, $sourceValues, $workbookName, $workbookHash, $row);
             }
         }
+
+        $result['duplicate_locations'] = array_values(array_unique($result['duplicate_locations']));
 
         return $result;
     }
@@ -367,10 +381,12 @@ class SparePartWorkbookImporter
         string $workbookName,
         int $row,
         bool $bootstrapCategories,
+        ?int $unitKerjaId,
     ): AssetSubsystem {
         $paths = $this->categoryPaths($groupName, $systemName, $subsystemName);
         $alias = AssetCategorySourceAlias::query()
             ->where('category_type', 'subsystem')
+            ->where('unit_kerja_id', $unitKerjaId)
             ->where('normalized_source_path', $paths['subsystem']['normalized'])
             ->lockForUpdate()
             ->first();
@@ -389,14 +405,14 @@ class SparePartWorkbookImporter
                 throw $this->rowError($workbookName, $row, 'Equipment', 'alias kategori tidak aktif.');
             }
 
-            $this->persistCategoryAliases($subsystem, $paths, $workbookName, $row);
+            $this->persistCategoryAliases($subsystem, $paths, $workbookName, $row, $unitKerjaId);
 
             return $subsystem;
         }
 
-        $subsystem = $this->resolveActiveNamePath($groupName, $systemName, $subsystemName);
+        $subsystem = $this->resolveActiveNamePath($groupName, $systemName, $subsystemName, $unitKerjaId);
         if ($subsystem) {
-            $this->persistCategoryAliases($subsystem, $paths, $workbookName, $row);
+            $this->persistCategoryAliases($subsystem, $paths, $workbookName, $row, $unitKerjaId);
 
             return $subsystem;
         }
@@ -417,6 +433,7 @@ class SparePartWorkbookImporter
             $paths,
             $workbookName,
             $row,
+            $unitKerjaId,
         );
         $resolved = $this->categoryResolver->resolve(
             $groupName,
@@ -425,6 +442,7 @@ class SparePartWorkbookImporter
             $workbookName,
             self::SHEET,
             $row,
+            $unitKerjaId,
         );
         $subsystem = $resolved['subsystem']->load('assetSystem.assetGroup');
         if (! $subsystem->is_active
@@ -440,9 +458,11 @@ class SparePartWorkbookImporter
         string $groupName,
         string $systemName,
         string $subsystemName,
+        ?int $unitKerjaId,
     ): ?AssetSubsystem {
         $groups = AssetGroup::query()
             ->where('is_active', true)
+            ->where('unit_kerja_id', $unitKerjaId)
             ->with(['systems' => fn ($query) => $query->where('is_active', true)
                 ->with(['subsystems' => fn ($subsystems) => $subsystems->where('is_active', true)])])
             ->get()
@@ -483,9 +503,11 @@ class SparePartWorkbookImporter
         array $paths,
         string $workbookName,
         int $row,
+        ?int $unitKerjaId,
     ): void {
         $groups = AssetGroup::query()
             ->where('is_active', true)
+            ->where('unit_kerja_id', $unitKerjaId)
             ->get()
             ->filter(fn (AssetGroup $group): bool => $this->categoryNameMatches($group->name, $groupName));
         if ($groups->count() > 1) {
@@ -497,7 +519,7 @@ class SparePartWorkbookImporter
 
         /** @var AssetGroup $group */
         $group = $groups->first();
-        $this->persistAlias('group', $group->id, $paths['group'], $workbookName, $row);
+        $this->persistAlias('group', $group->id, $paths['group'], $workbookName, $row, $unitKerjaId);
 
         $systems = $group->systems()
             ->where('is_active', true)
@@ -507,7 +529,7 @@ class SparePartWorkbookImporter
             throw $this->rowError($workbookName, $row, 'Sub-System', 'kategori global ambigu.');
         }
         if ($systems->count() === 1) {
-            $this->persistAlias('system', $systems->first()->id, $paths['system'], $workbookName, $row);
+            $this->persistAlias('system', $systems->first()->id, $paths['system'], $workbookName, $row, $unitKerjaId);
         }
     }
 
@@ -546,6 +568,7 @@ class SparePartWorkbookImporter
         array $paths,
         string $workbookName,
         int $row,
+        ?int $unitKerjaId,
     ): void {
         $this->persistAlias(
             'group',
@@ -553,9 +576,10 @@ class SparePartWorkbookImporter
             $paths['group'],
             $workbookName,
             $row,
+            $unitKerjaId,
         );
-        $this->persistAlias('system', $subsystem->assetSystem->id, $paths['system'], $workbookName, $row);
-        $this->persistAlias('subsystem', $subsystem->id, $paths['subsystem'], $workbookName, $row);
+        $this->persistAlias('system', $subsystem->assetSystem->id, $paths['system'], $workbookName, $row, $unitKerjaId);
+        $this->persistAlias('subsystem', $subsystem->id, $paths['subsystem'], $workbookName, $row, $unitKerjaId);
     }
 
     /** @param array{source: string, normalized: string} $path */
@@ -565,9 +589,11 @@ class SparePartWorkbookImporter
         array $path,
         string $workbookName,
         int $row,
+        ?int $unitKerjaId,
     ): void {
         $alias = AssetCategorySourceAlias::query()
             ->where('category_type', $type)
+            ->where('unit_kerja_id', $unitKerjaId)
             ->where('normalized_source_path', $path['normalized'])
             ->lockForUpdate()
             ->first();
@@ -591,6 +617,7 @@ class SparePartWorkbookImporter
             AssetCategorySourceAlias::query()->create([
                 'category_type' => $type,
                 'category_id' => $categoryId,
+                'unit_kerja_id' => $unitKerjaId,
                 'source_path' => $path['source'],
                 'normalized_source_path' => $path['normalized'],
                 'workbook_name' => $workbookName,
@@ -601,6 +628,7 @@ class SparePartWorkbookImporter
         } catch (UniqueConstraintViolationException $exception) {
             $concurrent = AssetCategorySourceAlias::query()
                 ->where('category_type', $type)
+                ->where('unit_kerja_id', $unitKerjaId)
                 ->where('normalized_source_path', $path['normalized'])
                 ->first();
             if (! $concurrent || $concurrent->category_id !== $categoryId) {

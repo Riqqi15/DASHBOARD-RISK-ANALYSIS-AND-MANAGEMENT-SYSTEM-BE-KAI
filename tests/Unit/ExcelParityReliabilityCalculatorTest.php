@@ -94,6 +94,41 @@ final class ExcelParityReliabilityCalculatorTest extends TestCase
         $this->assertSame(1, $result['vandalism_count']);
     }
 
+    public function test_negative_markers_are_not_counted_even_when_excel_profile_uses_counta(): void
+    {
+        $result = (new ExcelParityReliabilityCalculator)->calculate(
+            unitCount: 1,
+            baselineDate: CarbonImmutable::parse('2020-01-01 00:00:00'),
+            calculationDate: CarbonImmutable::parse('2020-01-03 00:00:00'),
+            failures: [
+                [
+                    'started_at' => CarbonImmutable::parse('2020-01-01 08:00:00'),
+                    'downtime_minutes' => 10,
+                    'spare_part_marker' => 'N',
+                    'vandalism_marker' => 'N',
+                    'spare_part_replaced' => false,
+                    'vandalism' => false,
+                ],
+                [
+                    'started_at' => CarbonImmutable::parse('2020-01-02 08:00:00'),
+                    'downtime_minutes' => 10,
+                    'spare_part_marker' => 'Tidak',
+                    'vandalism_marker' => 'NO',
+                    'spare_part_replaced' => false,
+                    'vandalism' => false,
+                ],
+            ],
+            profile: [
+                'downtime_mode' => 'minutes',
+                'spare_part_count_mode' => 'counta',
+                'vandalism_count_mode' => 'counta',
+            ],
+        );
+
+        $this->assertSame(0, $result['spare_part_replacement_count']);
+        $this->assertSame(0, $result['vandalism_count']);
+    }
+
     /**
      * Regression test for Penggerak Wesel Elektrik sheet.
      * 2 failures, downtime_mode=minutes, COUNTA sparepart/vandalism, baseline 2020-01-01.

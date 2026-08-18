@@ -166,6 +166,9 @@
                   Belum ada subsystem aktif.
                 </p>
               </article>
+              <p v-if="group.systems.length === 0" class="rounded-lg border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
+                Belum ada system aktif.
+              </p>
             </div>
           </details>
         </div>
@@ -339,7 +342,6 @@ const assetGroups = computed(() => {
   return Array.from(groups.values()).map((group) => {
     const systems = Array.from(group.children.values()).map((system) => {
       const subsystems = Array.from(system.children.values())
-        .filter((subsystem) => subsystem.assets.length > 0)
         .map((subsystem) => ({
           name: subsystem.name,
           color: subsystem.color,
@@ -354,7 +356,7 @@ const assetGroups = computed(() => {
         assetCount: system.assets.length,
         unitCount: sumUnits(system.assets),
       }
-    }).filter((system) => system.assetCount > 0)
+    })
 
     return {
       name: group.name,
@@ -363,7 +365,7 @@ const assetGroups = computed(() => {
       assetCount: group.assets.length,
       unitCount: sumUnits(group.assets),
     }
-  }).filter((group) => group.assetCount > 0)
+  })
 })
 
 const totalSubsystems = computed(() => assetGroups.value.reduce(

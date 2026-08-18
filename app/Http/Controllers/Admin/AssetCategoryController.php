@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AssetCategorySourceAlias;
 use App\Models\AssetGroup;
+use App\Models\UnitKerja;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
@@ -17,6 +18,13 @@ class AssetCategoryController extends Controller
     {
         Gate::authorize('viewAny', AssetGroup::class);
 
+        $units = UnitKerja::query()
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get(['id', 'code', 'name']);
+        $requestedUnitId = $request->integer('unit_kerja_id');
+        $selectedUnit = $units->firstWhere('id', $requestedUnitId) ?? $units->first();
+
         $aliases = AssetCategorySourceAlias::query()
             ->select(['category_type', 'category_id'])
             ->selectRaw('COUNT(*) AS aggregate')
@@ -26,6 +34,7 @@ class AssetCategoryController extends Controller
             ->map(fn (Collection $rows) => $rows->pluck('aggregate', 'category_id'));
 
         $groups = AssetGroup::query()
+            ->when($selectedUnit, fn ($query) => $query->forUnit($selectedUnit))
             ->withCount('systems')
             ->with(['systems' => fn ($systems) => $systems
                 ->withCount('subsystems')
@@ -34,7 +43,7 @@ class AssetCategoryController extends Controller
             ->orderBy('name')
             ->get()
             ->map(fn (AssetGroup $group): array => [
-                ...$group->only(['id', 'name', 'sort_order', 'dashboard_color', 'dashboard_color_source', 'is_active']),
+                ...$group->only(['id', 'unit_kerja_id', 'name', 'sort_order', 'dashboard_color', 'dashboard_color_source', 'is_active']),
                 'systems_count' => $group->systems_count,
                 'aliases_count' => (int) ($aliases->get('group')?->get($group->id) ?? 0),
                 'systems' => $group->systems->map(fn ($system): array => [
@@ -56,6 +65,8 @@ class AssetCategoryController extends Controller
         $selectedSystem = $systems->firstWhere('id', $requestedSystemId) ?? $systems->first();
 
         return Inertia::render('Admin/AssetCategories/Index', [
+            'units' => $units->map(fn (UnitKerja $unit): array => $unit->only(['id', 'code', 'name']))->values(),
+            'selectedUnitId' => $selectedUnit?->id,
             'groups' => $groups,
             'selectedGroupId' => $selectedGroup['id'] ?? null,
             'selectedSystemId' => $selectedSystem['id'] ?? null,

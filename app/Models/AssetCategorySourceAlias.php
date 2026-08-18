@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable([
     'category_type',
     'category_id',
+    'unit_kerja_id',
     'source_path',
     'normalized_source_path',
     'workbook_name',

@@ -127,11 +127,18 @@ const groups = [
   },
 ]
 
+const units = [
+  { id: 1, code: 'DAOP-1', name: 'Daerah Operasi 1' },
+  { id: 4, code: 'DAOP-4', name: 'Daerah Operasi 4' },
+]
+
 const mountedPages = []
 const mountPage = (overrides = {}, options = {}) => {
   const wrapper = mount(AssetCategories, {
     attachTo: options.attachTo,
     props: {
+      units,
+      selectedUnitId: 1,
       groups,
       selectedGroupId: 1,
       selectedSystemId: 11,
@@ -151,6 +158,13 @@ const mountPage = (overrides = {}, options = {}) => {
 
 describe('AssetCategories', () => {
   beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: vi.fn(() => null),
+        setItem: vi.fn(),
+      },
+      configurable: true,
+    })
     inertia.get.mockReset()
     inertia.post.mockReset()
     inertia.put.mockReset()
@@ -178,7 +192,7 @@ describe('AssetCategories', () => {
 
     await wrapper.get('[aria-label="Pilih system Radio Kereta"]').trigger('click')
     expect(wrapper.text()).toContain('Radio Lokomotif')
-    expect(inertia.get).toHaveBeenLastCalledWith('/admin/asset-categories', { group: 2, system: 21 }, expect.objectContaining({ preserveState: true }))
+    expect(inertia.get).toHaveBeenLastCalledWith('/admin/asset-categories', { unit_kerja_id: 1, group: 2, system: 21 }, expect.objectContaining({ preserveState: true }))
   })
 
   it('filters each panel locally without removing inactive categories', async () => {
@@ -190,6 +204,19 @@ describe('AssetCategories', () => {
 
     expect(wrapper.text()).toContain('Telekomunikasi')
     expect(wrapper.text()).not.toContain('Peralatan Luar Sinyal Elektrik')
+  })
+
+  it('switches the managed asset category area', async () => {
+    const wrapper = mountPage()
+
+    expect(wrapper.text()).toContain('Sedang mengelola kategori untuk DAOP-1')
+    await wrapper.get('#asset-category-unit').setValue('4')
+
+    expect(inertia.get).toHaveBeenLastCalledWith('/admin/asset-categories', {
+      unit_kerja_id: 4,
+      group: null,
+      system: null,
+    }, expect.objectContaining({ preserveState: true }))
   })
 
   it('opens an accessible subsystem create dialog and closes it with Escape', async () => {
@@ -220,6 +247,7 @@ describe('AssetCategories', () => {
     await wrapper.get('[role="dialog"] form').trigger('submit')
 
     const expected = { name: `Kategori ${level}`, sort_order: 35, dashboard_color: null }
+    if (level === 'kategori') expected.unit_kerja_id = 1
     if (groupId) expected.asset_group_id = groupId
     if (systemId) expected.asset_system_id = systemId
     expect(inertia.post).toHaveBeenCalledWith(endpoint, expected, expect.objectContaining({ preserveScroll: true }))

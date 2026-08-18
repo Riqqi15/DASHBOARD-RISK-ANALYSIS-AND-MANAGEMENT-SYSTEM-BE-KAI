@@ -113,6 +113,9 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame([
             'created' => 2,
             'updated' => 0,
+            'unchanged' => 0,
+            'duplicates_skipped' => 0,
+            'duplicate_locations' => [],
             'skipped' => 0,
             'openings_created' => 2,
             'openings_updated' => 0,
@@ -169,6 +172,9 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame([
             'created' => 0,
             'updated' => 0,
+            'unchanged' => 1,
+            'duplicates_skipped' => 1,
+            'duplicate_locations' => ['Predictive Data Asset!3'],
             'skipped' => 0,
             'openings_created' => 0,
             'openings_updated' => 0,
@@ -334,6 +340,57 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame($subsystem->id, $asset->fresh()->asset_subsystem_id);
         $this->assertSame('Track Circuit Hasil Rename Admin', $subsystem->fresh()->name);
         $this->assertSame('Nama suntingan operator', $asset->fresh()->nama_aset);
+    }
+
+    public function test_global_imported_asset_is_reused_when_taxonomy_becomes_unit_scoped(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $globalGroup = AssetGroup::factory()->create([
+            'unit_kerja_id' => null,
+            'name' => '1. Peralatan Dalam Sinyal Elektrik',
+        ]);
+        $globalSystem = AssetSystem::factory()->for($globalGroup)->create([
+            'name' => 'Interlocking Elektrik',
+        ]);
+        $globalSubsystem = AssetSubsystem::factory()->for($globalSystem)->create([
+            'name' => 'Interlocking Elektrik',
+        ]);
+        $asset = Asset::factory()
+            ->for($unit)
+            ->for($globalSubsystem, 'assetSubsystem')
+            ->create([
+                'source_key' => hash(
+                    'sha256',
+                    "rams:master-asset:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$globalSubsystem->id}",
+                ),
+                'nama_aset' => 'Nama suntingan operator',
+                'lokasi' => 'Stasiun Gambir',
+                'status' => 'dalam_perbaikan',
+            ]);
+        $path = $this->workbook([
+            [
+                '1. Peralatan Dalam Sinyal Elektrik',
+                'Interlocking Elektrik',
+                'Interlocking Elektrik',
+                2,
+                0,
+                0,
+                40909,
+            ],
+        ]);
+
+        $result = app(MasterAssetWorkbookImporter::class)->import($path, $unit);
+
+        $this->assertSame(0, $result['created']);
+        $this->assertSame(1, $result['updated']);
+        $this->assertDatabaseCount('assets', 1);
+        $asset->refresh();
+        $this->assertNotSame($globalSubsystem->id, $asset->asset_subsystem_id);
+        $this->assertSame($unit->id, $asset->assetSubsystem->assetSystem->assetGroup->unit_kerja_id);
+        $this->assertSame('Nama suntingan operator', $asset->nama_aset);
+        $this->assertSame('Stasiun Gambir', $asset->lokasi);
+        $this->assertSame('dalam_perbaikan', $asset->status->value);
+        $this->assertSame(2, $asset->jumlah_unit);
     }
 
     public function test_v2_source_keys_survive_unit_code_rename_without_duplicates_or_lost_edits(): void
