@@ -2,79 +2,64 @@
   <!--
     THESIS: Dashboard ini membantu pengguna mengambil keputusan operasi tanpa memaksa semua data tampil sekaligus.
     OWN-WORLD: Identitas KAI/RAMS tetap hadir lewat biru tua, jingga, dan warna status Excel pada subsystem.
-    STORY: Pilih wilayah, baca empat status utama, buka rincian bila perlu, lalu pilih peralatan.
-    FIRST VIEWPORT: Wilayah aktif, ringkasan kinerja, dan status utama menjadi fokus; detail dan aset muncul bertahap.
+    STORY: Pilih wilayah, pantau status gangguan operasi, baca kinerja per kelompok aset, lalu akses subsystem peralatan.
+    FIRST VIEWPORT: Wilayah aktif, ringkasan kinerja, dan status gangguan menjadi fokus; detail dan aset muncul bertahap.
     FORM: Operate dashboard dengan progressive disclosure; alur Trouble Report dan data hierarchy tetap dipertahankan.
-    FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
   -->
   <MainLayout>
     <AreaSelectorBanner collapsible :units="units" :selected-area="selected_area" />
 
-    <div class="dashboard-shell space-y-8 pb-12">
+    <div class="dashboard-shell space-y-7 pb-12">
+      <!-- HERO HEADER -->
       <section class="dashboard-hero" aria-labelledby="dashboard-heading">
         <div class="min-w-0">
-          <p class="text-sm font-semibold text-[#f26522]">KAI RAMS</p>
-          <h1 id="dashboard-heading" class="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center rounded-md bg-orange-50 px-2 py-0.5 text-xs font-bold text-[#f26522] ring-1 ring-inset ring-orange-200">
+              KAI RAMS
+            </span>
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Persinyalan & Telekomunikasi</span>
+          </div>
+          <h1 id="dashboard-heading" class="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
             Ringkasan kinerja persinyalan
           </h1>
-          <p class="mt-2 max-w-2xl text-base leading-7 text-slate-600">
-            Lihat kondisi umum peralatan di wilayah yang sedang dipilih. Buka rincian hanya saat Anda membutuhkannya.
+          <p class="mt-1.5 max-w-3xl text-sm leading-6 text-slate-600">
+            Lihat kondisi umum dan catatan kegagalan peralatan di wilayah yang sedang dipilih. Buka rincian hanya saat Anda membutuhkannya.
           </p>
         </div>
       </section>
 
-      <section aria-labelledby="quick-status-title">
-        <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 id="quick-status-title" class="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Status utama</h2>
-            <p class="mt-1 text-base leading-7 text-slate-600">Empat angka yang paling sering digunakan untuk membaca kondisi area.</p>
+      <!-- REKAP GANGGUAN TERCATAT -->
+      <section aria-labelledby="failure-status-title">
+        <div class="failure-stat-card">
+          <div class="flex items-center gap-3.5">
+            <span class="failure-stat-card__icon" aria-hidden="true">
+              <FileSpreadsheet :size="20" :stroke-width="2" />
+            </span>
+            <div>
+              <span class="failure-stat-card__label">Rekap gangguan tercatat</span>
+              <p class="failure-stat-card__hint">Total akumulasi catatan kegagalan peralatan pada wilayah terpilih</p>
+            </div>
           </div>
-          <span class="text-sm font-medium text-slate-500">Mulai operasi: {{ formattedOperatingStartDate }}</span>
-        </div>
-
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <article class="status-tile status-tile--navy">
-            <div class="flex items-start justify-between gap-3">
-              <span class="status-tile__label">Keandalan sistem</span>
-              <ShieldCheck :size="22" :stroke-width="2" aria-hidden="true" />
-            </div>
-            <strong class="status-tile__value">{{ formatPercentage(summary?.overallReliability, 2) }}</strong>
-            <span class="status-tile__hint">Berjalan tanpa gangguan</span>
-          </article>
-          <article class="status-tile status-tile--orange">
-            <div class="flex items-start justify-between gap-3">
-              <span class="status-tile__label">Ketersediaan sistem</span>
-              <CircleCheck :size="22" :stroke-width="2" aria-hidden="true" />
-            </div>
-            <strong class="status-tile__value">{{ formatPercentage(summary?.overallAvailability, 2) }}</strong>
-            <span class="status-tile__hint">Siap digunakan saat dibutuhkan</span>
-          </article>
-          <article class="status-tile status-tile--light">
-            <div class="flex items-start justify-between gap-3">
-              <span class="status-tile__label">Gangguan tercatat</span>
-              <TriangleAlert :size="22" :stroke-width="2" aria-hidden="true" />
-            </div>
-            <strong class="status-tile__value status-tile__value--danger">{{ formattedFailureCount }}</strong>
-            <span class="status-tile__hint">Catatan kegagalan pada area</span>
-          </article>
-          <article class="status-tile status-tile--light">
-            <div class="flex items-start justify-between gap-3">
-              <span class="status-tile__label">Lama operasi</span>
-              <Clock3 :size="22" :stroke-width="2" aria-hidden="true" />
-            </div>
-            <strong class="status-tile__value">{{ formattedOperatingDays }}</strong>
-            <span class="status-tile__hint">Sejak tanggal mulai operasi</span>
-          </article>
+          <strong id="failure-status-title" class="failure-stat-card__value">
+            {{ formattedFailureCount }}
+          </strong>
         </div>
       </section>
 
+      <!-- KINERJA PER KELOMPOK ASET (SINTEL KAI) -->
       <section class="family-metrics" aria-labelledby="family-metrics-title">
         <div class="family-metrics__heading">
           <div>
-            <h2 id="family-metrics-title" class="text-xl font-bold tracking-tight text-slate-950">Kinerja per kelompok aset</h2>
-            <p class="mt-1 text-base leading-7 text-slate-600">Singkatan dan warna mengikuti Aset Prasarana Sintel pada Excel KAI.</p>
+            <h2 id="family-metrics-title" class="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
+              Kinerja per kelompok aset
+            </h2>
+            <p class="mt-1 text-sm leading-6 text-slate-600">
+              Singkatan dan warna mengikuti standar Aset Prasarana Sintel pada Excel KAI.
+            </p>
           </div>
-          <span class="hidden text-sm font-semibold text-slate-500 sm:inline">Reliability · Availability</span>
+          <span class="hidden text-xs font-semibold uppercase tracking-wider text-slate-500 sm:inline">
+            Reliability · Availability
+          </span>
         </div>
 
         <div class="family-metrics__grid">
@@ -87,7 +72,7 @@
           >
             <header class="family-metric__header" :style="{ backgroundColor: groupAccent(group.code) }" :class="contrastTextClass(groupAccent(group.code))">
               <strong class="text-base font-extrabold tracking-wide">{{ group.code }}</strong>
-              <span class="mt-1 block text-xs font-semibold leading-5 opacity-90">{{ groupLabel(group.code) }}</span>
+              <span class="mt-1 block text-xs font-semibold leading-snug opacity-90">{{ groupLabel(group.code) }}</span>
             </header>
             <dl class="family-metric__values">
               <div>
@@ -103,16 +88,19 @@
         </div>
       </section>
 
+      <!-- PERALATAN PERSINYALAN & SUBSYSTEM EXPLORER -->
       <section aria-labelledby="asset-list-title">
-        <div class="mb-5 flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div class="mb-5 flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 id="asset-list-title" class="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Peralatan persinyalan</h2>
-            <p class="mt-1 max-w-3xl text-base leading-7 text-slate-600">
+            <h2 id="asset-list-title" class="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
+              Peralatan persinyalan
+            </h2>
+            <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
               Buka kelompok peralatan, lalu pilih subsystem untuk melihat data dan membuat Trouble Report.
             </p>
           </div>
-          <span class="inline-flex w-fit items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">
-            <Server :size="17" aria-hidden="true" />
+          <span class="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700">
+            <Server :size="15" aria-hidden="true" />
             {{ totalSubsystems }} subsystem
           </span>
         </div>
@@ -127,20 +115,20 @@
           >
             <summary class="asset-group__summary">
               <span class="flex min-w-0 items-start gap-3">
-                <span class="mt-1 h-4 w-4 shrink-0 rounded-full ring-4 ring-white" :style="{ backgroundColor: groupAccentValue(group.color) }" aria-hidden="true" />
+                <span class="mt-1 h-3.5 w-3.5 shrink-0 rounded-full ring-4 ring-white" :style="{ backgroundColor: groupAccentValue(group.color) }" aria-hidden="true" />
                 <span class="min-w-0">
-                  <strong class="block text-lg font-bold leading-7 text-slate-950">{{ group.name }}</strong>
-                  <span class="mt-1 block text-sm text-slate-600">{{ group.assetCount }} aset · {{ group.unitCount }} unit · {{ group.systems.length }} system</span>
+                  <strong class="block text-base font-bold leading-6 text-slate-950">{{ group.name }}</strong>
+                  <span class="mt-0.5 block text-xs text-slate-500">{{ group.assetCount }} aset · {{ group.unitCount }} unit · {{ group.systems.length }} system</span>
                 </span>
               </span>
-              <ChevronDown :size="21" class="asset-group__chevron shrink-0 text-slate-500" aria-hidden="true" />
+              <ChevronDown :size="20" class="asset-group__chevron shrink-0 text-slate-400" aria-hidden="true" />
             </summary>
 
             <div class="asset-group__content">
               <article v-for="system in group.systems" :key="`${group.name}-${system.name}`" class="system-row">
                 <div class="min-w-0">
-                  <h3 class="text-base font-bold leading-6 text-slate-900">{{ system.name }}</h3>
-                  <p class="mt-1 text-sm text-slate-600">{{ system.assetCount }} aset · {{ system.unitCount }} unit</p>
+                  <h3 class="text-sm font-bold leading-5 text-slate-900">{{ system.name }}</h3>
+                  <p class="mt-0.5 text-xs text-slate-500">{{ system.assetCount }} aset · {{ system.unitCount }} unit</p>
                 </div>
 
                 <div v-if="system.subsystems.length" class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -156,13 +144,13 @@
                     @click="goToTroubleReport(subsystem.name)"
                   >
                     <span class="min-w-0">
-                      <span class="block break-words text-base font-bold leading-6">{{ subsystem.name }}</span>
-                      <span class="mt-1 block text-sm font-medium opacity-90">{{ subsystem.assetCount }} aset · {{ subsystem.unitCount }} unit</span>
+                      <span class="block break-words text-sm font-bold leading-5">{{ subsystem.name }}</span>
+                      <span class="mt-1 block text-xs font-medium opacity-90">{{ subsystem.assetCount }} aset · {{ subsystem.unitCount }} unit</span>
                     </span>
-                    <ChevronRight :size="20" class="shrink-0 opacity-75 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                    <ChevronRight :size="18" class="shrink-0 opacity-75 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                   </button>
                 </div>
-                <p v-else class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                <p v-else class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-600">
                   Belum ada subsystem aktif.
                 </p>
               </article>
@@ -174,8 +162,8 @@
           <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500" aria-hidden="true">
             <Server :size="24" />
           </span>
-          <h3 class="mt-4 text-lg font-bold text-slate-900">Belum ada peralatan terhubung</h3>
-          <p class="mx-auto mt-2 max-w-xl text-base leading-7 text-slate-600">
+          <h3 class="mt-4 text-base font-bold text-slate-900">Belum ada peralatan terhubung</h3>
+          <p class="mx-auto mt-1 max-w-xl text-sm leading-6 text-slate-600">
             Tambahkan master aset yang terhubung ke kategori, system, dan subsystem agar muncul di dashboard.
           </p>
         </div>
@@ -190,11 +178,8 @@ import { computed } from 'vue'
 import {
   ChevronDown,
   ChevronRight,
-  CircleCheck,
-  Clock3,
+  FileSpreadsheet,
   Server,
-  ShieldCheck,
-  TriangleAlert,
 } from 'lucide-vue-next'
 import MainLayout from '@/layouts/MainLayout.vue'
 import AreaSelectorBanner from '@/components/dashboard/AreaSelectorBanner.vue'
@@ -228,32 +213,19 @@ const groupOrder = ['PDSM', 'PLSM', 'PDSE', 'PLSE', 'CDS']
 const fallbackLabel = 'Tanpa data'
 const getLabel = (value) => String(value ?? '').trim() || fallbackLabel
 
-const formattedOperatingStartDate = computed(() => {
-  if (!props.summary?.operatingStartDate) return 'Data belum ada'
-
-  const date = new Date(`${props.summary.operatingStartDate}T00:00:00`)
-  if (Number.isNaN(date.getTime())) return 'Data belum ada'
-
-  return new Intl.DateTimeFormat('id-ID', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(date)
-})
-
 const formatNumber = (value) => {
   const number = Number(value)
-  return Number.isFinite(number) ? new Intl.NumberFormat('id-ID').format(number) : 'Data belum ada'
+  return Number.isFinite(number) ? new Intl.NumberFormat('id-ID').format(number) : '0'
 }
 
-const formattedOperatingDays = computed(() => {
-  const days = Number(props.summary?.operatingDays)
-  return Number.isFinite(days) ? `${formatNumber(days)} hari` : 'Data belum ada'
+const failureCountNumber = computed(() => {
+  const failures = Number(props.summary?.totalFailure)
+  return Number.isFinite(failures) ? failures : 0
 })
 
 const formattedFailureCount = computed(() => {
-  const failures = Number(props.summary?.totalFailure)
-  return Number.isFinite(failures) ? `${formatNumber(failures)} kejadian` : 'Data belum ada'
+  const failures = failureCountNumber.value
+  return `${formatNumber(failures)} kejadian`
 })
 
 const formatPercentage = (value, maxDecimals = 2) => {
@@ -280,6 +252,7 @@ const reliabilityGroups = computed(() => {
     availability: null,
   })
 })
+
 const groupLabel = (code) => groupNames[code] || code || 'Kelompok aset'
 const groupAccent = (code) => groupColors[code] || '#64748B'
 const groupAccentValue = (color) => color || '#64748B'
@@ -398,9 +371,9 @@ const subsystemButtonStyle = (color) => color ? {
   '--subsystem-hover': '#475569',
 }
 
-const goToTroubleReport = (subsystemName) => {
+const goToTroubleReport = (subsystemName = null) => {
   router.get('/trouble-report', {
-    subsystem: subsystemName,
+    ...(subsystemName ? { subsystem: subsystemName } : {}),
     ...(props.selected_area ? { area: props.selected_area } : {}),
   })
 }
@@ -408,95 +381,67 @@ const goToTroubleReport = (subsystemName) => {
 
 <style scoped>
 .dashboard-hero {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 1.25rem;
+}
+
+/* GANGGUAN TERCATAT STAT CARD */
+.failure-stat-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  border-bottom: 1px solid #dbe3ef;
-  padding: 0.5rem 0 1.5rem;
-}
-
-.status-tile {
-  min-height: 9.5rem;
-  border: 1px solid #dbe3ef;
+  padding: 1.125rem 1.5rem;
   border-radius: 0.875rem;
-  padding: 1.25rem;
-  box-shadow: 0 10px 24px -22px rgb(15 23 42 / 55%);
+  background: #ffffff;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  box-shadow: 0 1px 3px 0 rgb(220 38 38 / 0.06), 0 1px 2px -1px rgb(15 23 42 / 0.04);
 }
 
-.status-tile--navy,
-.status-tile--orange {
-  color: #fff;
-  border-color: transparent;
+.failure-stat-card__icon {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.625rem;
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
 }
 
-.status-tile--navy { background: #171650; }
-.status-tile--orange { background: #f26522; }
-.status-tile--light { background: #fff; color: #0f172a; }
-
-.status-tile__label {
+.failure-stat-card__label {
   display: block;
-  max-width: 13rem;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 700;
-  line-height: 1.35;
+  color: #0f172a;
+  line-height: 1.25;
 }
 
-.status-tile__value {
-  display: block;
-  margin-top: 1.25rem;
-  font-size: 1.75rem;
-  font-weight: 800;
-  letter-spacing: -0.025em;
+.failure-stat-card__hint {
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  color: #64748b;
+  line-height: 1.25;
+}
+
+.failure-stat-card__value {
+  font-size: 1.875rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: #dc2626;
   line-height: 1;
 }
 
-.status-tile__value--danger { color: #be123c; }
-
-.status-tile__hint {
-  display: block;
-  margin-top: 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.4;
-  opacity: 0.82;
-}
-
-.asset-group {
-  overflow: hidden;
-  border: 1px solid #dbe3ef;
-  border-radius: 0.875rem;
-  background: #fff;
-  box-shadow: 0 10px 24px -22px rgb(15 23 42 / 55%);
-}
-
-.asset-group__summary {
-  display: flex;
-  min-height: 4.5rem;
-  cursor: pointer;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.125rem 1.25rem;
-  list-style: none;
-}
-
-.asset-group__summary::-webkit-details-marker { display: none; }
-
-.asset-group__summary:focus-visible {
-  outline: 3px solid #f26522;
-  outline-offset: -3px;
-}
-
-.asset-group__chevron { transition: transform 180ms ease; }
-
-.asset-group[open] .asset-group__chevron { transform: rotate(180deg); }
-
+/* FAMILY METRICS (PDSM, PLSM, PDSE, PLSE, CDS) */
 .family-metrics {
-  border: 1px solid #dbe3ef;
+  border: 1px solid #e2e8f0;
   border-radius: 0.875rem;
-  background: #fff;
+  background: #ffffff;
   padding: 1.25rem;
-  box-shadow: 0 10px 24px -22px rgb(15 23 42 / 55%);
+  box-shadow: 0 1px 3px 0 rgb(15 23 42 / 0.04), 0 1px 2px -1px rgb(15 23 42 / 0.04);
 }
 
 .family-metrics__heading {
@@ -504,8 +449,8 @@ const goToTroubleReport = (subsystemName) => {
   align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid #dbe3ef;
-  padding-bottom: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.875rem;
 }
 
 .family-metrics__grid {
@@ -518,20 +463,21 @@ const goToTroubleReport = (subsystemName) => {
 .family-metric {
   overflow: hidden;
   min-width: 0;
-  border: 1px solid #dbe3ef;
+  border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
-  background: #fff;
+  background: #ffffff;
 }
 
 .family-metric__header {
-  min-height: 5.5rem;
-  padding: 0.875rem;
+  min-height: 5.25rem;
+  padding: 0.75rem;
 }
 
 .family-metric__values {
   display: grid;
-  gap: 0.75rem;
-  padding: 0.875rem;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: #f8fafc;
 }
 
 .family-metric__values div {
@@ -544,87 +490,95 @@ const goToTroubleReport = (subsystemName) => {
 .family-metric__values dt {
   color: #64748b;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .family-metric__values dd {
   color: #0f172a;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 800;
   text-align: right;
 }
 
-.asset-group__summary {
-  border-top: 4px solid #64748b;
-  background: #f8fafc;
+/* ASSET GROUPS ACCORDION */
+.asset-group {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.875rem;
+  background: #ffffff;
+  box-shadow: 0 1px 3px 0 rgb(15 23 42 / 0.04), 0 1px 2px -1px rgb(15 23 42 / 0.04);
 }
+
+.asset-group__summary {
+  display: flex;
+  min-height: 4.25rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  list-style: none;
+  background: #f8fafc;
+  border-top: 3px solid #64748b;
+}
+
+.asset-group__summary::-webkit-details-marker { display: none; }
+
+.asset-group__summary:focus-visible {
+  outline: 2px solid #f26522;
+  outline-offset: -2px;
+}
+
+.asset-group__chevron { transition: transform 180ms ease; }
+.asset-group[open] .asset-group__chevron { transform: rotate(180deg); }
 
 .asset-group__content {
   display: grid;
   gap: 1rem;
-  border-top: 1px solid #dbe3ef;
+  border-top: 1px solid #e2e8f0;
   background: #f8fafc;
   padding: 1rem;
 }
 
 .system-row {
   display: grid;
-  gap: 1rem;
-  border: 1px solid #dbe3ef;
+  gap: 0.875rem;
+  border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
-  background: #fff;
+  background: #ffffff;
   padding: 1rem;
 }
 
 .subsystem-btn {
   display: flex;
-  min-height: 5.5rem;
+  min-height: 5rem;
   cursor: pointer;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   border-width: 1px;
-  border-radius: 0.75rem;
-  padding: 1rem;
-  box-shadow: 0 5px 12px -8px rgb(15 23 42 / 35%);
+  border-radius: 0.625rem;
+  padding: 0.875rem;
+  box-shadow: 0 1px 3px 0 rgb(15 23 42 / 0.08);
   text-align: left;
   transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
-  touch-action: manipulation;
 }
 
 .subsystem-btn:hover {
   background-color: var(--subsystem-hover, #475569);
-  box-shadow: 0 9px 18px -10px rgb(15 23 42 / 55%);
+  box-shadow: 0 4px 12px -2px rgb(15 23 42 / 0.2);
   transform: translateY(-1px);
 }
 
 .subsystem-btn:focus-visible {
-  outline: 3px solid #f26522;
-  outline-offset: 3px;
+  outline: 2px solid #f26522;
+  outline-offset: 2px;
 }
 
 .subsystem-btn:active { transform: translateY(0); }
 
-@media (max-width: 640px) {
-  .dashboard-hero {
-    align-items: flex-start;
-    flex-direction: column;
-    padding-top: 0;
-  }
-  .status-tile { min-height: 8.5rem; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .asset-group__chevron,
   .subsystem-btn { transition: none; }
-}
-
-@media (max-width: 1024px) {
-  .family-metrics__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
-@media (max-width: 640px) {
-  .family-metrics { padding: 1rem; }
-  .family-metrics__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>

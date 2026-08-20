@@ -75,6 +75,6 @@ class AuthenticationTest extends TestCase
     public function test_guest_is_redirected_from_application_pages(): void
     {
         $this->get('/dashboard')->assertRedirect('/login');
-        $this->get('/overview')->assertRedirect('/login');
+        $this->get('/risk-matrix')->assertRedirect('/login');
     }
 }

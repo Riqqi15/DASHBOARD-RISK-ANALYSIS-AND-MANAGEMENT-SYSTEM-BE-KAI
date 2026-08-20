@@ -22,7 +22,7 @@ class RiskMatrix extends Model
 
     public function asset(): BelongsTo
     {
-        return $this->belongsTo(Asset::class);
+        return $this->belongsTo(Asset::class)->withTrashed();
     }
 
     public function scopeVisibleTo(Builder $query, User $user): Builder

@@ -13,6 +13,13 @@ use RuntimeException;
 
 class AssetCategoryResolver
 {
+    private AssetTaxonomyService $assetTaxonomy;
+
+    public function __construct(?AssetTaxonomyService $assetTaxonomy = null)
+    {
+        $this->assetTaxonomy = $assetTaxonomy ?? app(AssetTaxonomyService::class);
+    }
+
     /**
      * @return array{group: AssetGroup, system: AssetSystem, subsystem: AssetSubsystem}
      */
@@ -77,6 +84,8 @@ class AssetCategoryResolver
                 $sheetName,
                 $sourceRow,
             );
+
+            $this->assetTaxonomy->syncLegacyPath($group, $system, $subsystem);
 
             return compact('group', 'system', 'subsystem');
         };

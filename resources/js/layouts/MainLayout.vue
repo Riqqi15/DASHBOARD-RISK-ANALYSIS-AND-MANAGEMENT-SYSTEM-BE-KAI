@@ -2,7 +2,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import {
-  Activity,
   AlertTriangle,
   Building2,
   ChevronDown,
@@ -42,7 +41,6 @@ const roleLabel = computed(() => isPusat.value ? 'Kantor Pusat' : (user.value.un
 
 const menuItems = [
   { name: 'dashboard', label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
-  { name: 'overview', label: 'Executive Overview', to: '/overview', icon: Activity },
   { name: 'master-asset', label: 'Master Aset', to: '/master-asset', icon: Database },
   { name: 'risk-matrix', label: 'Matriks Risiko', to: '/risk-matrix', icon: AlertTriangle },
   { name: 'risk-register', label: 'Risk Register', to: '/risk-register', icon: ShieldCheck },
@@ -53,8 +51,12 @@ const menuItems = [
 
 const adminMenuItems = [
   { name: 'admin-asset-categories', label: 'Kategori Aset', to: '/admin/asset-categories', icon: Network },
-  { name: 'admin-units', label: 'Unit Kerja', to: '/admin/units', icon: Building2 },
+  { name: 'admin-units', label: 'Unit & Akun', to: '/admin/units', icon: Building2 },
 ]
+
+const visibleAdminMenuItems = computed(() => isPusat.value
+  ? adminMenuItems
+  : adminMenuItems.filter((item) => item.name === 'admin-asset-categories'))
 
 const activeMenu = computed(() => {
   if (currentPath.value.startsWith('/admin/accounts')) {
@@ -187,10 +189,10 @@ onMounted(() => {
           </li>
         </ul>
 
-        <template v-if="isPusat">
+        <template v-if="visibleAdminMenuItems.length">
           <p class="mb-2 mt-7 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Administrasi</p>
           <ul class="space-y-1">
-            <li v-for="item in adminMenuItems" :key="item.name">
+            <li v-for="item in visibleAdminMenuItems" :key="item.name">
               <Link
                 :href="item.to"
                 class="group flex min-h-11 items-center gap-3 rounded-lg border-l-[3px] px-3 text-sm font-medium transition"
