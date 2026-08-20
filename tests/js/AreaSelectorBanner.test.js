@@ -35,7 +35,7 @@ const mountBanner = (selectedArea = null, extraProps = {}) => mount(AreaSelector
 describe('AreaSelectorBanner', () => {
   beforeEach(() => {
     routerGet.mockReset()
-    window.history.replaceState({}, '', '/overview')
+    window.history.replaceState({}, '', '/dashboard')
     Object.defineProperty(window, 'scrollY', { configurable: true, value: 0, writable: true })
   })
 
@@ -58,7 +58,7 @@ describe('AreaSelectorBanner', () => {
     const wrapper = mountBanner()
     await wrapper.get('#area-select').setValue('DIVRE-I')
 
-    expect(routerGet).toHaveBeenCalledWith('/overview', { area: 'DIVRE-I' }, {
+    expect(routerGet).toHaveBeenCalledWith('/dashboard', { area: 'DIVRE-I' }, {
       preserveScroll: true,
       preserveState: false,
       replace: true,

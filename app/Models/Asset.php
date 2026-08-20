@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AssetStatus;
+use App\Services\AssetTaxonomyService;
 use Database\Factories\AssetFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Fillable([
     'unit_kerja_id',
     'asset_subsystem_id',
+    'asset_category_node_id',
     'nama_aset',
     'aset_prasarana_sintel',
     'system',
@@ -31,6 +33,33 @@ class Asset extends Model
     /** @use HasFactory<AssetFactory> */
     use HasFactory, SoftDeletes;
 
+    protected static function booted(): void
+    {
+        static::saving(function (self $asset): void {
+            if (! $asset->asset_subsystem_id || $asset->isDirty('asset_category_node_id')) {
+                return;
+            }
+
+            $nodeId = AssetCategoryNode::query()
+                ->where('legacy_type', 'subsystem')
+                ->where('legacy_id', $asset->asset_subsystem_id)
+                ->value('id');
+
+            if (! $nodeId) {
+                $subsystem = AssetSubsystem::query()
+                    ->with('assetSystem.assetGroup')
+                    ->find($asset->asset_subsystem_id);
+                if ($subsystem?->assetSystem?->assetGroup) {
+                    $nodeId = app(AssetTaxonomyService::class)
+                        ->syncLegacyPath($subsystem->assetSystem->assetGroup, $subsystem->assetSystem, $subsystem)
+                        ->id;
+                }
+            }
+
+            $asset->asset_category_node_id = $nodeId;
+        });
+    }
+
     public function unitKerja(): BelongsTo
     {
         return $this->belongsTo(UnitKerja::class);
@@ -39,6 +68,11 @@ class Asset extends Model
     public function assetSubsystem(): BelongsTo
     {
         return $this->belongsTo(AssetSubsystem::class);
+    }
+
+    public function assetCategoryNode(): BelongsTo
+    {
+        return $this->belongsTo(AssetCategoryNode::class);
     }
 
     public function riskMatrix(): HasOne

@@ -14,11 +14,6 @@ class RamsDashboardController extends Controller
         return Inertia::render('dashboard/Dashboard', $query->dashboard($request->user(), $request->selectedUnit()));
     }
 
-    public function overview(RamsAreaRequest $request, RamsDashboardQuery $query): Response
-    {
-        return Inertia::render('dashboard/Overview', $query->overview($request->user(), $request->selectedUnit()));
-    }
-
     public function riskMatrix(RamsAreaRequest $request, RamsDashboardQuery $query): Response
     {
         return Inertia::render('dashboard/RiskMatrix', $query->riskMatrix($request->user(), $request->selectedUnit()));

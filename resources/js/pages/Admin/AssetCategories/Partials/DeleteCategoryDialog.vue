@@ -6,6 +6,7 @@ defineProps({
   category: { type: Object, required: true },
   levelLabel: { type: String, required: true },
   form: { type: Object, required: true },
+  errorKey: { type: String, default: 'category' },
 })
 
 defineEmits(['close', 'confirm'])
@@ -20,7 +21,7 @@ defineEmits(['close', 'confirm'])
         </div>
         <h2 id="delete-category-title" class="mt-5 text-lg font-semibold text-slate-950">Hapus {{ levelLabel }}?</h2>
         <p id="delete-category-description" class="mt-2 text-sm leading-6 text-slate-600"><strong class="font-semibold text-slate-800">{{ category.name }}</strong> hanya dapat dihapus jika belum digunakan oleh data lain.</p>
-        <div v-if="form.errors.category" role="alert" class="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm leading-6 text-red-700">{{ form.errors.category }}</div>
+        <div v-if="form.errors[errorKey]" role="alert" class="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm leading-6 text-red-700">{{ form.errors[errorKey] }}</div>
         <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button type="button" data-dialog-initial-focus class="h-11 rounded-lg border border-slate-300 px-4 text-sm font-medium outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#171650]" :disabled="form.processing" @click="$emit('close')">Batal</button>
           <button type="button" class="h-11 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white outline-none hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-[#171650] focus-visible:ring-offset-2 disabled:opacity-60" :aria-label="`Konfirmasi hapus ${levelLabel}`" :disabled="form.processing" @click="$emit('confirm')">{{ form.processing ? 'Menghapus…' : `Hapus ${levelLabel}` }}</button>

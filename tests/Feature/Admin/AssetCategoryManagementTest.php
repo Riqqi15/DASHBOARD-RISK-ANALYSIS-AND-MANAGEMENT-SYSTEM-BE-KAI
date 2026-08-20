@@ -29,15 +29,16 @@ class AssetCategoryManagementTest extends TestCase
         $this->get('/admin/asset-categories')->assertRedirect('/login');
     }
 
-    public function test_unit_account_is_forbidden_from_index_and_every_mutation(): void
+    public function test_unit_account_can_view_index_but_is_forbidden_from_every_mutation(): void
     {
         $user = User::factory()->unit()->create();
         $group = AssetGroup::factory()->create();
         $system = AssetSystem::factory()->for($group)->create();
         $subsystem = AssetSubsystem::factory()->for($system)->create();
 
+        $this->actingAs($user)->get('/admin/asset-categories')->assertOk();
+
         $requests = [
-            fn () => $this->actingAs($user)->get('/admin/asset-categories'),
             fn () => $this->actingAs($user)->post('/admin/asset-groups', []),
             fn () => $this->actingAs($user)->put("/admin/asset-groups/{$group->id}", []),
             fn () => $this->actingAs($user)->patch("/admin/asset-groups/{$group->id}/status", []),

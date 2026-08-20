@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Asset;
+use App\Models\AssetCategoryLevel;
+use App\Models\AssetCategoryNode;
 use App\Models\AssetCategorySourceAlias;
 use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
@@ -183,16 +185,20 @@ class AssetCategorySchemaTest extends TestCase
         $this->assertDatabaseCount('asset_category_source_aliases', 2);
     }
 
-    public function test_asset_category_relation_is_required_after_the_final_migration(): void
+    public function test_legacy_subsystem_is_optional_when_asset_uses_the_generic_hierarchy(): void
     {
         $column = collect(Schema::getColumns('assets'))
             ->firstWhere('name', 'asset_subsystem_id');
 
-        $this->assertFalse($column['nullable']);
-        $this->assertMysqlError(
-            1048,
-            fn () => Asset::factory()->create(['asset_subsystem_id' => null]),
-        );
+        $this->assertTrue($column['nullable']);
+        $node = AssetCategoryNode::factory()->create([
+            'asset_category_level_id' => AssetCategoryLevel::query()->where('position', 1)->value('id'),
+        ]);
+        $asset = Asset::factory()->create([
+            'asset_subsystem_id' => null,
+            'asset_category_node_id' => $node->id,
+        ]);
+        $this->assertSame($node->id, $asset->asset_category_node_id);
     }
 
     public function test_database_restricts_deleting_categories_that_are_in_use(): void

@@ -11,35 +11,22 @@
     ]"
     aria-labelledby="area-selector-title"
   >
-    <div class="area-selector__intro">
-      <div class="area-selector__intro-inner">
-        <div class="flex min-w-0 items-start gap-3">
-          <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#171650] text-white" aria-hidden="true">
-            <MapPinned :size="21" :stroke-width="2" />
-          </span>
-          <div class="min-w-0">
-            <h2 id="area-selector-title" class="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">Wilayah data</h2>
-            <p class="mt-1 text-sm leading-6 text-slate-600">Pilih wilayah kerja untuk menyesuaikan isi dashboard.</p>
-          </div>
-        </div>
-
-        <div class="area-selector__active" aria-live="polite">
-          <span class="h-2 w-2 rounded-full bg-emerald-500 ring-4 ring-emerald-100" aria-hidden="true" />
-          <div>
-            <span class="block text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Sedang melihat</span>
-            <strong class="mt-0.5 block text-base text-[#171650]">{{ activeAreaLabel }}</strong>
-          </div>
+    <div class="area-selector__bar">
+      <!-- Left: Area Identity & Active Status -->
+      <div class="area-selector__identity">
+        <span class="area-selector__icon-box" aria-hidden="true">
+          <MapPinned :size="20" :stroke-width="2.2" />
+        </span>
+        <div class="min-w-0">
+          <h2 id="area-selector-title" class="area-selector__title">Wilayah data</h2>
+          <p id="area-selector-help" class="area-selector__subtitle">
+            Data keandalan, aset, dan laporan akan mengikuti wilayah ini.
+          </p>
         </div>
       </div>
-    </div>
 
-    <div class="area-selector__control">
-      <div class="area-selector__compact-label" aria-hidden="true">
-        <MapPinned :size="18" :stroke-width="2" />
-        <span>Wilayah</span>
-      </div>
-
-      <div class="area-selector__field">
+      <!-- Right: Dropdown Selector Control -->
+      <div class="area-selector__action">
         <label for="area-select" class="area-selector__label">Wilayah kerja</label>
         <div class="area-selector__select-wrap">
           <select
@@ -50,17 +37,18 @@
             @change="selectArea($event.target.value)"
           >
             <option v-if="!units.length" value="">Belum ada wilayah</option>
-            <option v-for="area in units" :key="area.id" :value="area.code" :data-area-code="area.code">
+            <option
+              v-for="area in units"
+              :key="area.id"
+              :value="area.code"
+              :data-area-code="area.code"
+            >
               {{ area.code }}{{ area.name && area.name !== area.code ? ` — ${area.name}` : '' }}
             </option>
           </select>
-          <ChevronDown class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" :size="20" aria-hidden="true" />
+          <ChevronDown class="area-selector__select-chevron" :size="18" aria-hidden="true" />
         </div>
       </div>
-
-      <p id="area-selector-help" class="area-selector__help">
-        Data keandalan, aset, dan laporan akan mengikuti wilayah ini.
-      </p>
     </div>
   </section>
 </template>
@@ -87,10 +75,6 @@ let shouldMeasure = false
 let isMounted = false
 
 const displayedArea = computed(() => props.selectedArea || props.units[0]?.code || null)
-const activeAreaLabel = computed(() => {
-  const area = props.units.find((unit) => unit.code === displayedArea.value)
-  return area?.name && area.name !== area.code ? `${area.code} — ${area.name}` : (displayedArea.value || 'Pilih wilayah')
-})
 
 const selectArea = (code) => {
   if (!code) return
@@ -161,166 +145,160 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* Keep Chrome from counter-scrolling when the sticky panel changes height. */
 :global(html:has(.area-selector--collapsible)) { overflow-anchor: none; }
 
 .area-selector {
-  overflow: hidden;
-  margin-bottom: 2rem;
-  border: 1px solid #dbe3ef;
+  position: relative;
+  margin-bottom: 1.75rem;
+  border: 1px solid #e2e8f0;
   border-radius: 0.875rem;
-  background: #fff;
-  box-shadow: 0 10px 24px -22px rgb(15 23 42 / 55%);
+  background: #ffffff;
+  box-shadow: 0 1px 3px 0 rgb(15 23 42 / 0.04), 0 1px 2px -1px rgb(15 23 42 / 0.04);
+  transition:
+    padding 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .area-selector--collapsible {
   position: sticky;
   top: 76px;
   z-index: 20;
-  transition:
-    border-radius 200ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .area-selector--compact {
   border-radius: 0 0 0.875rem 0.875rem;
-  box-shadow: 0 12px 24px -18px rgb(15 23 42 / 45%);
+  border-top-color: transparent;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 20px -8px rgb(15 23 42 / 0.14);
 }
 
-.area-selector__intro {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
-  overflow: hidden;
-  border-bottom: 1px solid #dbe3ef;
-  opacity: 1;
-  transition:
-    grid-template-rows 200ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 120ms ease-out,
-    border-color 160ms ease-out;
-}
-
-.area-selector__intro-inner {
+.area-selector__bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1.25rem;
-  min-height: 0;
-  overflow: hidden;
-  padding: 1.25rem;
+  gap: 1.5rem;
+  padding: 0.875rem 1.25rem;
+  transition: padding 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.area-selector__active {
+.area-selector--compact .area-selector__bar {
+  padding: 0.5rem 1.25rem;
+}
+
+.area-selector__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.area-selector__icon-box {
+  display: flex;
+  height: 2.375rem;
+  width: 2.375rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.625rem;
+  background: #171650;
+  color: #ffffff;
+  box-shadow: 0 2px 6px -1px rgba(23, 22, 80, 0.25);
+  transition: transform 180ms ease, height 180ms ease, width 180ms ease;
+}
+
+.area-selector--compact .area-selector__icon-box {
+  height: 2rem;
+  width: 2rem;
+}
+
+.area-selector__title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+
+.area-selector__subtitle {
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  color: #64748b;
+  transition: opacity 160ms ease, max-height 160ms ease;
+}
+
+.area-selector--compact .area-selector__subtitle {
+  display: none;
+}
+
+.area-selector__action {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-shrink: 0;
-  border: 1px solid #bbf7d0;
-  border-radius: 0.75rem;
-  background: #f0fdf4;
-  padding: 0.625rem 0.875rem;
 }
-
-.area-selector__control {
-  padding: 1.25rem;
-}
-
-.area-selector__compact-label { display: none; }
 
 .area-selector__label {
-  display: block;
-  color: #1e293b;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.area-selector--compact .area-selector__label {
+  display: none;
 }
 
 .area-selector__select-wrap {
   position: relative;
-  margin-top: 0.5rem;
-}
-
-.area-selector__help {
-  margin-top: 0.5rem;
-  color: #475569;
-  font-size: 0.875rem;
-  line-height: 1.5rem;
+  min-width: 17rem;
 }
 
 .area-selector__select {
   display: block;
   width: 100%;
-  min-height: 3.25rem;
+  min-height: 2.5rem;
   appearance: none;
   cursor: pointer;
-  border: 1px solid #94a3b8;
-  border-radius: 0.75rem;
-  background: #fff;
-  padding: 0.75rem 3rem 0.75rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.625rem;
+  background: #f8fafc;
+  padding: 0.4rem 2.25rem 0.4rem 0.875rem;
   color: #0f172a;
-  font-size: 1rem;
-  font-weight: 700;
-  line-height: 1.5;
-}
-
-.area-selector--compact .area-selector__intro {
-  grid-template-rows: minmax(0, 0fr);
-  border-bottom-color: transparent;
-  opacity: 0;
-}
-
-.area-selector--compact .area-selector__control {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.75rem;
-  min-height: 3.25rem;
-  padding: 0.375rem 0.75rem;
-}
-
-.area-selector--compact .area-selector__compact-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #171650;
   font-size: 0.875rem;
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 1.4;
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
 }
 
-.area-selector--compact .area-selector__label,
-.area-selector--compact .area-selector__help { display: none; }
-
-.area-selector--compact .area-selector__select-wrap { margin-top: 0; }
-
-.area-selector--compact .area-selector__select {
-  min-height: 2.5rem;
-  border-color: #cbd5e1;
-  padding-top: 0.375rem;
-  padding-bottom: 0.375rem;
-  font-size: 0.875rem;
-}
-
-.area-selector__select:hover { border-color: #f26522; }
-
-.area-selector__select:focus-visible {
-  outline: 3px solid #fed7aa;
-  outline-offset: 2px;
+.area-selector__select:hover {
+  background: #ffffff;
   border-color: #f26522;
 }
 
-@media (max-width: 640px) {
-  .area-selector__intro-inner {
-    align-items: flex-start;
-    flex-direction: column;
-  }
+.area-selector__select:focus-visible {
+  background: #ffffff;
+  border-color: #f26522;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(242, 101, 34, 0.16);
+}
 
-  .area-selector__active { width: 100%; }
-
-  .area-selector--compact .area-selector__compact-label span { display: none; }
-
-  .area-selector--compact .area-selector__control { gap: 0.5rem; }
+.area-selector__select-chevron {
+  pointer-events: none;
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .area-selector--collapsible,
-  .area-selector__intro { transition: none; }
+  .area-selector,
+  .area-selector__bar,
+  .area-selector__icon-box,
+  .area-selector__subtitle { transition: none; }
 }
 </style>

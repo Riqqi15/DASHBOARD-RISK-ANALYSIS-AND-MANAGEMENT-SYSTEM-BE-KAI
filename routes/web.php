@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Admin\AssetCategoryController;
+use App\Http\Controllers\Admin\AssetCategoryLevelController;
+use App\Http\Controllers\Admin\AssetCategoryNodeController;
 use App\Http\Controllers\Admin\AssetGroupController;
 use App\Http\Controllers\Admin\AssetSubsystemController;
 use App\Http\Controllers\Admin\AssetSystemController;
@@ -8,6 +10,8 @@ use App\Http\Controllers\Admin\RegionalAccountController;
 use App\Http\Controllers\Admin\SparePartController;
 use App\Http\Controllers\Admin\UnitKerjaController;
 use App\Http\Controllers\Admin\UnitSubsystemOpeningController;
+use App\Http\Controllers\ArchiveAssetTaxonomyBranchController;
+use App\Http\Controllers\AssetTaxonomyAssetController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\FailureLogController;
 use App\Http\Controllers\FailureLogImportController;
@@ -27,9 +31,9 @@ Route::middleware('guest')->group(function (): void {
 
 Route::middleware(['auth', 'active'])->group(function (): void {
     Route::redirect('/', '/dashboard');
+    Route::redirect('/overview', '/dashboard');
 
     Route::get('/dashboard', [RamsDashboardController::class, 'dashboard'])->name('dashboard');
-    Route::get('/overview', [RamsDashboardController::class, 'overview'])->name('overview');
     Route::get('/trouble-report/import', [FailureLogImportController::class, 'index'])->name('failure-logs.import.index');
     Route::post('/trouble-report/import', [FailureLogImportController::class, 'store'])->name('failure-logs.import.store');
     Route::get('/trouble-report/import/batch/{batch}', [FailureLogImportController::class, 'show'])->name('failure-logs.import.show');
@@ -64,11 +68,23 @@ Route::middleware(['auth', 'active'])->group(function (): void {
     Route::post('/inventory/movements/{movement}/corrections', [StockMovementController::class, 'correct'])->name('stock-movements.correct');
     Route::redirect('/reorder-stock', '/inventory?tab=master')->name('reorder-stock');
 
+    Route::prefix('admin')->name('admin.')->group(function (): void {
+        Route::get('asset-categories', AssetCategoryController::class)->name('asset-categories.index');
+        Route::post('asset-category-levels', [AssetCategoryLevelController::class, 'store'])->name('asset-category-levels.store');
+        Route::put('asset-category-levels/{asset_category_level}', [AssetCategoryLevelController::class, 'update'])->name('asset-category-levels.update');
+        Route::delete('asset-category-levels/{asset_category_level}', [AssetCategoryLevelController::class, 'destroy'])->name('asset-category-levels.destroy');
+        Route::post('asset-category-nodes', [AssetCategoryNodeController::class, 'store'])->name('asset-category-nodes.store');
+        Route::put('asset-category-nodes/{asset_category_node}', [AssetCategoryNodeController::class, 'update'])->name('asset-category-nodes.update');
+        Route::delete('asset-category-nodes/{asset_category_node}', [AssetCategoryNodeController::class, 'destroy'])->name('asset-category-nodes.destroy');
+        Route::post('asset-category-assets', [AssetTaxonomyAssetController::class, 'store'])->name('asset-category-assets.store');
+        Route::get('asset-category-nodes/{asset_category_node}/archive-preview', [ArchiveAssetTaxonomyBranchController::class, 'preview'])->name('asset-category-nodes.archive-preview');
+        Route::delete('asset-category-nodes/{asset_category_node}/assets', [ArchiveAssetTaxonomyBranchController::class, 'destroy'])->name('asset-category-nodes.assets.destroy');
+    });
+
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 });
 
 Route::middleware(['auth', 'active', 'pusat'])->prefix('admin')->name('admin.')->group(function (): void {
-    Route::get('asset-categories', AssetCategoryController::class)->name('asset-categories.index');
     Route::patch('asset-groups/{asset_group}/status', [AssetGroupController::class, 'status'])->name('asset-groups.status');
     Route::resource('asset-groups', AssetGroupController::class)->only(['store', 'update', 'destroy']);
     Route::patch('asset-systems/{asset_system}/status', [AssetSystemController::class, 'status'])->name('asset-systems.status');

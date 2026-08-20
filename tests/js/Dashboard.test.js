@@ -106,13 +106,16 @@ describe('Dashboard', () => {
     expect(wrapper.get('[data-family-code="CDS"] header').attributes('style')).toContain('rgb(255, 0, 0)')
   })
 
-  it('renders operating start date and operating days for the selected daop or divre', () => {
-    const wrapper = mountPage()
+  it('renders recorded failure count for the selected daop or divre', () => {
+    const wrapper = mountPage({
+      summary: {
+        totalFailure: 9,
+      },
+    })
 
     expect(wrapper.text()).toContain('Ringkasan kinerja persinyalan')
-    expect(wrapper.text()).toContain('01/01/2020')
-    expect(wrapper.text()).toContain('2.409 hari')
-    expect(wrapper.text()).toContain('Lama operasi')
+    expect(wrapper.text()).toContain('Rekap gangguan tercatat')
+    expect(wrapper.text()).toContain('9 kejadian')
   })
 
   it('renders empty asset categories from the master taxonomy', () => {

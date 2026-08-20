@@ -26,7 +26,7 @@ final class ReliabilityExcelSnapshot extends Model
 {
     public function asset(): BelongsTo
     {
-        return $this->belongsTo(Asset::class);
+        return $this->belongsTo(Asset::class)->withTrashed();
     }
 
     protected function casts(): array

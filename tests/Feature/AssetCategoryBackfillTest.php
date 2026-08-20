@@ -208,7 +208,7 @@ class AssetCategoryBackfillTest extends TestCase
 
         $this->assertSame(['linked' => 1, 'skipped' => 0], $result);
         foreach ($before as $field => $value) {
-            if (in_array($field, ['asset_subsystem_id', 'updated_at'], true)) {
+            if (in_array($field, ['asset_subsystem_id', 'asset_category_node_id', 'updated_at'], true)) {
                 continue;
             }
 
