@@ -29,7 +29,10 @@ class InventoryStock extends Model
     {
         return $query->when(
             $user->isUnit(),
-            fn (Builder $visible): Builder => $visible->where('unit_kerja_id', $user->unit_kerja_id),
+            fn (Builder $visible): Builder => $visible->where(
+                $visible->getModel()->qualifyColumn('unit_kerja_id'),
+                $user->unit_kerja_id,
+            ),
         );
     }
 

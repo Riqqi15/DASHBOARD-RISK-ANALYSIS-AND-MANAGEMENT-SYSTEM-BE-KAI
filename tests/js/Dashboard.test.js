@@ -106,6 +106,60 @@ describe('Dashboard', () => {
     expect(wrapper.get('[data-family-code="CDS"] header').attributes('style')).toContain('rgb(255, 0, 0)')
   })
 
+  it('renders a dynamic family card supplied by the backend', () => {
+    const wrapper = mountPage({
+      summary: {
+        reliabilityGroups: [
+          {
+            id: 6,
+            code: 'DS',
+            name: 'DAYA SATU',
+            color: '#123ABC',
+            asset_count: 0,
+            reliability: null,
+            availability: null,
+          },
+        ],
+      },
+    })
+
+    expect(wrapper.findAll('[data-family-code]')).toHaveLength(1)
+    expect(wrapper.get('[data-family-code="DS"]').text()).toContain('DAYA SATU')
+    expect(wrapper.get('[data-family-code="DS"]').text()).toContain('Belum ada data')
+    expect(wrapper.get('[data-family-code="DS"] header').attributes('style')).toContain('rgb(18, 58, 188)')
+  })
+
+  it('shows an automatically assigned order before a clean root-category name', () => {
+    const wrapper = mountPage({
+      assets: [],
+      asset_categories: [{
+        id: 6,
+        name: 'DAYA SATU',
+        sort_order: 6,
+        systems: [],
+      }],
+    })
+
+    expect(wrapper.text()).toContain('6. DAYA SATU')
+    expect(wrapper.text()).not.toContain('6. 6. DAYA SATU')
+  })
+
+  it('shows the latest import date once beside the section title and uses a fluid card grid', () => {
+    const wrapper = mountPage({
+      summary: {
+        latestImport: {
+          date: '2026-08-20',
+          groupCodes: ['PDSE', 'PLSE'],
+        },
+      },
+    })
+
+    expect(wrapper.get('.family-metrics__heading [data-latest-import-badge]').text()).toBe('Data Terbaru · 20 Agu 2026')
+    expect(wrapper.findAll('[data-family-code] [data-latest-import-badge]')).toHaveLength(0)
+    expect(wrapper.get('.family-metrics__grid').classes()).toContain('family-metrics__grid--fluid')
+    expect(wrapper.get('[data-family-code="PDSE"] .family-metric__values').classes()).toContain('family-metric__values--emphasized')
+  })
+
   it('renders recorded failure count for the selected daop or divre', () => {
     const wrapper = mountPage({
       summary: {
@@ -116,6 +170,9 @@ describe('Dashboard', () => {
     expect(wrapper.text()).toContain('Ringkasan kinerja persinyalan')
     expect(wrapper.text()).toContain('Rekap gangguan tercatat')
     expect(wrapper.text()).toContain('9 kejadian')
+    expect(wrapper.get('.failure-stat-card').classes()).toContain('failure-stat-card--plain')
+    expect(wrapper.get('.asset-group__summary').classes()).toContain('asset-group__summary--plain')
+    expect(wrapper.get('.asset-group__summary').classes()).toContain('asset-group__summary--white')
   })
 
   it('renders empty asset categories from the master taxonomy', () => {

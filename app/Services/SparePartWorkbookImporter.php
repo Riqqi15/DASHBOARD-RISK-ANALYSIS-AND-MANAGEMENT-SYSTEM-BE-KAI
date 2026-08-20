@@ -54,12 +54,13 @@ class SparePartWorkbookImporter
     }
 
     /**
-     * @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int}
+     * @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int, issues: list<array<string, mixed>>}
      */
     public function import(
         string $workbookPath,
         bool $bootstrapCategories = false,
         ?UnitKerja $unit = null,
+        bool $skipUnmatchedCategories = false,
     ): array {
         if (! is_file($workbookPath)) {
             throw new RuntimeException("File workbook tidak ditemukan: {$workbookPath}");
@@ -94,6 +95,7 @@ class SparePartWorkbookImporter
                     $bootstrapCategories,
                     $unit,
                     $workbookHash,
+                    $skipUnmatchedCategories,
                 ),
                 3,
             );
@@ -119,7 +121,7 @@ class SparePartWorkbookImporter
     }
 
     /**
-     * @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int}
+     * @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int, issues: list<array<string, mixed>>}
      */
     private function importRows(
         Worksheet $sheet,
@@ -127,6 +129,7 @@ class SparePartWorkbookImporter
         bool $bootstrapCategories,
         ?UnitKerja $unit,
         string $workbookHash,
+        bool $skipUnmatchedCategories,
     ): array {
         $result = [
             'created' => 0,
@@ -135,6 +138,7 @@ class SparePartWorkbookImporter
             'duplicates_skipped' => 0,
             'duplicate_locations' => [],
             'skipped' => 0,
+            'issues' => [],
         ];
         $currentGroup = '';
         $currentSystem = '';
@@ -190,7 +194,21 @@ class SparePartWorkbookImporter
                 $row,
                 $bootstrapCategories,
                 $unit?->id,
+                $skipUnmatchedCategories,
             );
+            if (! $subsystem) {
+                $result['skipped']++;
+                $result['issues'][] = [
+                    'sheet_name' => self::SHEET,
+                    'source_row' => $row,
+                    'source_column' => 'Equipment',
+                    'severity' => 'warning',
+                    'message' => "Hierarchy {$currentGroup}|{$currentSystem}|{$currentEquipment} "
+                        .'tidak ditemukan pada master Predictive Data Asset; baris Reorder Stock dilewati.',
+                ];
+
+                continue;
+            }
             $reorderInputs = [
                 'max_yearly_failure' => $this->nullableDecimal($sheet, 5, $row, $workbookName, self::HEADERS[4]),
                 'average_yearly_failure' => $this->nullableDecimal($sheet, 6, $row, $workbookName, self::HEADERS[5]),
@@ -382,7 +400,8 @@ class SparePartWorkbookImporter
         int $row,
         bool $bootstrapCategories,
         ?int $unitKerjaId,
-    ): AssetSubsystem {
+        bool $skipUnmatchedCategories,
+    ): ?AssetSubsystem {
         $paths = $this->categoryPaths($groupName, $systemName, $subsystemName);
         $alias = AssetCategorySourceAlias::query()
             ->where('category_type', 'subsystem')
@@ -415,6 +434,10 @@ class SparePartWorkbookImporter
             $this->persistCategoryAliases($subsystem, $paths, $workbookName, $row, $unitKerjaId);
 
             return $subsystem;
+        }
+
+        if ($skipUnmatchedCategories) {
+            return null;
         }
 
         if (! $bootstrapCategories) {

@@ -133,8 +133,8 @@ onMounted(() => {
         <ul class="space-y-1">
           <!-- Dashboard Collapsible Parent -->
           <li>
-            <div class="flex items-center w-full min-h-11 justify-between gap-1 pr-2 rounded-lg border-l-[3px] transition"
-                 :class="currentPath === '/dashboard' ? 'border-orange-500 bg-orange-50' : 'border-transparent hover:bg-slate-50'">
+            <div class="flex items-center w-full min-h-11 justify-between gap-1 pr-2 rounded-lg transition"
+                 :class="currentPath === '/dashboard' ? 'bg-orange-50' : 'hover:bg-slate-50'">
               <Link
                 href="/dashboard"
                 class="group flex flex-1 items-center gap-3 px-3 py-2 text-sm font-medium transition"
@@ -177,10 +177,10 @@ onMounted(() => {
           <li v-for="item in menuItems.filter(i => i.name === 'trouble-report-import')" :key="item.name">
             <Link
               :href="item.to"
-              class="group flex min-h-11 items-center gap-3 rounded-lg border-l-[3px] px-3 text-sm font-medium transition mt-1"
+              class="group mt-1 flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition"
               :class="currentPath === item.to
-                ? 'border-orange-500 bg-orange-50 text-[#171650]'
-                : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950'"
+                ? 'bg-orange-50 text-[#171650]'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'"
               @click="closeSidebar"
             >
               <component :is="item.icon" :size="19" :stroke-width="1.8" :class="currentPath === item.to ? 'text-orange-600' : 'text-slate-400 group-hover:text-slate-600'" aria-hidden="true" />
@@ -195,10 +195,10 @@ onMounted(() => {
             <li v-for="item in visibleAdminMenuItems" :key="item.name">
               <Link
                 :href="item.to"
-                class="group flex min-h-11 items-center gap-3 rounded-lg border-l-[3px] px-3 text-sm font-medium transition"
+                class="group flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition"
                 :class="currentPath.startsWith(item.to)
-                  ? 'border-orange-500 bg-orange-50 text-[#171650]'
-                  : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950'"
+                  ? 'bg-orange-50 text-[#171650]'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'"
                 @click="closeSidebar"
               >
                 <component :is="item.icon" :size="19" :stroke-width="1.8" :class="currentPath.startsWith(item.to) ? 'text-orange-600' : 'text-slate-400 group-hover:text-slate-600'" aria-hidden="true" />

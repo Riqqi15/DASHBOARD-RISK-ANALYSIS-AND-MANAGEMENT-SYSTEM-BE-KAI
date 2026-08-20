@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Asset;
+use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
+use App\Models\AssetSystem;
 use App\Models\RamsImportBatch;
 use App\Models\RamsImportIssue;
 use App\Models\ReliabilitySummary;
@@ -96,7 +98,12 @@ final class FailureLogImportUploadTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         $otherUnit = UnitKerja::factory()->create(['code' => 'DAOP-4', 'is_active' => true]);
-        $subsystem = AssetSubsystem::factory()->create(['name' => 'Interlocking Elektrik']);
+        $group = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => '1. Peralatan Dalam Sinyal Elektrik',
+        ]);
+        $system = AssetSystem::factory()->for($group)->create(['name' => 'Interlocking Elektrik']);
+        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Interlocking Elektrik']);
         Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create(['jumlah_unit' => 2]);
         $user = User::factory()->unit($unit)->create();
         User::factory()->pusat()->create(['username' => 'pusat-audit']);
@@ -138,7 +145,12 @@ final class FailureLogImportUploadTest extends TestCase
     public function test_identical_workbook_reimport_keeps_batch_history_and_skips_active_duplicates(): void
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
-        $subsystem = AssetSubsystem::factory()->create(['name' => 'Interlocking Elektrik']);
+        $group = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => '1. Peralatan Dalam Sinyal Elektrik',
+        ]);
+        $system = AssetSystem::factory()->for($group)->create(['name' => 'Interlocking Elektrik']);
+        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Interlocking Elektrik']);
         Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create(['jumlah_unit' => 2]);
         $user = User::factory()->unit($unit)->create();
         $workbook = $this->uploadedWorkbook();
@@ -162,7 +174,38 @@ final class FailureLogImportUploadTest extends TestCase
         $this->assertDatabaseCount('spare_parts', 1);
     }
 
-    private function uploadedWorkbook(): UploadedFile
+    public function test_web_import_does_not_create_taxonomy_from_reorder_only_paths(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
+        $group = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => '1. Peralatan Dalam Sinyal Elektrik',
+        ]);
+        $system = AssetSystem::factory()->for($group)->create(['name' => 'Interlocking Elektrik']);
+        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Interlocking Elektrik']);
+        Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create(['jumlah_unit' => 2]);
+        $user = User::factory()->unit($unit)->create();
+
+        $result = app(FailureLogImportService::class)->import(
+            $this->uploadedWorkbook(includeUnmatchedReorderPath: true),
+            $unit,
+            false,
+            $user,
+        );
+
+        $this->assertSame('succeeded', $result['status']);
+        $this->assertSame(1, $result['spare_parts_created']);
+        $this->assertSame(1, $result['spare_parts_skipped']);
+        $this->assertDatabaseCount('spare_parts', 1);
+        $this->assertFalse(AssetSystem::query()->where('name', 'Panel Pelayanan')->exists());
+        $this->assertTrue(collect($result['issues'])->contains(
+            fn (array $issue): bool => ($issue['sheet_name'] ?? null) === 'Reorder Stock'
+                && ($issue['source_row'] ?? null) === 3
+                && str_contains($issue['message'], 'tidak ditemukan pada master Predictive Data Asset'),
+        ));
+    }
+
+    private function uploadedWorkbook(bool $includeUnmatchedReorderPath = false): UploadedFile
     {
         $path = tempnam(sys_get_temp_dir(), 'rams-upload-').'.xlsx';
         $this->temporaryFiles[] = $path;
@@ -247,6 +290,12 @@ final class FailureLogImportUploadTest extends TestCase
             'Peralatan Dalam Sinyal Elektrik', 'Interlocking Elektrik',
             'Interlocking Elektrik', 'Modul relay', 4, 2, 3, 2, 8, 4, 12, 'High',
         ], null, 'A2');
+        if ($includeUnmatchedReorderPath) {
+            $reorder->fromArray([
+                'Peralatan Dalam Sinyal Elektrik', 'Panel Pelayanan',
+                'Panel Pelayanan LCP', 'Modul panel', 1, 1, 1, 1, 0, 1, 1, 'Medium',
+            ], null, 'A3');
+        }
 
         (new Xlsx($spreadsheet))->save($path);
         $spreadsheet->disconnectWorksheets();

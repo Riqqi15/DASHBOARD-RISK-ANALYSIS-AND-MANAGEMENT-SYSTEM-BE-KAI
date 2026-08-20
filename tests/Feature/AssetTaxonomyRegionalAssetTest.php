@@ -46,7 +46,7 @@ class AssetTaxonomyRegionalAssetTest extends TestCase
                 ->where('nodes', function ($nodes) use ($firstNode, $secondNode): bool {
                     $byId = collect($nodes)->keyBy('id');
 
-                    return $byId[$firstNode->id]['subtree_assets_count'] === 0
+                    return ! $byId->has($firstNode->id)
                         && $byId[$secondNode->id]['subtree_assets_count'] === 1;
                 }));
     }

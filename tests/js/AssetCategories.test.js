@@ -99,6 +99,37 @@ describe('AssetCategories unlimited hierarchy', () => {
     expect(wrapper.get('[aria-label="Jalur kategori terpilih"]').text()).toContain('Track Circuit')
   })
 
+  it('shows the automatic order before a clean root-category name', () => {
+    const dayaSatu = {
+      ...node(6, 1, null, 'DAYA SATU'),
+      sort_order: 6,
+    }
+    const wrapper = mountPage({ nodes: [dayaSatu], selectedNodeId: dayaSatu.id })
+
+    expect(wrapper.text()).toContain('6. DAYA SATU')
+    expect(wrapper.text()).not.toContain('6. 6. DAYA SATU')
+  })
+
+  it('opens an empty next level so a child category can be created', async () => {
+    const wrapper = mountPage({
+      nodes: nodes.filter((item) => item.level_position <= 3),
+      selectedNodeId: 111,
+    })
+
+    await wrapper.get('[aria-label="Buka Track Circuit"]').trigger('click')
+
+    expect(wrapper.get('section[aria-label="Jenis Perangkat"]').exists()).toBe(true)
+    await wrapper.get('[aria-label="Tambah Jenis Perangkat"]').trigger('click')
+    await wrapper.get('#category-name').setValue('Indoor')
+    await wrapper.get('[role="dialog"] form').trigger('submit')
+
+    expect(inertia.post).toHaveBeenCalledWith('/admin/asset-category-nodes', expect.objectContaining({
+      asset_category_level_id: 4,
+      parent_id: 111,
+      name: 'Indoor',
+    }), expect.objectContaining({ preserveScroll: true }))
+  })
+
   it('changes a root selection and truncates deeper columns safely', async () => {
     const wrapper = mountPage()
     await wrapper.findAll('button').find((button) => button.text().includes('Semua kategori')).trigger('click')
@@ -184,6 +215,17 @@ describe('AssetCategories unlimited hierarchy', () => {
 })
 
 describe('MainLayout administration navigation', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('shows Kategori Aset to regional users but keeps Unit & Akun hidden', () => {
     inertia.page = {
       url: '/admin/asset-categories',
@@ -203,6 +245,7 @@ describe('MainLayout administration navigation', () => {
     const wrapper = mount(MainLayout, { global: { stubs: { Teleport: true } } })
     expect(wrapper.text()).toContain('Kategori Aset')
     expect(wrapper.text()).toContain('Unit & Akun')
+    expect(wrapper.html()).not.toContain('border-l-[3px]')
     wrapper.unmount()
   })
 })

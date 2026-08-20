@@ -18,6 +18,11 @@ class StoreAssetCategoryNodeRequest extends FormRequest
     {
         return [
             'asset_category_level_id' => ['required', 'integer', Rule::exists('asset_category_levels', 'id')->whereNull('deleted_at')],
+            'unit_kerja_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('unit_kerjas', 'id')->where(fn ($query) => $query->where('is_active', true)),
+            ],
             'parent_id' => ['nullable', 'integer', Rule::exists('asset_category_nodes', 'id')->whereNull('deleted_at')],
             'name' => ['required', 'string', 'max:255'],
             'sort_order' => ['required', 'integer', 'min:0', 'max:65535'],

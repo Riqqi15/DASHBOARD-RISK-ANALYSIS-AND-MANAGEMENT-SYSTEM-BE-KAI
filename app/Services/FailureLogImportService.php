@@ -174,7 +174,12 @@ final class FailureLogImportService
                 ];
             $this->progress($batch, 'Memproses kebutuhan suku cadang', 65);
             $sparePartSummary = $this->sparePartImporter->supports($path)
-                ? $this->sparePartImporter->import($path, true, $unit)
+                ? $this->sparePartImporter->import(
+                    $path,
+                    bootstrapCategories: false,
+                    unit: $unit,
+                    skipUnmatchedCategories: true,
+                )
                 : [
                     'created' => 0,
                     'updated' => 0,

@@ -11,6 +11,7 @@ use App\Models\AssetCategorySourceAlias;
 use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
+use App\Models\UnitKerja;
 use App\Services\AssetTaxonomyService;
 use App\Services\AuditLogger;
 use Illuminate\Http\RedirectResponse;
@@ -35,7 +36,23 @@ class AssetCategoryNodeController extends Controller
             $this->assertUniqueSibling($level->id, $parent?->id, $request->validated('name'));
 
             if ($level->position <= 3) {
-                $node = $this->createLegacyNode($level->position, $parent, $request->validated());
+                if ($level->position === 1 && ! $request->filled('unit_kerja_id')) {
+                    throw ValidationException::withMessages(['unit_kerja_id' => 'Wilayah kerja wajib dipilih untuk kategori utama.']);
+                }
+
+                $values = $request->validated();
+                if ($level->position === 1) {
+                    $unitId = $request->integer('unit_kerja_id');
+                    UnitKerja::query()->lockForUpdate()->findOrFail($unitId);
+                    $values['sort_order'] = $this->nextRootSortOrder($unitId);
+                }
+
+                $node = $this->createLegacyNode(
+                    $level->position,
+                    $parent,
+                    $values,
+                    $request->integer('unit_kerja_id') ?: null,
+                );
             } else {
                 $node = $this->taxonomy->createNode(
                     $level,
@@ -51,7 +68,10 @@ class AssetCategoryNodeController extends Controller
             return $node;
         });
 
-        return redirect()->route('admin.asset-categories.index', ['node' => $node->id])
+        return redirect()->route('admin.asset-categories.index', [
+            'node' => $node->id,
+            'unit_kerja_id' => $request->integer('unit_kerja_id') ?: null,
+        ])
             ->with('success', 'Kategori berhasil ditambahkan.');
     }
 
@@ -116,7 +136,7 @@ class AssetCategoryNodeController extends Controller
         return to_route('admin.asset-categories.index')->with('success', 'Kategori berhasil dihapus.');
     }
 
-    private function createLegacyNode(int $position, ?AssetCategoryNode $parent, array $values): AssetCategoryNode
+    private function createLegacyNode(int $position, ?AssetCategoryNode $parent, array $values, ?int $unitId): AssetCategoryNode
     {
         $attributes = [
             'name' => $values['name'],
@@ -127,7 +147,7 @@ class AssetCategoryNodeController extends Controller
         ];
 
         $legacy = match ($position) {
-            1 => AssetGroup::query()->create($attributes),
+            1 => AssetGroup::query()->create([...$attributes, 'unit_kerja_id' => $unitId]),
             2 => AssetSystem::query()->create([
                 ...$attributes,
                 'asset_group_id' => $this->requiredLegacyParent($parent, 'group'),
@@ -142,6 +162,22 @@ class AssetCategoryNodeController extends Controller
         return $this->taxonomy->nodeForLegacy(match ($position) {
             1 => 'group', 2 => 'system', 3 => 'subsystem'
         }, $legacy->id);
+    }
+
+    private function nextRootSortOrder(int $unitId): int
+    {
+        $highestPosition = AssetGroup::query()
+            ->where('unit_kerja_id', $unitId)
+            ->get(['name', 'sort_order'])
+            ->reduce(function (int $highest, AssetGroup $group): int {
+                $namePosition = preg_match('/^\s*(\d+)\s*[.\-]/u', $group->name, $matches)
+                    ? (int) $matches[1]
+                    : 0;
+
+                return max($highest, (int) $group->sort_order, $namePosition);
+            }, 0);
+
+        return $highestPosition + 1;
     }
 
     private function requiredLegacyParent(?AssetCategoryNode $parent, string $type): int

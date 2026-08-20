@@ -48,6 +48,16 @@ const selectedNode = computed(() => nodeById.value.get(activePath.value.at(-1)) 
 const activeUnit = computed(() => props.units.find((unit) => unit.id === selectedUnit.value) ?? page.props.auth.user.unit_kerja ?? null)
 const canManageTaxonomy = computed(() => props.capabilities.manage_taxonomy === true)
 const canChooseUnit = computed(() => props.capabilities.choose_unit === true)
+const nodeDisplayName = (node) => {
+  const name = String(node?.name ?? '')
+  const order = Number(node?.sort_order)
+
+  if (node?.level_position !== 1 || /^\s*\d+\s*[.\-]/.test(name) || !Number.isInteger(order) || order <= 0) {
+    return name
+  }
+
+  return `${order}. ${name}`
+}
 const visibleNodes = computed(() => showEmptyCategories.value
   ? props.nodes
   : props.nodes.filter((node) => node.subtree_assets_count > 0 || activePath.value.includes(node.id)))
@@ -69,11 +79,9 @@ const currentItems = computed(() => {
 })
 const selectedPath = computed(() => activePath.value.map((id) => nodeById.value.get(id)).filter(Boolean))
 const lastLevel = computed(() => props.levels.at(-1) ?? null)
-const hasChildren = (node, index = currentLevelIndex.value) => {
+const hasNextLevel = (node, index = currentLevelIndex.value) => {
   const nextLevel = props.levels[index + 1]
-  return Boolean(nextLevel && visibleNodes.value.some((candidate) => (
-    candidate.asset_category_level_id === nextLevel.id && candidate.parent_id === node.id
-  )))
+  return Boolean(nextLevel)
 }
 
 const visit = (nodeId = selectedNode.value?.id) => router.get('/admin/asset-categories', {
@@ -90,7 +98,7 @@ const selectExplorerNode = (node) => selectNode(node, currentLevelIndex.value)
 const openChildren = (node) => {
   const index = currentLevelIndex.value
   selectNode(node, index)
-  if (hasChildren(node, index)) {
+  if (props.levels[index + 1]) {
     currentLevelIndex.value = index + 1
     categoryQuery.value = ''
   }
@@ -152,6 +160,7 @@ const openCreateNode = (level, index) => {
   nodeDialog.value = { mode: 'create', level, parent: nodeById.value.get(activePath.value[index - 1]) ?? null }
   nodeForm.value = useForm({
     asset_category_level_id: level.id,
+    unit_kerja_id: selectedUnit.value,
     parent_id: index === 0 ? null : activePath.value[index - 1],
     name: '',
     sort_order: 0,
@@ -283,7 +292,7 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
         <button type="button" class="h-9 shrink-0 rounded-lg px-3 font-semibold text-[#171650] hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[#171650]" @click="goToRoot">Semua kategori</button>
         <template v-for="(node, index) in selectedPath" :key="node.id">
           <ChevronRight :size="14" class="shrink-0 text-slate-400" aria-hidden="true" />
-          <button type="button" class="h-9 max-w-52 shrink-0 truncate rounded-lg px-2 font-medium text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[#171650]" @click="openBreadcrumb(node, index)">{{ node.name }}</button>
+          <button type="button" class="h-9 max-w-52 shrink-0 truncate rounded-lg px-2 font-medium text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[#171650]" @click="openBreadcrumb(node, index)">{{ nodeDisplayName(node) }}</button>
         </template>
       </nav>
 
@@ -312,9 +321,9 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
             <article v-for="item in currentItems" :key="item.id" class="flex overflow-hidden rounded-lg border transition" :class="item.id === selectedAt(currentLevelIndex) ? 'border-orange-300 bg-orange-50' : 'border-slate-200 hover:border-slate-300'">
               <button type="button" class="flex min-h-16 min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#171650]" :aria-label="`Pilih ${currentLevel?.name} ${item.name}`" :aria-pressed="item.id === selectedAt(currentLevelIndex)" @click="selectExplorerNode(item)">
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[#171650]" :style="item.dashboard_color ? { backgroundColor: `${item.dashboard_color}20`, color: item.dashboard_color } : {}"><FolderTree :size="19" aria-hidden="true" /></span>
-                <span class="min-w-0 flex-1"><span class="block truncate text-sm font-semibold text-slate-900">{{ item.name }}</span><span class="mt-1 block text-xs text-slate-500">{{ item.subtree_assets_count ?? 0 }} aset · {{ item.subtree_units_count ?? 0 }} unit</span></span>
+                <span class="min-w-0 flex-1"><span class="block truncate text-sm font-semibold text-slate-900">{{ nodeDisplayName(item) }}</span><span class="mt-1 block text-xs text-slate-500">{{ item.subtree_assets_count ?? 0 }} aset · {{ item.subtree_units_count ?? 0 }} unit</span></span>
               </button>
-              <button v-if="hasChildren(item)" type="button" class="flex min-h-16 shrink-0 items-center gap-1 border-l border-slate-200 px-3 text-xs font-semibold text-[#171650] hover:bg-white focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#171650]" :aria-label="`Buka ${item.name}`" @click="openChildren(item)">Buka <ChevronRight :size="15" aria-hidden="true" /></button>
+              <button v-if="hasNextLevel(item)" type="button" class="flex min-h-16 shrink-0 items-center gap-1 border-l border-slate-200 px-3 text-xs font-semibold text-[#171650] hover:bg-white focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#171650]" :aria-label="`Buka ${item.name}`" @click="openChildren(item)">Buka <ChevronRight :size="15" aria-hidden="true" /></button>
             </article>
             <div v-if="!currentItems.length" class="flex min-h-64 items-center justify-center px-6 text-center"><div><FolderTree :size="28" class="mx-auto text-slate-300" aria-hidden="true" /><p class="mt-3 text-sm font-semibold text-slate-700">{{ categoryQuery ? 'Kategori tidak ditemukan' : 'Belum ada kategori pada wilayah ini' }}</p><p class="mt-1 text-xs leading-5 text-slate-500">{{ categoryQuery ? 'Coba kata pencarian lain.' : 'Aktifkan kategori kosong atau tambahkan kategori baru.' }}</p></div></div>
           </div>
@@ -324,7 +333,7 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
           <div v-if="selectedNode">
             <header class="border-b border-slate-200 p-5">
               <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                <div class="min-w-0"><p class="text-xs font-semibold uppercase tracking-wide text-orange-600">Kategori terpilih</p><h3 class="mt-1 truncate text-xl font-semibold text-slate-950">{{ selectedNode.name }}</h3><p class="mt-2 text-sm text-slate-600">{{ selectedNode.subtree_assets_count ?? 0 }} aset · {{ selectedNode.subtree_units_count ?? 0 }} unit di {{ activeUnit?.code }}</p></div>
+                <div class="min-w-0"><p class="text-xs font-semibold uppercase tracking-wide text-orange-600">Kategori terpilih</p><h3 class="mt-1 truncate text-xl font-semibold text-slate-950">{{ nodeDisplayName(selectedNode) }}</h3><p class="mt-2 text-sm text-slate-600">{{ selectedNode.subtree_assets_count ?? 0 }} aset · {{ selectedNode.subtree_units_count ?? 0 }} unit di {{ activeUnit?.code }}</p></div>
                 <div class="flex flex-wrap gap-2">
                   <button v-if="canManageTaxonomy" type="button" class="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#171650]" @click="openEditNode(selectedNode)"><Pencil :size="16" aria-hidden="true" /> Ubah</button>
                   <button v-if="canManageTaxonomy" type="button" class="inline-flex h-11 items-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-700" @click="openDeleteNode(selectedNode)"><Trash2 :size="16" aria-hidden="true" /> Hapus kategori</button>
@@ -405,6 +414,7 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
       :level-label="nodeDialog.level.name"
       :description="nodeDialog.mode === 'create' ? nodeDialog.parent ? `Ditempatkan di bawah ${nodeDialog.parent.name}.` : 'Kategori ini menjadi awal jalur global.' : 'Perubahan nama berlaku untuk semua wilayah.'"
       :form="nodeForm"
+      :show-sort-order="nodeDialog.mode === 'edit' || nodeDialog.level.position !== 1"
       @close="closeNodeDialog"
       @submit="submitNode"
     />

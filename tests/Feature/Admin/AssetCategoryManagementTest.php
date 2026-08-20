@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\Asset;
+use App\Models\AssetCategoryLevel;
 use App\Models\AssetCategorySourceAlias;
 use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
@@ -75,6 +76,7 @@ class AssetCategoryManagementTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('selectedUnitId', $daopTwo->id)
                 ->has('groups', 0)
+                ->has('nodes', 0)
                 ->where('selectedGroupId', null)
                 ->where('selectedSystemId', null));
 
@@ -84,8 +86,81 @@ class AssetCategoryManagementTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('selectedUnitId', $daopOne->id)
                 ->has('groups', 2)
+                ->where('nodes', fn ($nodes) => $nodes->pluck('name')->contains('Legacy DAOP 1')
+                    && $nodes->pluck('name')->contains('Manual DAOP 1'))
                 ->where('groups.0.name', 'Legacy DAOP 1')
                 ->where('groups.1.name', 'Manual DAOP 1'));
+    }
+
+    public function test_new_root_category_is_scoped_to_the_selected_unit(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $daopOne = UnitKerja::factory()->create(['code' => 'DAOP-1', 'name' => 'Daerah Operasi 1']);
+        $daopThree = UnitKerja::factory()->create(['code' => 'DAOP-3', 'name' => 'Daerah Operasi 3']);
+        $level = AssetCategoryLevel::query()->where('position', 1)->firstOrFail();
+
+        $this->actingAs($pusat)->post('/admin/asset-category-nodes', [
+            'asset_category_level_id' => $level->id,
+            'unit_kerja_id' => $daopOne->id,
+            'name' => '6. DAYA SATU',
+            'sort_order' => 6,
+        ])->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('asset_groups', [
+            'unit_kerja_id' => $daopOne->id,
+            'normalized_name' => '6. daya satu',
+        ]);
+
+        $this->actingAs($pusat)
+            ->get('/dashboard?area=DAOP1')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('asset_categories', fn ($categories) => $categories->pluck('name')->contains('6. DAYA SATU')));
+
+        $this->actingAs($pusat)
+            ->get('/dashboard?area=DAOP3')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('asset_categories', fn ($categories) => $categories->pluck('name')->doesntContain('6. DAYA SATU')));
+
+        $this->actingAs($pusat)
+            ->get("/admin/asset-categories?unit_kerja_id={$daopThree->id}")
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('nodes', fn ($nodes) => $nodes->pluck('name')->doesntContain('6. DAYA SATU')));
+
+        $this->assertTrue($daopThree->exists);
+    }
+
+    public function test_new_root_category_receives_the_next_order_for_its_unit_without_numbering_the_stored_name(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $daopOne = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $daopFour = UnitKerja::factory()->create(['code' => 'DAOP-4']);
+        $level = AssetCategoryLevel::query()->where('position', 1)->firstOrFail();
+
+        foreach (range(1, 5) as $position) {
+            AssetGroup::factory()->create([
+                'unit_kerja_id' => $daopOne->id,
+                'name' => "{$position}. Kategori {$position}",
+                'sort_order' => 0,
+            ]);
+        }
+        AssetGroup::factory()->create([
+            'unit_kerja_id' => $daopFour->id,
+            'name' => 'Kategori wilayah lain',
+            'sort_order' => 99,
+        ]);
+
+        $this->actingAs($pusat)->post('/admin/asset-category-nodes', [
+            'asset_category_level_id' => $level->id,
+            'unit_kerja_id' => $daopOne->id,
+            'name' => 'DAYA SATU',
+        ])->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('asset_groups', [
+            'unit_kerja_id' => $daopOne->id,
+            'name' => 'DAYA SATU',
+            'normalized_name' => 'daya satu',
+            'sort_order' => 6,
+        ]);
     }
 
     public function test_index_returns_complete_ordered_hierarchy_counts_and_valid_selection(): void
@@ -169,7 +244,7 @@ class AssetCategoryManagementTest extends TestCase
             'asset_group_id' => $group->id,
             'name' => "  Interlocking\u{2003}Elektrik ",
             'normalized_name' => 'malicious',
-        ])->assertRedirect("/admin/asset-categories?group={$group->id}");
+        ])->assertRedirect("/admin/asset-categories?unit_kerja_id={$unit->id}&group={$group->id}");
         $system = AssetSystem::query()->where('asset_group_id', $group->id)->where('name', 'Interlocking Elektrik')->firstOrFail();
 
         $this->actingAs($pusat)->post('/admin/asset-systems', [
@@ -185,7 +260,7 @@ class AssetCategoryManagementTest extends TestCase
         $this->actingAs($pusat)->post('/admin/asset-subsystems', [
             'asset_system_id' => $system->id,
             'name' => "  Local\n Control   Panel ",
-        ])->assertRedirect("/admin/asset-categories?group={$group->id}&system={$system->id}");
+        ])->assertRedirect("/admin/asset-categories?unit_kerja_id={$unit->id}&group={$group->id}&system={$system->id}");
         $this->assertDatabaseHas('asset_subsystems', [
             'asset_system_id' => $system->id,
             'name' => 'Local Control Panel',

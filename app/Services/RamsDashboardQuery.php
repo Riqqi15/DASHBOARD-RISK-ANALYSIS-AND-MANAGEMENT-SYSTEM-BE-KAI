@@ -10,6 +10,8 @@ use App\Models\AssetSystem;
 use App\Models\FailureLog;
 use App\Models\InventoryStock;
 use App\Models\PredictiveAssetSnapshot;
+use App\Models\RamsImportBatch;
+use App\Models\RamsImportChange;
 use App\Models\ReliabilitySummary;
 use App\Models\RiskMatrix;
 use App\Models\RiskRegister;
@@ -18,6 +20,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class RamsDashboardQuery
 {
@@ -224,7 +227,8 @@ class RamsDashboardQuery
                 ? (int) CarbonImmutable::parse($operatingStartDate)->startOfDay()->diffInDays(now()->startOfDay())
                 : null,
             'operatingStartDate' => $operatingStartDate,
-            'reliabilityGroups' => $this->reliabilityGroups($latestReliability),
+            'reliabilityGroups' => $this->reliabilityGroups($latestReliability, $unit),
+            'latestImport' => $this->latestImport($unit),
             'totalFailure' => FailureLog::query()->whereIn('asset_id', $assetIds)->count(),
             'totalProposalReorder' => $latestPredictive
                 ->filter(fn (PredictiveAssetSnapshot $snapshot): bool => $snapshot->proposal_quantity > 0)
@@ -315,6 +319,7 @@ class RamsDashboardQuery
                 return [
                     'id' => $group->id,
                     'name' => $group->name,
+                    'sort_order' => $group->sort_order,
                     'dashboard_color' => $group->dashboard_color,
                     'dashboard_color_source' => $group->dashboard_color_source,
                     'is_active' => $group->is_active,
@@ -488,26 +493,49 @@ class RamsDashboardQuery
      * @param  Collection<int, ReliabilitySummary>  $summaries
      * @return array<int, array<string, int|float|string>>
      */
-    private function reliabilityGroups($summaries): array
+    private function reliabilityGroups($summaries, ?UnitKerja $unit): array
     {
-        $labels = [
+        $standardLabels = [
             'PDSM' => 'Peralatan Dalam Sinyal Mekanik',
             'PLSM' => 'Peralatan Luar Sinyal Mekanik',
             'PDSE' => 'Peralatan Dalam Sinyal Elektrik',
             'PLSE' => 'Peralatan Luar Sinyal Elektrik',
             'CDS' => 'Catu Daya Sintel',
         ];
-        $grouped = $summaries->groupBy(fn (ReliabilitySummary $summary): string => $this->reliabilityGroupCode($summary));
+        $standardColors = [
+            'PDSM' => '#92D050',
+            'PLSM' => '#4BACC6',
+            'PDSE' => '#FFFF00',
+            'PLSE' => '#FFC000',
+            'CDS' => '#FF0000',
+        ];
+        $grouped = $summaries->groupBy(
+            fn (ReliabilitySummary $summary): string => mb_strtolower($this->assetGroupLabel(
+                $summary->asset->assetSubsystem->assetSystem->assetGroup->name,
+            )),
+        );
+        $groups = AssetGroup::query()
+            ->when($unit, fn (Builder $query): Builder => $query->forUnit($unit))
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->groupBy(fn (AssetGroup $group): string => mb_strtolower($this->assetGroupLabel($group->name)))
+            ->map(fn (Collection $duplicates): AssetGroup => $duplicates->first())
+            ->values();
 
-        return collect($labels)
-            ->map(function (string $label, string $code) use ($grouped): array {
-                $items = $grouped->get($code, collect());
+        return $groups
+            ->map(function (AssetGroup $group) use ($grouped, $standardLabels, $standardColors): array {
+                $code = $this->assetGroupCode($group->name);
+                $items = $grouped->get(mb_strtolower($this->assetGroupLabel($group->name)), collect());
                 $reliabilityItems = $items->whereNotNull('reliability');
                 $availabilityItems = $items->whereNotNull('availability');
 
                 return [
+                    'id' => $group->id,
                     'code' => $code,
-                    'name' => $label,
+                    'name' => $standardLabels[$code] ?? $this->assetGroupLabel($group->name),
+                    'color' => $group->dashboard_color ?? $standardColors[$code] ?? '#64748B',
                     'asset_count' => $items->count(),
                     'reliability' => $reliabilityItems->isEmpty() ? null : $reliabilityItems->reduce(
                         fn (float $product, ReliabilitySummary $summary): float => $product * (float) $summary->reliability,
@@ -523,9 +551,131 @@ class RamsDashboardQuery
             ->all();
     }
 
-    private function reliabilityGroupCode(ReliabilitySummary $summary): string
+    /** @return array{date: string, groupCodes: list<string>}|null */
+    private function latestImport(?UnitKerja $unit): ?array
     {
-        $name = mb_strtoupper($summary->asset->assetSubsystem->assetSystem->assetGroup->name);
+        if (! $unit) {
+            return null;
+        }
+
+        $batch = RamsImportBatch::query()
+            ->where('unit_kerja_id', $unit->id)
+            ->where('status', 'succeeded')
+            ->where('dry_run', false)
+            ->orderByDesc('finished_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $batch) {
+            return null;
+        }
+
+        return [
+            'date' => ($batch->finished_at ?? $batch->created_at)->toDateString(),
+            'groupCodes' => $this->latestImportGroupCodes($batch),
+        ];
+    }
+
+    /** @return list<string> */
+    private function latestImportGroupCodes(RamsImportBatch $batch): array
+    {
+        $assetIds = collect();
+        $sparePartIds = collect();
+        $subsystemIds = collect();
+        $systemIds = collect();
+        $groupIds = collect();
+        $groupNames = collect();
+
+        foreach ($batch->changes()->get() as $change) {
+            $values = $this->meaningfulImportChangeValues($change);
+            if ($values === null) {
+                continue;
+            }
+
+            match ($change->table_name) {
+                'asset_groups' => $groupNames->push($values['name'] ?? null),
+                'asset_systems' => $groupIds->push($values['asset_group_id'] ?? null),
+                'asset_subsystems' => $systemIds->push($values['asset_system_id'] ?? null),
+                'assets', 'unit_subsystem_openings', 'spare_parts' => $subsystemIds->push($values['asset_subsystem_id'] ?? null),
+                'unit_spare_part_policies' => $sparePartIds->push($values['spare_part_id'] ?? null),
+                'predictive_asset_snapshots', 'risk_matrices', 'risk_registers', 'failure_logs',
+                'reliability_excel_snapshots', 'reliability_summaries' => $assetIds->push($values['asset_id'] ?? null),
+                default => null,
+            };
+        }
+
+        if ($sparePartIds->filter()->isNotEmpty()) {
+            $subsystemIds = $subsystemIds->merge(
+                DB::table('spare_parts')->whereIn('id', $sparePartIds->filter()->unique())->pluck('asset_subsystem_id'),
+            );
+        }
+
+        if ($assetIds->filter()->isNotEmpty()) {
+            $subsystemIds = $subsystemIds->merge(
+                Asset::query()->whereIn('id', $assetIds->filter()->unique())->pluck('asset_subsystem_id'),
+            );
+        }
+
+        if ($subsystemIds->filter()->isNotEmpty()) {
+            $systemIds = $systemIds->merge(
+                AssetSubsystem::query()->whereIn('id', $subsystemIds->filter()->unique())->pluck('asset_system_id'),
+            );
+        }
+
+        if ($systemIds->filter()->isNotEmpty()) {
+            $groupIds = $groupIds->merge(
+                AssetSystem::query()->whereIn('id', $systemIds->filter()->unique())->pluck('asset_group_id'),
+            );
+        }
+
+        if ($groupIds->filter()->isNotEmpty()) {
+            $groupNames = $groupNames->merge(
+                AssetGroup::query()->whereIn('id', $groupIds->filter()->unique())->pluck('name'),
+            );
+        }
+
+        $order = ['PDSM', 'PLSM', 'PDSE', 'PLSE', 'CDS'];
+
+        return $groupNames
+            ->filter()
+            ->map(fn (string $name): string => $this->assetGroupCode($name))
+            ->unique()
+            ->sortBy(function (string $code) use ($order): int {
+                $position = array_search($code, $order, true);
+
+                return $position === false ? count($order) : $position;
+            })
+            ->values()
+            ->all();
+    }
+
+    /** @return array<string, mixed>|null */
+    private function meaningfulImportChangeValues(RamsImportChange $change): ?array
+    {
+        $values = $change->after_values ?? $change->before_values;
+        if (! is_array($values)) {
+            return null;
+        }
+
+        if ($change->operation !== 'updated') {
+            return $values;
+        }
+
+        $before = $change->before_values ?? [];
+        $after = $change->after_values ?? [];
+        foreach (['created_at', 'updated_at', 'calculated_at', 'imported_at', 'first_imported_at', 'last_imported_at'] as $field) {
+            unset($before[$field], $after[$field]);
+        }
+
+        ksort($before);
+        ksort($after);
+
+        return $before === $after ? null : $values;
+    }
+
+    private function assetGroupCode(string $groupName): string
+    {
+        $name = mb_strtoupper($groupName);
 
         return match (true) {
             str_contains($name, 'DALAM SINYAL MEKANIK') => 'PDSM',
@@ -533,8 +683,23 @@ class RamsDashboardQuery
             str_contains($name, 'DALAM SINYAL ELEKTRIK') => 'PDSE',
             str_contains($name, 'LUAR SINYAL ELEKTRIK') => 'PLSE',
             str_contains($name, 'CATU DAYA') => 'CDS',
-            default => 'OTHER',
+            default => $this->assetGroupInitials($groupName),
         };
+    }
+
+    private function assetGroupLabel(string $groupName): string
+    {
+        return preg_replace('/^\s*\d+\s*[.\-]\s*/u', '', trim($groupName)) ?: trim($groupName);
+    }
+
+    private function assetGroupInitials(string $groupName): string
+    {
+        $words = preg_split('/[^\pL\pN]+/u', $this->assetGroupLabel($groupName), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $initials = collect($words)
+            ->map(fn (string $word): string => mb_strtoupper(mb_substr($word, 0, 1)))
+            ->implode('');
+
+        return mb_substr($initials, 0, 8) ?: 'ASET';
     }
 
     /** @return array<string, mixed> */

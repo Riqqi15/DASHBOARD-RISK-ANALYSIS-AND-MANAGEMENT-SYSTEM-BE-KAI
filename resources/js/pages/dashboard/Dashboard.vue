@@ -30,7 +30,7 @@
 
       <!-- REKAP GANGGUAN TERCATAT -->
       <section aria-labelledby="failure-status-title">
-        <div class="failure-stat-card">
+        <div class="failure-stat-card failure-stat-card--plain">
           <div class="flex items-center gap-3.5">
             <span class="failure-stat-card__icon" aria-hidden="true">
               <FileSpreadsheet :size="20" :stroke-width="2" />
@@ -50,9 +50,18 @@
       <section class="family-metrics" aria-labelledby="family-metrics-title">
         <div class="family-metrics__heading">
           <div>
-            <h2 id="family-metrics-title" class="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
-              Kinerja per kelompok aset
-            </h2>
+            <div class="flex flex-wrap items-center gap-2.5">
+              <h2 id="family-metrics-title" class="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
+                Kinerja per kelompok aset
+              </h2>
+              <span
+                v-if="latestImportLabel"
+                data-latest-import-badge
+                class="family-metrics__latest-badge"
+              >
+                {{ latestImportLabel }}
+              </span>
+            </div>
             <p class="mt-1 text-sm leading-6 text-slate-600">
               Singkatan dan warna mengikuti standar Aset Prasarana Sintel pada Excel KAI.
             </p>
@@ -62,19 +71,19 @@
           </span>
         </div>
 
-        <div class="family-metrics__grid">
+        <div class="family-metrics__grid family-metrics__grid--fluid">
           <article
             v-for="group in reliabilityGroups"
-            :key="`family-${group.code}`"
-            class="family-metric"
+            :key="`family-${group.id || group.code}`"
+            class="family-metric family-metric--compact"
             :data-family-code="group.code"
-            :aria-label="`${groupLabel(group.code)}: Reliability ${formatPercentage(group.reliability, 4)}, Availability ${formatPercentage(group.availability, 2)}`"
+            :aria-label="`${groupLabel(group)}: Reliability ${formatPercentage(group.reliability, 4)}, Availability ${formatPercentage(group.availability, 2)}`"
           >
-            <header class="family-metric__header" :style="{ backgroundColor: groupAccent(group.code) }" :class="contrastTextClass(groupAccent(group.code))">
+            <header class="family-metric__header" :style="{ backgroundColor: groupAccent(group) }" :class="contrastTextClass(groupAccent(group))">
               <strong class="text-base font-extrabold tracking-wide">{{ group.code }}</strong>
-              <span class="mt-1 block text-xs font-semibold leading-snug opacity-90">{{ groupLabel(group.code) }}</span>
+              <span class="mt-1 block text-xs font-semibold leading-snug opacity-90">{{ groupLabel(group) }}</span>
             </header>
-            <dl class="family-metric__values">
+            <dl class="family-metric__values family-metric__values--emphasized">
               <div>
                 <dt>Reliability</dt>
                 <dd>{{ formatPercentage(group.reliability, 4) }}</dd>
@@ -113,7 +122,7 @@
             :data-asset-group="group.name"
             class="asset-group"
           >
-            <summary class="asset-group__summary">
+            <summary class="asset-group__summary asset-group__summary--plain asset-group__summary--white">
               <span class="flex min-w-0 items-start gap-3">
                 <span class="mt-1 h-3.5 w-3.5 shrink-0 rounded-full ring-4 ring-white" :style="{ backgroundColor: groupAccentValue(group.color) }" aria-hidden="true" />
                 <span class="min-w-0">
@@ -245,19 +254,37 @@ const formatPercentage = (value, maxDecimals = 2) => {
 }
 
 const reliabilityGroups = computed(() => {
-  const providedGroups = new Map(
-    (props.summary?.reliabilityGroups || []).map((group) => [group.code, group]),
-  )
+  const providedGroups = props.summary?.reliabilityGroups || []
+  if (providedGroups.length) return providedGroups
 
-  return groupOrder.map((code) => providedGroups.get(code) || {
+  return groupOrder.map((code) => ({
     code,
+    name: groupNames[code],
+    color: groupColors[code],
     reliability: null,
     availability: null,
-  })
+  }))
 })
 
-const groupLabel = (code) => groupNames[code] || code || 'Kelompok aset'
-const groupAccent = (code) => groupColors[code] || '#64748B'
+const latestImportLabel = computed(() => {
+  const value = props.summary?.latestImport?.date
+  if (!value) return null
+
+  const date = new Date(`${value}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return `Data Terbaru · ${value}`
+
+  const formatted = new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date)
+
+  return `Data Terbaru · ${formatted}`
+})
+
+const groupLabel = (group) => group?.name || groupNames[group?.code] || group?.code || 'Kelompok aset'
+const groupAccent = (group) => group?.color || groupColors[group?.code] || '#64748B'
 const groupAccentValue = (color) => color || '#64748B'
 
 const sumUnits = (assets) => assets.reduce((total, asset) => {
@@ -268,6 +295,7 @@ const sumUnits = (assets) => assets.reduce((total, asset) => {
 const makeNode = (name, id = null, color = null) => ({
   id,
   name,
+  displayName: name,
   color,
   assets: [],
   children: new Map(),
@@ -288,6 +316,10 @@ const assetGroups = computed(() => {
 
   props.asset_categories.forEach((category) => {
     const group = ensureChild(groups, getLabel(category.name), category.id, category.dashboard_color)
+    const order = Number(category.sort_order)
+    if (!/^\s*\d+\s*[.\-]/.test(group.name) && Number.isInteger(order) && order > 0) {
+      group.displayName = `${order}. ${group.name}`
+    }
 
     ;(category.systems ?? []).forEach((categorySystem) => {
       const system = ensureChild(group.children, getLabel(categorySystem.name), categorySystem.id, categorySystem.dashboard_color)
@@ -332,7 +364,7 @@ const assetGroups = computed(() => {
     })
 
     return {
-      name: group.name,
+      name: group.displayName,
       color: group.color,
       systems,
       assetCount: group.assets.length,
@@ -396,9 +428,8 @@ const goToTroubleReport = (subsystemName = null) => {
   padding: 1.125rem 1.5rem;
   border-radius: 0.875rem;
   background: #ffffff;
-  border: 1px solid #fecaca;
-  border-left: 4px solid #dc2626;
-  box-shadow: 0 1px 3px 0 rgb(220 38 38 / 0.06), 0 1px 2px -1px rgb(15 23 42 / 0.04);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px 0 rgb(15 23 42 / 0.04), 0 1px 2px -1px rgb(15 23 42 / 0.04);
 }
 
 .failure-stat-card__icon {
@@ -457,9 +488,9 @@ const goToTroubleReport = (subsystemName = null) => {
 
 .family-metrics__grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
   gap: 0.75rem;
-  padding-top: 1rem;
+  padding-top: 0.75rem;
 }
 
 .family-metric {
@@ -471,14 +502,29 @@ const goToTroubleReport = (subsystemName = null) => {
 }
 
 .family-metric__header {
-  min-height: 5.25rem;
-  padding: 0.75rem;
+  min-height: 4.5rem;
+  padding: 0.625rem 0.75rem;
+}
+
+.family-metrics__latest-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 9999px;
+  background: #f8fafc;
+  padding: 0.25rem 0.5rem;
+  color: #334155;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .family-metric__values {
   display: grid;
-  gap: 0.5rem;
-  padding: 0.75rem;
+  gap: 0.375rem;
+  padding: 0.625rem 0.75rem;
   background: #f8fafc;
 }
 
@@ -491,21 +537,22 @@ const goToTroubleReport = (subsystemName = null) => {
 
 .family-metric__values dt {
   color: #64748b;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 600;
 }
 
 .family-metric__values dd {
   color: #0f172a;
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   font-weight: 800;
+  line-height: 1.2;
   text-align: right;
 }
 
 /* ASSET GROUPS ACCORDION */
 .asset-group {
   overflow: hidden;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #ffffff;
   border-radius: 0.875rem;
   background: #ffffff;
   box-shadow: 0 1px 3px 0 rgb(15 23 42 / 0.04), 0 1px 2px -1px rgb(15 23 42 / 0.04);
@@ -520,8 +567,7 @@ const goToTroubleReport = (subsystemName = null) => {
   gap: 1rem;
   padding: 1rem 1.25rem;
   list-style: none;
-  background: #f8fafc;
-  border-top: 3px solid #64748b;
+  background: #ffffff;
 }
 
 .asset-group__summary::-webkit-details-marker { display: none; }
@@ -537,8 +583,7 @@ const goToTroubleReport = (subsystemName = null) => {
 .asset-group__content {
   display: grid;
   gap: 1rem;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
+  background: #ffffff;
   padding: 1rem;
 }
 

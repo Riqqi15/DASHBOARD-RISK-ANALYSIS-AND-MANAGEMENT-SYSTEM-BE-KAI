@@ -45,7 +45,11 @@ class AssetSubsystemController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('admin.asset-categories.index', ['group' => $system->asset_group_id, 'system' => $system->id])
+        return redirect()->route('admin.asset-categories.index', [
+            'unit_kerja_id' => $system->assetGroup()->value('unit_kerja_id'),
+            'group' => $system->asset_group_id,
+            'system' => $system->id,
+        ])
             ->with('success', 'Subsistem aset berhasil ditambahkan.');
     }
 

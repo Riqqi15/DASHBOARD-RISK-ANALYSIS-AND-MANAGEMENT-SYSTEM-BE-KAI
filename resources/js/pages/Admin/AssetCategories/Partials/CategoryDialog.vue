@@ -7,6 +7,7 @@ const props = defineProps({
   levelLabel: { type: String, required: true },
   description: { type: String, required: true },
   form: { type: Object, required: true },
+  showSortOrder: { type: Boolean, default: true },
 })
 
 defineEmits(['close', 'submit'])
@@ -16,7 +17,7 @@ defineEmits(['close', 'submit'])
 <template>
   <AccessibleDialog labelledby="category-dialog-title" describedby="category-dialog-description" :processing="form.processing" panel-class="w-full max-w-lg" @close="$emit('close')">
         <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
-          <div>
+          <div v-if="showSortOrder">
             <h2 id="category-dialog-title" class="text-lg font-semibold text-slate-950">{{ title }}</h2>
             <p id="category-dialog-description" class="mt-1 text-sm leading-6 text-slate-600">{{ description }}</p>
           </div>

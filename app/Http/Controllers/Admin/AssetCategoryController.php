@@ -25,6 +25,7 @@ class AssetCategoryController extends Controller
     {
         Gate::authorize('viewAny', AssetCategoryNode::class);
         $this->taxonomy->syncLegacyTree();
+        $unitId = $this->selectedUnitId($request);
 
         $aliases = AssetCategorySourceAlias::query()
             ->select(['category_type', 'category_id'])
@@ -35,6 +36,7 @@ class AssetCategoryController extends Controller
             ->map(fn (Collection $rows) => $rows->pluck('aggregate', 'category_id'));
 
         $groups = AssetGroup::query()
+            ->when($unitId, fn (Builder $query): Builder => $query->forUnit($unitId))
             ->withCount('systems')
             ->with(['systems' => fn ($systems) => $systems
                 ->withCount('subsystems')
@@ -68,16 +70,42 @@ class AssetCategoryController extends Controller
             ->where('is_active', true)
             ->orderBy('position')
             ->get(['id', 'name', 'position', 'is_active']);
-        $nodes = AssetCategoryNode::query()
+        $allNodes = AssetCategoryNode::query()
             ->with('level:id,position')
             ->orderBy('asset_category_level_id')
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
-        $unitId = $this->selectedUnitId($request);
         $activeAssets = Asset::query()
             ->when($unitId, fn (Builder $query): Builder => $query->where('unit_kerja_id', $unitId))
             ->get(['id', 'asset_category_node_id', 'jumlah_unit']);
+        $nodesById = $allNodes->keyBy('id');
+        $visibleRootIds = $allNodes
+            ->where('legacy_type', 'group')
+            ->whereIn('legacy_id', $groups->pluck('id'))
+            ->pluck('id')
+            ->all();
+        foreach ($activeAssets->pluck('asset_category_node_id')->filter()->unique() as $nodeId) {
+            $node = $nodesById->get($nodeId);
+            while ($node?->parent_id) {
+                $node = $nodesById->get($node->parent_id);
+            }
+            if ($node) {
+                $visibleRootIds[] = $node->id;
+            }
+        }
+        $visibleRootIds = array_values(array_unique($visibleRootIds));
+        $nodes = $allNodes->filter(function (AssetCategoryNode $node) use ($nodesById, $visibleRootIds): bool {
+            $root = $node;
+            while ($root->parent_id) {
+                $root = $nodesById->get($root->parent_id);
+                if (! $root) {
+                    return false;
+                }
+            }
+
+            return in_array($root->id, $visibleRootIds, true);
+        })->values();
         $directCounts = $activeAssets->groupBy('asset_category_node_id');
         $nodePayload = $nodes->map(function (AssetCategoryNode $node) use ($directCounts): array {
             $subtree = $this->taxonomy->subtreeIds($node);
