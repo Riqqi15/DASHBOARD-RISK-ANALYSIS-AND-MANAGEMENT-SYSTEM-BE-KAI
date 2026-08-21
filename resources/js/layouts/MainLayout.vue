@@ -145,6 +145,7 @@ onMounted(() => {
                 Dashboard
               </Link>
               <button
+                type="button"
                 @click="isDashboardMenuOpen = !isDashboardMenuOpen"
                 class="p-1.5 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-200/50 transition-colors mr-1"
                 aria-label="Toggle sub-menu"

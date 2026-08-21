@@ -39,7 +39,7 @@ const paginationLabel = (label) => label
 </script>
 
 <template>
-  <Head title="Unit Kerja" />
+  <Head><title>Unit Kerja</title></Head>
   <MainLayout>
     <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
       <div>

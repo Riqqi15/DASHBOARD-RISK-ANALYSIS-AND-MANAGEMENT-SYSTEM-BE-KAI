@@ -101,7 +101,7 @@ const statusLabel = value => ({ open: 'Open', in_progress: 'In Progress', closed
 </script>
 
 <template>
-  <Head title="Risk Register" />
+  <Head><title>Risk Register</title></Head>
   <MainLayout>
     <div class="space-y-6">
       <AreaSelectorBanner v-if="can_choose_unit" :units="units" :selected-area="selected_area" />
@@ -112,7 +112,7 @@ const statusLabel = value => ({ open: 'Open', in_progress: 'In Progress', closed
           <h1 class="mt-1 text-2xl font-bold tracking-tight text-slate-950">Risk Register</h1>
           <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Kelola hasil identifikasi risiko dari sheet LxC. Nilai likelihood dan consequence mengikuti skala 1–4 pada workbook KAI.</p>
         </div>
-        <button class="inline-flex h-10 items-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-700" @click="openCreate">
+        <button type="button" class="inline-flex h-10 items-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-700" @click="openCreate">
           <Plus :size="17" /> Tambah Risiko
         </button>
       </header>
@@ -131,11 +131,13 @@ const statusLabel = value => ({ open: 'Open', in_progress: 'In Progress', closed
 
       <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="flex flex-wrap gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
-          <label class="relative min-w-[240px] flex-1">
+          <label for="risk-register-search" class="relative min-w-[240px] flex-1">
+            <span class="sr-only">Cari risiko atau aset</span>
             <Search class="pointer-events-none absolute left-3 top-2.5 text-slate-400" :size="18" />
-            <input v-model="search" type="search" placeholder="Cari risiko atau aset…" class="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" />
+            <input id="risk-register-search" v-model="search" type="search" placeholder="Cari risiko atau aset…" class="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" />
           </label>
-          <select v-model="status" class="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-orange-400">
+          <label for="risk-register-status" class="sr-only">Status risiko</label>
+          <select id="risk-register-status" v-model="status" class="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-orange-400">
             <option value="all">Semua Status</option>
             <option value="open">Open</option>
             <option value="in_progress">In Progress</option>
@@ -173,8 +175,8 @@ const statusLabel = value => ({ open: 'Open', in_progress: 'In Progress', closed
                 <td class="px-5 py-4"><span class="text-xs font-semibold" :class="item.source === 'excel' ? 'text-blue-700' : 'text-slate-500'">{{ item.source === 'excel' ? 'Excel LxC' : 'Manual' }}</span></td>
                 <td class="px-5 py-4">
                   <div class="flex justify-end gap-1">
-                    <button class="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700" aria-label="Edit risk register" @click="openEdit(item)"><Pencil :size="16" /></button>
-                    <button class="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-700" aria-label="Hapus risk register" @click="remove(item)"><Trash2 :size="16" /></button>
+                    <button type="button" class="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700" aria-label="Edit risk register" @click="openEdit(item)"><Pencil :size="16" /></button>
+                    <button type="button" class="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-700" aria-label="Hapus risk register" @click="remove(item)"><Trash2 :size="16" /></button>
                   </div>
                 </td>
               </tr>
@@ -189,7 +191,7 @@ const statusLabel = value => ({ open: 'Open', in_progress: 'In Progress', closed
       <section class="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <header class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
           <div class="flex items-center gap-3"><span class="rounded-lg bg-orange-50 p-2 text-orange-700"><ShieldCheck :size="20" /></span><div><h2 class="font-bold text-slate-950">{{ selected ? 'Edit Risk Register' : 'Tambah Risk Register' }}</h2><p class="text-xs text-slate-500">Data Excel dapat diperbarui kembali saat workbook diimpor ulang.</p></div></div>
-          <button class="rounded-lg p-2 text-slate-500 hover:bg-slate-100" @click="closeDialog"><X :size="19" /></button>
+          <button type="button" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100" @click="closeDialog"><X :size="19" /></button>
         </header>
         <form class="grid gap-4 p-6 md:grid-cols-2" @submit.prevent="submit">
           <label class="md:col-span-2"><span class="mb-1.5 block text-sm font-semibold text-slate-700">Aset</span><select v-model="form.asset_id" required class="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"><option value="">Pilih aset</option><option v-for="asset in assets" :key="asset.id" :value="asset.id">{{ asset.unit?.code }} · {{ asset.name }}</option></select><span v-if="form.errors.asset_id" class="mt-1 block text-xs text-red-600">{{ form.errors.asset_id }}</span></label>

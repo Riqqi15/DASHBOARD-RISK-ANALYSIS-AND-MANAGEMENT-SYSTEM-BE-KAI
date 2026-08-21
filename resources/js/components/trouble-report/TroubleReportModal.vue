@@ -12,7 +12,7 @@
           <h3 class="text-lg font-bold text-slate-800">{{ subsystemName }}</h3>
           <p class="text-xs text-slate-500">Input Data Laporan Gangguan (Trouble Report)</p>
         </div>
-        <button @click="close" class="text-slate-400 hover:text-slate-600 transition-colors p-2 rounded-full hover:bg-slate-100">
+        <button type="button" @click="close" class="text-slate-400 hover:text-slate-600 transition-colors p-2 rounded-full hover:bg-slate-100">
           <XIcon class="w-5 h-5" />
         </button>
       </div>
@@ -25,40 +25,40 @@
             <!-- Left Column -->
             <div class="space-y-4">
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Lokasi</label>
-                <input v-model="form.lokasi" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none" required />
+                <label for="trouble-report-lokasi" class="block text-xs font-semibold text-slate-700 mb-1">Lokasi</label>
+                <input id="trouble-report-lokasi" v-model="form.lokasi" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none" required />
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Resor</label>
-                <input v-model="form.resor" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none" required />
+                <label for="trouble-report-resor" class="block text-xs font-semibold text-slate-700 mb-1">Resor</label>
+                <input id="trouble-report-resor" v-model="form.resor" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none" required />
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">QC</label>
-                <input v-model="form.qc" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none" />
+                <label for="trouble-report-qc" class="block text-xs font-semibold text-slate-700 mb-1">QC</label>
+                <input id="trouble-report-qc" v-model="form.qc" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none" />
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Failure Event</label>
-                <textarea v-model="form.failure_event" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none resize-none" required></textarea>
+                <label for="trouble-report-failure-event" class="block text-xs font-semibold text-slate-700 mb-1">Failure Event</label>
+                <textarea id="trouble-report-failure-event" v-model="form.failure_event" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none resize-none" required></textarea>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Penyebab</label>
-                <textarea v-model="form.penyebab" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none resize-none" required></textarea>
+                <label for="trouble-report-penyebab" class="block text-xs font-semibold text-slate-700 mb-1">Penyebab</label>
+                <textarea id="trouble-report-penyebab" v-model="form.penyebab" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none resize-none" required></textarea>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Tindakan</label>
-                <textarea v-model="form.tindakan" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none resize-none" required></textarea>
+                <label for="trouble-report-tindakan" class="block text-xs font-semibold text-slate-700 mb-1">Tindakan</label>
+                <textarea id="trouble-report-tindakan" v-model="form.tindakan" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none resize-none" required></textarea>
               </div>
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Penggantian Sparepart</label>
-                  <select v-model="form.penggantian_sparepart" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none">
+                  <label for="trouble-report-penggantian-sparepart" class="block text-xs font-semibold text-slate-700 mb-1">Penggantian Sparepart</label>
+                  <select id="trouble-report-penggantian-sparepart" v-model="form.penggantian_sparepart" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none">
                     <option value="Tidak">Tidak</option>
                     <option value="Ya">Ya</option>
                   </select>
                 </div>
                 <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Tindak Vandalisme</label>
-                  <select v-model="form.tindak_vandalisme" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none">
+                  <label for="trouble-report-tindak-vandalisme" class="block text-xs font-semibold text-slate-700 mb-1">Tindak Vandalisme</label>
+                  <select id="trouble-report-tindak-vandalisme" v-model="form.tindak_vandalisme" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none">
                     <option value="Tidak">Tidak</option>
                     <option value="Ya">Ya</option>
                   </select>
@@ -68,8 +68,9 @@
               <!-- Extra Fields for Sparepart -->
               <div v-if="form.penggantian_sparepart === 'Ya'" class="grid grid-cols-3 gap-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <div class="col-span-2">
-                  <label class="block text-xs font-semibold text-amber-900 mb-1">Nama Sparepart Diganti</label>
+                  <label for="trouble-report-spare-part" class="block text-xs font-semibold text-amber-900 mb-1">Nama Sparepart Diganti</label>
                   <select
+                    id="trouble-report-spare-part"
                     v-model.number="form.spare_part_id"
                     class="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none" 
                     required 
@@ -84,8 +85,9 @@
                   </p>
                 </div>
                 <div>
-                  <label class="block text-xs font-semibold text-amber-900 mb-1">Jumlah</label>
+                  <label for="trouble-report-jumlah-sparepart" class="block text-xs font-semibold text-amber-900 mb-1">Jumlah</label>
                   <input 
+                    id="trouble-report-jumlah-sparepart"
                     v-model="form.jumlah_sparepart" 
                     type="number" 
                     min="1" 
@@ -106,29 +108,29 @@
                 <h4 class="text-sm font-bold text-slate-800 border-b border-slate-200 pb-2 mb-2">Waktu Kejadian & Penanganan</h4>
                 
                 <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Tahun Kejadian</label>
-                  <input :value="computedTahun" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-500 cursor-not-allowed" readonly />
+                  <label for="trouble-report-tahun-kejadian" class="block text-xs font-semibold text-slate-700 mb-1">Tahun Kejadian</label>
+                  <input id="trouble-report-tahun-kejadian" :value="computedTahun" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-500 cursor-not-allowed" readonly />
                 </div>
                 
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Tgl Kejadian</label>
-                    <input v-model="form.tanggal_kejadian" type="date" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" required />
+                    <label for="trouble-report-tanggal-kejadian" class="block text-xs font-semibold text-slate-700 mb-1">Tgl Kejadian</label>
+                    <input id="trouble-report-tanggal-kejadian" v-model="form.tanggal_kejadian" type="date" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" required />
                   </div>
                   <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Tgl Penanganan</label>
-                    <input v-model="form.tanggal_penanganan" type="date" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" required />
+                    <label for="trouble-report-tanggal-penanganan" class="block text-xs font-semibold text-slate-700 mb-1">Tgl Penanganan</label>
+                    <input id="trouble-report-tanggal-penanganan" v-model="form.tanggal_penanganan" type="date" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" required />
                   </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Mulai (Jam)</label>
-                    <input v-model="form.mulai" type="time" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" required />
+                    <label for="trouble-report-mulai" class="block text-xs font-semibold text-slate-700 mb-1">Mulai (Jam)</label>
+                    <input id="trouble-report-mulai" v-model="form.mulai" type="time" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" required />
                   </div>
                   <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Selesai (Jam)</label>
-                    <input v-model="form.selesai" type="time" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" required />
+                    <label for="trouble-report-selesai" class="block text-xs font-semibold text-slate-700 mb-1">Selesai (Jam)</label>
+                    <input id="trouble-report-selesai" v-model="form.selesai" type="time" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" required />
                   </div>
                 </div>
               </div>

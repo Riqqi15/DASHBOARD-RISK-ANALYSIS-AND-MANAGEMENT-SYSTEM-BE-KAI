@@ -81,7 +81,9 @@ defineEmits(['close', 'submit'])
                 aria-label="Pilih warna dashboard"
                 @input="form.dashboard_color = $event.target.value.toUpperCase()"
               />
+              <label for="category-dashboard-color-value" class="sr-only">Kode warna dashboard</label>
               <input
+                id="category-dashboard-color-value"
                 v-model="form.dashboard_color"
                 type="text"
                 maxlength="7"

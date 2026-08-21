@@ -139,7 +139,7 @@
                     <AlertTriangleIcon class="w-8 h-8 text-slate-300 mb-2" />
                     <p>Belum ada data kejadian kegagalan untuk subsystem ini di unit kerja Anda.</p>
                     <div class="mt-4 flex gap-3 justify-center items-center">
-                      <button v-if="assets.length > 0" @click="openCreateModal" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 flex items-center gap-2 transition">
+                      <button v-if="assets.length > 0" type="button" @click="openCreateModal" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 flex items-center gap-2 transition">
                         <PlusIcon class="w-4 h-4" /> Input Manual
                       </button>
                     </div>
@@ -166,10 +166,10 @@
                 <td class="p-3 text-center text-slate-600">{{ log.interval_jam !== undefined ? log.interval_jam : '-' }}</td>
                 <td class="p-3 text-center">
                   <div class="flex items-center justify-center gap-2">
-                    <button @click="openEditModal(log)" class="text-blue-500 hover:text-blue-700 p-1" title="Edit">
+                    <button type="button" @click="openEditModal(log)" class="text-blue-500 hover:text-blue-700 p-1" title="Edit">
                       <EditIcon class="w-4 h-4" />
                     </button>
-                    <button @click="deleteLog(log)" class="text-rose-500 hover:text-rose-700 p-1" title="Hapus">
+                    <button type="button" @click="deleteLog(log)" class="text-rose-500 hover:text-rose-700 p-1" title="Hapus">
                       <TrashIcon class="w-4 h-4" />
                     </button>
                   </div>
@@ -291,8 +291,9 @@ const summaryData = computed(() => {
 
 // Formatting helpers
 const isMissing = (value) => value === null || value === undefined || value === ''
-const formatNumber = (num) => isMissing(num) ? 'Data belum ada' : Number(num).toFixed(2).replace(/\.00$/, '')
-const formatDecimal = (num) => isMissing(num) ? 'Data belum ada' : Number(num).toFixed(10).replace(/0+$/, '').replace(/\.$/, '')
+const trimTrailingZeroes = (value) => String(Number(value))
+const formatNumber = (num) => isMissing(num) ? 'Data belum ada' : trimTrailingZeroes(Number(num).toFixed(2))
+const formatDecimal = (num) => isMissing(num) ? 'Data belum ada' : trimTrailingZeroes(Number(num).toFixed(10))
 const formatPercent = (num) => isMissing(num) ? 'Data belum ada' : (Number(num) * 100).toFixed(4) + '%'
 
 const parityLabel = (status) => ({

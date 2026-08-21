@@ -13,7 +13,7 @@ defineProps({
 </script>
 
 <template>
-  <Head title="Tambah Master Aset" />
+  <Head><title>Tambah Master Aset</title></Head>
   <MainLayout>
     <nav class="mb-5 flex items-center gap-2 text-xs text-slate-500" aria-label="Breadcrumb">
       <Link href="/master-asset" class="hover:text-[#171650]">Master Aset</Link>

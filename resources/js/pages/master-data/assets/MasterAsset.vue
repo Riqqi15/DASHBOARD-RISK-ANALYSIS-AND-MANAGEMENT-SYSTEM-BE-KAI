@@ -71,7 +71,7 @@ const paginationLabel = (label) => label
 </script>
 
 <template>
-  <Head title="Master Aset" />
+  <Head><title>Master Aset</title></Head>
   <MainLayout>
     <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
       <div>

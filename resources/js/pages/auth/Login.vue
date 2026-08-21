@@ -18,7 +18,7 @@ const submit = () => {
 </script>
 
 <template>
-  <Head title="Masuk" />
+  <Head><title>Masuk</title></Head>
 
   <main class="min-h-screen bg-slate-50 lg:grid lg:grid-cols-[minmax(0,1.05fr)_minmax(32rem,0.95fr)]">
     <section class="relative hidden overflow-hidden bg-[#171650] px-12 py-10 text-white lg:flex lg:flex-col">

@@ -8,7 +8,7 @@ defineProps({ typeOptions: { type: Array, required: true } })
 </script>
 
 <template>
-  <Head title="Tambah Unit Kerja" />
+  <Head><title>Tambah Unit Kerja</title></Head>
   <MainLayout>
     <nav class="mb-5 flex items-center gap-2 text-xs text-slate-500" aria-label="Breadcrumb">
       <Link href="/admin/units" class="hover:text-[#171650]">Unit Kerja</Link>

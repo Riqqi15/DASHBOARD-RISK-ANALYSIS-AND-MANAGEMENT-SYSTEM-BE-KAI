@@ -244,7 +244,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <Head title="Import Data RAMS" />
+  <Head><title>Import Data RAMS</title></Head>
   <MainLayout>
     <div class="mx-auto max-w-6xl space-y-6">
       <header>

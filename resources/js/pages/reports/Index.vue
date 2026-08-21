@@ -20,7 +20,7 @@ const reports = [
 </script>
 
 <template>
-  <Head title="Laporan RAMS" />
+  <Head><title>Laporan RAMS</title></Head>
   <MainLayout>
     <div class="space-y-6">
       <AreaSelectorBanner v-if="units.length" :units="units" :selected-area="selected_area" />

@@ -193,7 +193,7 @@ const reconciliationTone = (status) => ({
 </script>
 
 <template>
-  <Head title="Inventori Suku Cadang" />
+  <Head><title>Inventori Suku Cadang</title></Head>
   <MainLayout>
     <div class="min-w-0 space-y-5 pb-10">
       <header class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

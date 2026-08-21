@@ -168,7 +168,8 @@
           </h3>
           <div class="relative w-64">
             <SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
-            <input type="text" placeholder="Cari subsystem..." class="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 outline-none" />
+            <label for="risk-matrix-search" class="sr-only">Cari subsystem</label>
+            <input id="risk-matrix-search" type="text" placeholder="Cari subsystem..." class="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 outline-none" />
           </div>
         </div>
         

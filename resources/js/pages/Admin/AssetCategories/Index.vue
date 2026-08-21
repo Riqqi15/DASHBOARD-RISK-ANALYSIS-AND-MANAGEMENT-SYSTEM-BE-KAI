@@ -255,7 +255,7 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
 </script>
 
 <template>
-  <Head title="Kategori Aset" />
+  <Head><title>Kategori Aset</title></Head>
   <MainLayout>
     <header class="flex flex-col gap-5 border-b border-slate-200 pb-6 lg:flex-row lg:items-end lg:justify-between">
       <div>
