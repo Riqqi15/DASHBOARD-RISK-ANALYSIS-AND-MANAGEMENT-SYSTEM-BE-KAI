@@ -171,6 +171,20 @@ class UnitKerjaManagementTest extends TestCase
                 ->where('units.links.2.label', 'Berikutnya'));
     }
 
+    public function test_index_paginates_after_twenty_units(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        UnitKerja::factory()->count(21)->create();
+
+        $this->actingAs($pusat)->get('/admin/units')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('units.data', 20)
+                ->where('units.last_page', 2));
+
+        $this->actingAs($pusat)->get('/admin/units?page=2')
+            ->assertInertia(fn (Assert $page) => $page->has('units.data', 1));
+    }
+
     public function test_index_includes_only_regional_accounts_for_each_unit(): void
     {
         $pusat = User::factory()->pusat()->create();

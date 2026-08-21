@@ -47,7 +47,7 @@ class UnitKerjaController extends Controller
             ->when($request->filled('status'), fn ($query) => $query->where('is_active', $request->boolean('status')))
             ->orderBy('type')
             ->orderBy('code')
-            ->paginate(15)
+            ->paginate(20)
             ->withQueryString()
             ->through(fn (UnitKerja $unit): array => [
                 'id' => $unit->id,
