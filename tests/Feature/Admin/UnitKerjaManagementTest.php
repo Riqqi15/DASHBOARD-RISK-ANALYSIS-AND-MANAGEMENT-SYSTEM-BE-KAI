@@ -166,7 +166,9 @@ class UnitKerjaManagementTest extends TestCase
                 ->where('filters.type', 'daop')
                 ->where('filters.status', '1')
                 ->has('units.data', 1)
-                ->where('units.data.0.code', 'DAOP-SEARCH'));
+                ->where('units.data.0.code', 'DAOP-SEARCH')
+                ->where('units.links.0.label', 'Sebelumnya')
+                ->where('units.links.2.label', 'Berikutnya'));
     }
 
     public function test_index_includes_only_regional_accounts_for_each_unit(): void
