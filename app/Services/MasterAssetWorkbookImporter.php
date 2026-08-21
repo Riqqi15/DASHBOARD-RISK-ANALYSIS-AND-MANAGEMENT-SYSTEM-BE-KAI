@@ -314,6 +314,7 @@ class MasterAssetWorkbookImporter
 
             /** @var Asset|null $asset */
             $asset = $matchingAssets->first();
+            $previousSubsystemId = $asset?->asset_subsystem_id;
 
             if ($asset) {
                 $before = $this->auditValues($asset);
@@ -350,6 +351,7 @@ class MasterAssetWorkbookImporter
                 $categories['subsystem'],
                 $workbookName,
                 $result,
+                $previousSubsystemId,
             );
             $result['predictive_snapshots'] += $this->importPredictiveSnapshot(
                 $sheet,
@@ -565,6 +567,7 @@ class MasterAssetWorkbookImporter
         AssetSubsystem $subsystem,
         string $workbookName,
         array &$result,
+        ?int $previousSubsystemId = null,
     ): void {
         $sourceKey = $this->openingSourceKey($unit, $subsystem);
         $values = [
@@ -590,6 +593,14 @@ class MasterAssetWorkbookImporter
             ->where('asset_subsystem_id', $subsystem->id)
             ->lockForUpdate()
             ->first();
+
+        if (! $opening && $previousSubsystemId && $previousSubsystemId !== $subsystem->id) {
+            $opening = UnitSubsystemOpening::query()
+                ->where('unit_kerja_id', $unit->id)
+                ->where('asset_subsystem_id', $previousSubsystemId)
+                ->lockForUpdate()
+                ->first();
+        }
 
         if (! $opening) {
             $opening = UnitSubsystemOpening::query()->create($values);

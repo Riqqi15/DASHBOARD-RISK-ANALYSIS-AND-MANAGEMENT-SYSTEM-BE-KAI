@@ -9,6 +9,7 @@ use App\Models\AssetCategorySourceAlias;
 use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
+use App\Models\UnitKerja;
 use Closure;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -134,23 +135,36 @@ class AssetCategorySchemaTest extends TestCase
         $this->assertSame('local control panel', $sameNameInAnotherSystem->normalized_name);
     }
 
-    public function test_asset_group_names_are_unique_globally_after_normalization(): void
+    public function test_asset_group_names_are_unique_per_unit_after_normalization(): void
     {
-        AssetGroup::factory()->create(['name' => 'Peralatan Dalam Sinyal Elektrik']);
+        $unit = UnitKerja::factory()->create();
+        $otherUnit = UnitKerja::factory()->create();
+        AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => 'Peralatan Dalam Sinyal Elektrik',
+        ]);
 
         $this->assertDuplicateKeyRejected(fn () => AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
             'name' => " \tPERALATAN   DALAM SINYAL ELEKTRIK  ",
         ]));
+
+        $this->assertNotNull(AssetGroup::factory()->create([
+            'unit_kerja_id' => $otherUnit->id,
+            'name' => 'Peralatan Dalam Sinyal Elektrik',
+        ])->id);
     }
 
     public function test_source_alias_paths_are_unique_within_category_type_only(): void
     {
-        $group = AssetGroup::factory()->create();
+        $unit = UnitKerja::factory()->create();
+        $group = AssetGroup::factory()->create(['unit_kerja_id' => $unit->id]);
         $system = AssetSystem::factory()->for($group)->create();
 
         AssetCategorySourceAlias::query()->create([
             'category_type' => 'group',
             'category_id' => $group->id,
+            'unit_kerja_id' => $group->unit_kerja_id,
             'source_path' => 'Workbook.xlsx/Sheet 1/Group',
             'normalized_source_path' => 'workbook.xlsx/sheet 1/group',
             'workbook_name' => 'Workbook.xlsx',
@@ -162,6 +176,7 @@ class AssetCategorySchemaTest extends TestCase
         $this->assertDuplicateKeyRejected(fn () => AssetCategorySourceAlias::query()->create([
             'category_type' => 'group',
             'category_id' => $group->id,
+            'unit_kerja_id' => $group->unit_kerja_id,
             'source_path' => 'WORKBOOK.xlsx/SHEET 1/GROUP',
             'normalized_source_path' => 'workbook.xlsx/sheet 1/group',
             'workbook_name' => 'WORKBOOK.xlsx',
@@ -173,6 +188,7 @@ class AssetCategorySchemaTest extends TestCase
         $systemAlias = AssetCategorySourceAlias::query()->create([
             'category_type' => 'system',
             'category_id' => $system->id,
+            'unit_kerja_id' => $group->unit_kerja_id,
             'source_path' => 'Workbook.xlsx/Sheet 1/Group',
             'normalized_source_path' => 'workbook.xlsx/sheet 1/group',
             'workbook_name' => 'Workbook.xlsx',

@@ -320,23 +320,24 @@ class AssetCategoryImportTest extends TestCase
 
         app(MasterAssetWorkbookImporter::class)->import($path, $unit);
 
+        $asset->refresh();
         $stableKey = hash(
             'sha256',
-            "rams:master-asset:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$subsystem->id}",
+            "rams:master-asset:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$asset->asset_subsystem_id}",
         );
         $this->assertDatabaseCount('assets', 1);
-        $asset->refresh();
         $this->assertSame($stableKey, $asset->source_key);
-        $this->assertSame($subsystem->id, $asset->asset_subsystem_id);
+        $this->assertSame($unit->id, $asset->assetSubsystem->assetSystem->assetGroup->unit_kerja_id);
         $this->assertSame('Nama suntingan operator', $asset->nama_aset);
         $this->assertSame('dalam_perbaikan', $asset->status->value);
 
-        $subsystem->update(['name' => 'Track Circuit Hasil Rename Admin']);
+        $regionalSubsystem = $asset->assetSubsystem;
+        $regionalSubsystem->update(['name' => 'Track Circuit Hasil Rename Admin']);
         app(MasterAssetWorkbookImporter::class)->import($path, $unit);
 
         $this->assertDatabaseCount('assets', 1);
-        $this->assertSame($subsystem->id, $asset->fresh()->asset_subsystem_id);
-        $this->assertSame('Track Circuit Hasil Rename Admin', $subsystem->fresh()->name);
+        $this->assertSame($regionalSubsystem->id, $asset->fresh()->asset_subsystem_id);
+        $this->assertSame('Track Circuit Hasil Rename Admin', $regionalSubsystem->fresh()->name);
         $this->assertSame('Nama suntingan operator', $asset->fresh()->nama_aset);
     }
 
@@ -455,20 +456,21 @@ class AssetCategoryImportTest extends TestCase
 
         app(MasterAssetWorkbookImporter::class)->import($path, $unit->fresh());
 
+        $importedAsset->refresh();
         $expectedV2Key = hash(
             'sha256',
-            "rams:master-asset:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$subsystem->id}",
+            "rams:master-asset:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$importedAsset->asset_subsystem_id}",
         );
         $this->assertDatabaseCount('assets', 2);
-        $this->assertSame($expectedV2Key, $importedAsset->fresh()->source_key);
-        $this->assertSame(9, $importedAsset->fresh()->jumlah_unit);
+        $this->assertSame($expectedV2Key, $importedAsset->source_key);
+        $this->assertSame(9, $importedAsset->jumlah_unit);
         $this->assertNull($manualAsset->fresh()->source_key);
         $this->assertSame('Manual asset', $manualAsset->fresh()->nama_aset);
         $this->assertDatabaseCount('unit_subsystem_openings', 1);
         $this->assertSame(
             hash(
                 'sha256',
-                "rams:unit-subsystem-opening:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$subsystem->id}",
+                "rams:unit-subsystem-opening:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$importedAsset->asset_subsystem_id}",
             ),
             $priorOpening->fresh()->source_key,
         );
@@ -532,7 +534,10 @@ class AssetCategoryImportTest extends TestCase
     public function test_soft_deleted_category_conflict_rolls_back_every_write_from_the_workbook(): void
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
-        $conflictingGroup = AssetGroup::factory()->create(['name' => 'Kategori Konflik']);
+        $conflictingGroup = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => 'Kategori Konflik',
+        ]);
         $conflictingGroup->delete();
         $path = $this->workbook([
             ['Kategori Valid', 'System Valid', 'Subsystem Valid', 1, 2, 3, 40909],
@@ -638,13 +643,10 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame(8, $selected->sparepart_in);
         $this->assertSame(2, $selected->sparepart_out);
 
-        $all = app(AssetHierarchyQuery::class)->forUser($pusat)->first();
-        $this->assertSame(13, $all->total);
-        $this->assertSame(11, $all->sparepart_in);
-        $this->assertSame(3, $all->sparepart_out);
+        $this->assertTrue(app(AssetHierarchyQuery::class)->forUser($pusat)->isEmpty());
 
         $queries = [];
-        $filtered = app(AssetHierarchyQuery::class)->forUser($pusat, null, [$laterSubsystem->id]);
+        $filtered = app(AssetHierarchyQuery::class)->forUser($pusat, $ownUnit->id, [$laterSubsystem->id]);
         $this->assertSame([$laterSubsystem->id], $filtered->pluck('id')->all());
         $this->assertTrue(collect($queries)->contains(
             fn (string $sql): bool => str_contains($sql, '`asset_subsystems`.`id` in ('),

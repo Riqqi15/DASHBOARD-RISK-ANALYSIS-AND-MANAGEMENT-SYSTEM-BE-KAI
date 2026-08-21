@@ -91,7 +91,7 @@ class FailureLogManagementTest extends TestCase
     /** @return array{User, Asset, SparePart, InventoryStock} */
     private function context(int $stockQuantity): array
     {
-        $unit = UnitKerja::factory()->create();
+        $unit = UnitKerja::factory()->create(['operating_start_date' => '2020-01-01']);
         $user = User::factory()->unit($unit)->create(['is_active' => true]);
         $asset = Asset::factory()->for($unit)->create(['jumlah_unit' => 2]);
         $part = SparePart::factory()->for($asset->assetSubsystem)->create(['is_active' => true]);
