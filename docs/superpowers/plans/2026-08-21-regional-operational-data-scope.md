@@ -346,6 +346,7 @@ rtk git commit -m "fix: scope inventory operations to one unit"
 - Modify: `resources/js/pages/master-data/inventory/Inventory.vue`
 - Modify: `resources/js/pages/master-data/inventory/Partials/InventoryFilters.vue`
 - Modify: `app/Http/Controllers/Admin/UnitSubsystemOpeningController.php`
+- Modify: `tests/Feature/Admin/PusatAuthorizationTest.php`
 - Modify: `tests/js/Inventory.test.js`
 - Modify: `tests/js/InventoryFilters.test.js`
 
@@ -397,12 +398,13 @@ const hasActiveFilters = computed(() => Boolean(
 
 Pada `resetFilters()`, jangan tulis ulang `unit_kerja_id`. Nonaktifkan `Catat IN/OUT` bila tidak ada unit efektif.
 
-Ganti copy pengguna `Saldo pembukaan unit` menjadi `Stok pembukaan unit` di `UnitSubsystemOpeningController`; nama kolom internal tetap dipertahankan agar tidak memerlukan migrasi.
+Ganti copy pengguna `Saldo pembukaan unit` menjadi `Stok pembukaan unit` di `UnitSubsystemOpeningController` dan sesuaikan assertion pesan pada `PusatAuthorizationTest`; nama kolom internal tetap dipertahankan agar tidak memerlukan migrasi.
 
 - [ ] **Step 4: Jalankan tes UI inventori**
 
 ```powershell
 rtk npm run test:js -- tests/js/Inventory.test.js tests/js/InventoryFilters.test.js
+rtk php artisan test tests/Feature/Admin/PusatAuthorizationTest.php
 ```
 
 Expected: PASS.
@@ -410,7 +412,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit UI dan copy inventori**
 
 ```powershell
-rtk git add resources/js/pages/master-data/inventory/Inventory.vue resources/js/pages/master-data/inventory/Partials/InventoryFilters.vue app/Http/Controllers/Admin/UnitSubsystemOpeningController.php tests/js/Inventory.test.js tests/js/InventoryFilters.test.js
+rtk git add resources/js/pages/master-data/inventory/Inventory.vue resources/js/pages/master-data/inventory/Partials/InventoryFilters.vue app/Http/Controllers/Admin/UnitSubsystemOpeningController.php tests/Feature/Admin/PusatAuthorizationTest.php tests/js/Inventory.test.js tests/js/InventoryFilters.test.js
 rtk git commit -m "fix: clarify regional inventory context"
 ```
 
@@ -454,7 +456,148 @@ rtk git add app/Http/Requests/StoreStockMovementRequest.php app/Http/Requests/Co
 rtk git commit -m "test: harden regional stock invariants"
 ```
 
-## Task 7: Verifikasi menyeluruh dan uji browser
+## Task 7: Audit akun regional DAOP-1 dan seluruh Daop/Divre
+
+**Files:**
+- Create: `tests/Feature/RegionalOperationalAccessTest.php`
+- Modify if failing: `app/Http/Controllers/RamsDashboardController.php`
+- Modify if failing: `app/Http/Controllers/FailureLogImportController.php`
+- Modify if failing: controllers/services from Tasks 1–6 at the shared scope boundary that caused the failure.
+
+- [ ] **Step 1: Tulis acceptance test DAOP-1**
+
+Buat `RegionalOperationalAccessTest.php` dengan setup dua unit, data operasional berbeda, dan akun DAOP-1. Gunakan satu test untuk membuktikan seluruh halaman utama tetap pada DAOP-1 walaupun query mencoba memilih unit lain:
+
+```php
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Asset;
+use App\Models\InventoryStock;
+use App\Models\RiskRegister;
+use App\Models\SparePart;
+use App\Models\UnitKerja;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
+use Tests\TestCase;
+
+class RegionalOperationalAccessTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_daop_one_account_is_locked_to_its_operational_scope_across_modules(): void
+    {
+        $daopOne = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
+        $daopTwo = UnitKerja::factory()->create(['code' => 'DAOP-2', 'is_active' => true]);
+        $user = User::factory()->unit($daopOne)->create(['username' => 'daop1']);
+        $ownAsset = Asset::factory()->for($daopOne)->create(['nama_aset' => 'Aset DAOP-1']);
+        $otherAsset = Asset::factory()->for($daopTwo)->create(['nama_aset' => 'Aset DAOP-2']);
+        RiskRegister::factory()->for($ownAsset)->create(['risk_event' => 'Risiko DAOP-1']);
+        RiskRegister::factory()->for($otherAsset)->create(['risk_event' => 'Risiko DAOP-2']);
+        $part = SparePart::factory()->create();
+        InventoryStock::factory()->for($daopOne)->for($part)->create(['quantity' => 3]);
+        InventoryStock::factory()->for($daopTwo)->for($part)->create(['quantity' => 99]);
+
+        $this->actingAs($user)->get('/dashboard?area=DAOP-2')
+            ->assertSessionHasErrors('area');
+
+        $this->actingAs($user)->get('/master-asset?unit_kerja_id='.$daopTwo->id)
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.unit_kerja_id', (string) $daopOne->id)
+                ->has('assets.data', 1)
+                ->where('assets.data.0.nama_aset', 'Aset DAOP-1'));
+
+        $this->actingAs($user)->get('/risk-register?area=DAOP-2')
+            ->assertSessionHasErrors('area');
+
+        $this->actingAs($user)->get('/risk-register')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('can_choose_unit', false)
+                ->has('registers', 1)
+                ->where('registers.0.risk_event', 'Risiko DAOP-1'));
+
+        $this->actingAs($user)->get('/inventory?unit_kerja_id='.$daopTwo->id)
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('can.choose_unit', false)
+                ->where('can.manage_master', false)
+                ->where('filters.unit_kerja_id', (string) $daopOne->id)
+                ->where('stats.total_quantity', 3)
+                ->has('stocks.data', 1));
+
+        $this->actingAs($user)->get('/trouble-report/import')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('can_choose_unit', false)
+                ->where('selected_unit_id', $daopOne->id)
+                ->where('units', []));
+
+        $this->actingAs($user)->get('/admin/units')->assertForbidden();
+        $this->actingAs($user)->post('/admin/spare-parts', [])->assertForbidden();
+    }
+}
+```
+
+- [ ] **Step 2: Jalankan acceptance test dan pastikan akar bug terlihat**
+
+```powershell
+rtk php artisan test tests/Feature/RegionalOperationalAccessTest.php
+```
+
+Expected sebelum seluruh task selesai: minimal assertion `filters.unit_kerja_id` Master Aset atau Inventori gagal. Expected setelah Tasks 1–6: PASS.
+
+- [ ] **Step 3: Tambahkan smoke test parametrik seluruh Daop/Divre**
+
+Tambahkan method provider dan test berikut pada file yang sama:
+
+```php
+/** @return array<string, array{string}> */
+public static function regionalCodes(): array
+{
+    return collect(range(1, 9))->mapWithKeys(fn (int $number): array => [
+        "DAOP-{$number}" => ["DAOP-{$number}"],
+    ])->merge([
+        'DIVRE-I' => ['DIVRE-I'],
+        'DIVRE-II' => ['DIVRE-II'],
+        'DIVRE-III' => ['DIVRE-III'],
+        'DIVRE-IV' => ['DIVRE-IV'],
+    ])->all();
+}
+
+#[\PHPUnit\Framework\Attributes\DataProvider('regionalCodes')]
+public function test_each_regional_account_resolves_only_its_assigned_unit(string $code): void
+{
+    $unit = UnitKerja::factory()->create(['code' => $code, 'is_active' => true]);
+    $other = UnitKerja::factory()->create(['is_active' => true]);
+    $user = User::factory()->unit($unit)->create();
+    Asset::factory()->for($unit)->create();
+    Asset::factory()->for($other)->create();
+
+    $this->actingAs($user)->get('/master-asset?unit_kerja_id='.$other->id)
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('filters.unit_kerja_id', (string) $unit->id)
+            ->has('assets.data', 1));
+}
+```
+
+- [ ] **Step 4: Jalankan semua tes akun regional terkait**
+
+```powershell
+rtk php artisan test tests/Feature/RegionalOperationalAccessTest.php tests/Feature/RegionalAccountSeederTest.php tests/Feature/FailureLogImportUploadTest.php tests/Feature/Admin/PusatAuthorizationTest.php tests/Feature/Admin/RegionalAccountManagementTest.php
+```
+
+Expected: PASS untuk akun DAOP-1, sembilan DAOP, empat DIVRE, import scope, dan larangan menu Admin Pusat.
+
+- [ ] **Step 5: Commit acceptance suite dan perbaikan akar masalah bila ditemukan**
+
+```powershell
+rtk git add tests/Feature/RegionalOperationalAccessTest.php app/Http/Controllers/RamsDashboardController.php app/Http/Controllers/FailureLogImportController.php
+rtk git commit -m "test: cover regional operational account flows"
+```
+
+Jika production fix berada di file Tasks 1–6, tambahkan file aktual tersebut pada `git add`; jangan membuat guard duplikat hanya untuk acceptance test.
+
+## Task 8: Verifikasi menyeluruh dan uji browser
 
 **Files:**
 - Verify only unless regression is found.
@@ -495,9 +638,20 @@ Gunakan browser lokal pada `http://127.0.0.1:8000` dan periksa:
 4. Tab Master Suku Cadang tetap global dan dapat dikelola Admin Pusat.
 5. Tidak ada opsi `Semua unit kerja`, agregat lintas wilayah, atau istilah `saldo`.
 
-- [ ] **Step 5: Uji browser dengan akun regional**
+- [ ] **Step 5: Uji browser mendalam dengan akun DAOP-1**
 
-Pastikan selector tidak tampil, data terkunci ke unit akun, Master Suku Cadang tidak dapat dikelola, dan percobaan mutation lintas unit ditolak.
+Login lokal menggunakan `daop1 / daop1234`, lalu periksa:
+
+1. Header akun menunjukkan DAOP-1 dan sidebar tidak menampilkan `Unit & Akun` atau kontrol global Master Suku Cadang.
+2. Dashboard hanya menampilkan ringkasan, kategori, aset, dan gangguan DAOP-1; query `?area=DAOP-2` tidak mengubah scope.
+3. Import Data RAMS mengunci target DAOP-1, tidak menampilkan selector unit, dan riwayat batch hanya DAOP-1.
+4. Master Aset tidak menampilkan selector unit dan hanya memuat aset DAOP-1.
+5. Risk Register hanya menawarkan aset DAOP-1; buat, ubah, dan hapus satu record disposable untuk membuktikan mutation bekerja dan tetap regional.
+6. Inventori hanya memuat stok/riwayat DAOP-1, tidak menampilkan tab pengelolaan Master Suku Cadang, dan transaksi disposable tidak memengaruhi stok unit lain.
+7. Akses langsung `/admin/units` dan mutation ke ID aset/stok unit lain ditolak.
+8. Logout mengakhiri session; login ulang kembali ke scope DAOP-1.
+
+Hapus record disposable setelah pengujian. Catat setiap bug, perbaiki pada shared backend boundary, lalu ulangi langkah 1–8.
 
 - [ ] **Step 6: Tinjau diff dan commit final regression fix bila ada**
 

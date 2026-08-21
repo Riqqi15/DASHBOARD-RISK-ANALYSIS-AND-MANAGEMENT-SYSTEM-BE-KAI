@@ -118,7 +118,10 @@ The final-report concepts remain intact:
 - Run focused PHP suites for Master Aset, Risk Register, inventory, stock movements, reconciliation, and authorization.
 - Run focused JavaScript suites for affected pages and filters.
 - Run full JavaScript tests and production build.
-- Verify representative Admin Pusat and regional-user flows in the local web app.
+- Treat the seeded `daop1` account as the deep regional acceptance account. Verify login, logout, sidebar permissions, dashboard, import target, Master Aset, Risk Register, inventory stock, movement history, create/update/delete paths, empty states, and direct cross-unit URL/request attempts.
+- Confirm `daop1` never sees a unit selector, global spare-part management, Unit & Akun management, or data belonging to another Daop/Divre.
+- Run a parameterized access smoke test for every active Daop and Divre account so each account resolves to its assigned unit and cannot override scope through query parameters.
+- Verify representative Admin Pusat and `daop1` flows in the local web app using the seeded local credentials. Browser mutation checks must use disposable test records and remove them afterward.
 
 ## Non-Goals
 
@@ -126,4 +129,3 @@ The final-report concepts remain intact:
 - No cross-unit comparison dashboard in these operational pages.
 - No schema rename solely to replace internal `balance` or opening-value terminology.
 - No change to Excel formulas or imported source values beyond existing validated normalization.
-
