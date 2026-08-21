@@ -19,6 +19,13 @@ final class StoreRiskRegisterRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'unit_kerja_id' => [
+                Rule::requiredIf(fn (): bool => $this->user()?->isPusat() === true),
+                Rule::prohibitedIf(fn (): bool => $this->user()?->isUnit() === true),
+                'nullable',
+                'integer',
+                Rule::exists('unit_kerjas', 'id')->where('is_active', true),
+            ],
             'asset_id' => ['required', 'integer', 'exists:assets,id'],
             'part_number' => ['nullable', 'string', 'max:100'],
             'sub' => ['nullable', 'string', 'max:255'],

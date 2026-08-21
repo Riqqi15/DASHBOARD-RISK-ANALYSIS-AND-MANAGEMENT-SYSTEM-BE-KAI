@@ -13,10 +13,10 @@ use Illuminate\Support\Facades\DB;
 final class RiskRegisterService
 {
     /** @param array<string, mixed> $data */
-    public function create(array $data, User $actor): RiskRegister
+    public function create(array $data, User $actor, int $unitId): RiskRegister
     {
-        return DB::transaction(function () use ($data, $actor): RiskRegister {
-            $asset = $this->authorizedAsset((int) $data['asset_id'], $actor);
+        return DB::transaction(function () use ($data, $actor, $unitId): RiskRegister {
+            $asset = $this->authorizedAsset((int) $data['asset_id'], $actor, $unitId);
 
             return RiskRegister::query()->create([
                 ...$data,
@@ -26,26 +26,26 @@ final class RiskRegisterService
     }
 
     /** @param array<string, mixed> $data */
-    public function update(RiskRegister $register, array $data, User $actor): RiskRegister
+    public function update(RiskRegister $register, array $data, User $actor, int $unitId): RiskRegister
     {
-        return DB::transaction(function () use ($register, $data, $actor): RiskRegister {
-            $this->authorizeRegister($register, $actor);
-            $asset = $this->authorizedAsset((int) $data['asset_id'], $actor);
+        return DB::transaction(function () use ($register, $data, $actor, $unitId): RiskRegister {
+            $this->authorizeRegister($register, $actor, $unitId);
+            $asset = $this->authorizedAsset((int) $data['asset_id'], $actor, $unitId);
             $register->fill([...$data, 'asset_id' => $asset->id])->save();
 
             return $register->refresh();
         }, 3);
     }
 
-    public function delete(RiskRegister $register, User $actor): void
+    public function delete(RiskRegister $register, User $actor, int $unitId): void
     {
-        DB::transaction(function () use ($register, $actor): void {
-            $this->authorizeRegister($register, $actor);
+        DB::transaction(function () use ($register, $actor, $unitId): void {
+            $this->authorizeRegister($register, $actor, $unitId);
             $register->delete();
         }, 3);
     }
 
-    private function authorizedAsset(int $assetId, User $actor): Asset
+    private function authorizedAsset(int $assetId, User $actor, int $unitId): Asset
     {
         $authoritativeActor = User::query()
             ->whereKey($actor->id)
@@ -56,17 +56,23 @@ final class RiskRegisterService
         }
 
         $asset = Asset::query()->whereKey($assetId)->firstOrFail();
-        if ($authoritativeActor->isUnit() && $asset->unit_kerja_id !== $authoritativeActor->unit_kerja_id) {
+        if ($authoritativeActor->isUnit() && $unitId !== $authoritativeActor->unit_kerja_id) {
+            throw new AuthorizationException('Unit kerja tidak sesuai dengan akun pengguna.');
+        }
+        if ($asset->unit_kerja_id !== $unitId) {
             throw new AuthorizationException('Aset berada di luar unit kerja pengguna.');
         }
 
         return $asset;
     }
 
-    private function authorizeRegister(RiskRegister $register, User $actor): void
+    private function authorizeRegister(RiskRegister $register, User $actor, int $unitId): void
     {
         $register->loadMissing('asset:id,unit_kerja_id');
-        if ($actor->isUnit() && $register->asset->unit_kerja_id !== $actor->unit_kerja_id) {
+        if ($actor->isUnit() && $unitId !== $actor->unit_kerja_id) {
+            throw new AuthorizationException('Unit kerja tidak sesuai dengan akun pengguna.');
+        }
+        if ($register->asset->unit_kerja_id !== $unitId) {
             throw new AuthorizationException('Risk Register berada di luar unit kerja pengguna.');
         }
     }

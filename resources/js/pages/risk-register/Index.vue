@@ -17,7 +17,9 @@ const search = ref('')
 const status = ref('all')
 const dialogOpen = ref(false)
 const selected = ref(null)
+const selectedUnit = computed(() => props.units.find(unit => unit.code === props.selected_area))
 const emptyForm = () => ({
+  unit_kerja_id: props.can_choose_unit ? selectedUnit.value?.id ?? '' : '',
   asset_id: '', part_number: '', sub: '', risk_event: '', risk_cause: '', impact: '',
   part_name: '', recommendation: '', likelihood: 1, consequence: 1, status: 'open',
 })
@@ -49,6 +51,7 @@ const openCreate = () => {
 const openEdit = (item) => {
   selected.value = item
   form.defaults({
+    unit_kerja_id: props.can_choose_unit ? selectedUnit.value?.id ?? '' : '',
     asset_id: item.asset_id,
     part_number: item.part_number || '',
     sub: item.sub || '',
@@ -72,13 +75,17 @@ const closeDialog = () => {
 
 const submit = () => {
   const options = { preserveScroll: true, onSuccess: closeDialog }
-  if (selected.value) form.put(`/risk-register/${selected.value.id}`, options)
-  else form.post('/risk-register', options)
+  if (selected.value) form.put(scopedUrl(`/risk-register/${selected.value.id}`), options)
+  else form.post(scopedUrl('/risk-register'), options)
 }
+
+const scopedUrl = path => props.can_choose_unit && props.selected_area
+  ? `${path}?area=${encodeURIComponent(props.selected_area)}`
+  : path
 
 const remove = (item) => {
   if (window.confirm(`Hapus Risk Register “${item.risk_event}”?`)) {
-    router.delete(`/risk-register/${item.id}`, { preserveScroll: true })
+    router.delete(scopedUrl(`/risk-register/${item.id}`), { preserveScroll: true })
   }
 }
 

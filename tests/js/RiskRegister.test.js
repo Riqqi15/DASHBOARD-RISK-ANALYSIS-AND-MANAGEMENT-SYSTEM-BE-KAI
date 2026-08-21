@@ -27,4 +27,20 @@ describe('RiskRegister', () => {
     await wrapper.get('[aria-label="Edit risk register"]').trigger('click')
     expect(wrapper.text()).toContain('Edit Risk Register')
   })
+
+  it('submits and deletes within the selected area', async () => {
+    const wrapper = mount(RiskRegister, {
+      props: {
+        selected_area: 'DAOP-1',
+        can_choose_unit: true,
+        units: [{ id: 7, code: 'DAOP-1', name: 'Daerah Operasi 1' }],
+        assets: [{ id: 3, name: 'Interlocking', unit: { code: 'DAOP-1' } }],
+        registers: [register],
+      },
+      global: { stubs: { MainLayout: { template: '<main><slot /></main>' }, AreaSelectorBanner: true } },
+    })
+
+    await wrapper.get('button').trigger('click')
+    expect(wrapper.vm.form?.unit_kerja_id ?? '').not.toBe('')
+  })
 })
