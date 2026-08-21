@@ -46,7 +46,39 @@ class MasterAssetManagementTest extends TestCase
                 ->where('stats.total_units', 12)
                 ->where('filters.search', 'Gambir')
                 ->where('filters.status', 'aktif')
+                ->where('filters.unit_kerja_id', (string) $ownUnit->id)
                 ->where('can.choose_unit', false));
+    }
+
+    public function test_pusat_without_or_with_invalid_unit_defaults_to_first_active_unit(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $first = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
+        $second = UnitKerja::factory()->create(['code' => 'DAOP-2', 'is_active' => true]);
+        Asset::factory()->for($first)->create(['jumlah_unit' => 2]);
+        Asset::factory()->for($second)->create(['jumlah_unit' => 9]);
+
+        foreach (['/master-asset', '/master-asset?unit_kerja_id=999999'] as $url) {
+            $this->actingAs($pusat)->get($url)
+                ->assertInertia(fn (Assert $page) => $page
+                    ->where('filters.unit_kerja_id', (string) $first->id)
+                    ->where('stats.total_assets', 1)
+                    ->where('stats.total_units', 2)
+                    ->has('assets.data', 1));
+        }
+    }
+
+    public function test_pusat_without_active_unit_receives_empty_operational_data(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+
+        $this->actingAs($pusat)->get('/master-asset')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.unit_kerja_id', '')
+                ->where('stats.total_assets', 0)
+                ->where('stats.total_units', 0)
+                ->has('assets.data', 0)
+                ->has('hierarchy', 0));
     }
 
     public function test_pusat_can_filter_assets_by_unit(): void

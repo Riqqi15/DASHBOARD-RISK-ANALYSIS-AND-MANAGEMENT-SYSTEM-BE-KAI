@@ -76,7 +76,7 @@ const props = {
   }],
   legacySummary: null,
   stats: { total_assets: 1, total_units: 12, active_assets: 1, unique_subsystems: 1 },
-  filters: { search: '', status: '', unit_kerja_id: '' },
+  filters: { search: '', status: '', unit_kerja_id: '1' },
   units: [{ id: 1, code: 'DAOP-1', name: 'Daerah Operasi 1 Jakarta' }],
   statusOptions: [
     { value: 'aktif', label: 'Aktif' },
@@ -134,6 +134,17 @@ describe('MasterAsset', () => {
     }), expect.objectContaining({ preserveState: true, replace: true }))
   })
 
+  it('requires one unit and preserves it when clearing secondary filters', async () => {
+    const wrapper = mountPage()
+
+    expect(wrapper.get('#asset-unit').text()).not.toContain('Semua unit kerja')
+    await wrapper.get('[aria-label="Hapus semua filter"]').trigger('click')
+
+    expect(inertia.get).toHaveBeenCalledWith('/master-asset', {
+      search: '', status: '', unit_kerja_id: '1',
+    }, expect.objectContaining({ preserveState: true, replace: true }))
+  })
+
   it('requires confirmation before deleting an asset', async () => {
     const wrapper = mountPage()
     await wrapper.get('[aria-label="Hapus aset Track Circuit Backend"]').trigger('click')
@@ -150,14 +161,14 @@ describe('MasterAsset', () => {
       assets: { data: [], links: [], from: null, to: null, total: 0 },
       hierarchy: [],
       legacySummary: null,
-      filters: { search: 'track', status: 'aktif', unit_kerja_id: '' },
+      filters: { search: 'track', status: 'aktif', unit_kerja_id: '1' },
     })
 
     expect(wrapper.text()).toContain('Tidak ada aset sesuai filter')
     expect(wrapper.text()).toContain('Hapus filter')
     await wrapper.get('[data-clear-empty-filters]').trigger('click')
     expect(inertia.get).toHaveBeenCalledWith('/master-asset', {
-      search: '', status: '', unit_kerja_id: '',
+      search: '', status: '', unit_kerja_id: '1',
     }, expect.objectContaining({ preserveState: true, replace: true }))
   })
 
@@ -174,7 +185,7 @@ describe('MasterAsset', () => {
     expect(wrapper.findAll('a[href="/master-asset/create"]').some((link) => link.text().includes('Tambah aset pertama'))).toBe(true)
   })
 
-  it('renders empty asset categories from the category tree even without master assets', () => {
+  it('does not render empty global categories as regional operational assets', () => {
     const wrapper = mountPage({
       assets: { data: [], links: [], from: null, to: null, total: 0 },
       hierarchy: [],
@@ -183,10 +194,9 @@ describe('MasterAsset', () => {
       stats: { total_assets: 0, total_units: 0, active_assets: 0, unique_subsystems: 0 },
     })
 
-    expect(wrapper.text()).toContain('1234')
-    expect(wrapper.text()).toContain('Belum ada system aktif')
-    expect(wrapper.text()).not.toContain('Belum ada aset')
-    expect(wrapper.getComponent(AssetHierarchyTable).props('categoryTree')).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('1234')
+    expect(wrapper.text()).toContain('Belum ada aset')
+    expect(wrapper.findComponent(AssetHierarchyTable).exists()).toBe(false)
   })
 
   it('preserves backend pagination links', () => {

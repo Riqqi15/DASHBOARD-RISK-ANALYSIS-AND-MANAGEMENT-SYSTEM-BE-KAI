@@ -162,8 +162,9 @@ class MasterAssetController extends Controller
                 fn (Builder $query, AssetStatus $validStatus): Builder => $query->where('status', $validStatus->value),
             )
             ->when(
-                $request->user()->isPusat() && $unitId,
+                $unitId,
                 fn (Builder $query): Builder => $query->where('unit_kerja_id', $unitId),
+                fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
             );
     }
 
@@ -230,22 +231,25 @@ class MasterAssetController extends Controller
 
     private function selectedUnitId(Request $request): ?int
     {
-        $value = $request->input('unit_kerja_id');
-        if (! $request->user()->isPusat() || (! is_int($value) && ! is_string($value))) {
-            return null;
+        if ($request->user()->isUnit()) {
+            return UnitKerja::query()
+                ->whereKey($request->user()->unit_kerja_id)
+                ->where('is_active', true)
+                ->value('id');
         }
 
-        $unitId = filter_var($value, FILTER_VALIDATE_INT, [
+        $unitId = filter_var($request->input('unit_kerja_id'), FILTER_VALIDATE_INT, [
             'options' => ['min_range' => 1],
         ]);
 
-        if ($unitId === false) {
-            return null;
-        }
-
-        return UnitKerja::query()
+        $selected = $unitId === false ? null : UnitKerja::query()
             ->where('is_active', true)
             ->whereKey($unitId)
+            ->value('id');
+
+        return $selected ?? UnitKerja::query()
+            ->where('is_active', true)
+            ->orderBy('code')
             ->value('id');
     }
 

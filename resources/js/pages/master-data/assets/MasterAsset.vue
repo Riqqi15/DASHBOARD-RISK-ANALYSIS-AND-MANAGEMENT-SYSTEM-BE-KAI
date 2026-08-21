@@ -35,10 +35,9 @@ const filters = reactive({
 const assetToDelete = ref(null)
 const deleting = ref(false)
 const hasActiveFilters = computed(() => Boolean(
-  filters.search || filters.status || filters.unit_kerja_id,
+  filters.search || filters.status,
 ))
-const shouldShowCategoryTree = computed(() => !filters.search && !filters.status)
-const displayCategoryTree = computed(() => shouldShowCategoryTree.value ? props.assetCategories : [])
+const displayCategoryTree = computed(() => [])
 const hasHierarchyData = computed(() => props.assets.data.length > 0 || displayCategoryTree.value.length > 0 || props.legacySummary)
 
 const applyFilters = () => router.get('/master-asset', filters, {
@@ -49,7 +48,6 @@ const applyFilters = () => router.get('/master-asset', filters, {
 const clearFilters = () => {
   filters.search = ''
   filters.status = ''
-  filters.unit_kerja_id = ''
   applyFilters()
 }
 
@@ -132,7 +130,6 @@ const paginationLabel = (label) => label
           <input id="asset-search" v-model="filters.search" type="search" class="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-sm outline-none transition focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" placeholder="Cari nama, system, atau subsystem..." />
         </label>
         <select v-if="can.choose_unit" id="asset-unit" v-model="filters.unit_kerja_id" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#2d2a70]" aria-label="Filter unit kerja">
-          <option value="">Semua unit kerja</option>
           <option v-for="unit in units" :key="unit.id" :value="String(unit.id)">{{ unit.code }} — {{ unit.name }}</option>
         </select>
         <select id="asset-status" v-model="filters.status" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#2d2a70]" aria-label="Filter status aset">
