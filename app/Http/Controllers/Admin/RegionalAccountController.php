@@ -100,7 +100,7 @@ class RegionalAccountController extends Controller
 
     private function activeUnits(?int $includeId = null)
     {
-        return UnitKerja::query()->where(fn ($query) => $query->where('is_active', true)->when($includeId, fn ($nested) => $nested->orWhereKey($includeId)))->orderBy('code')->get(['id', 'code', 'name']);
+        return UnitKerja::query()->where(fn ($query) => $query->where('is_active', true)->when($includeId, fn ($nested) => $nested->orWhere('id', $includeId)))->orderBy('code')->get(['id', 'code', 'name']);
     }
 
     private function accountPayload(User $account): array

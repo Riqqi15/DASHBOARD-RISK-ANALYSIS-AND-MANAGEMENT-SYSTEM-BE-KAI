@@ -6,6 +6,7 @@ use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class RegionalAccountManagementTest extends TestCase
@@ -54,6 +55,20 @@ class RegionalAccountManagementTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'account.status_changed']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'account.password_reset']);
         $this->assertStringNotContainsString('replacement-password', $this->app['db']->table('audit_logs')->pluck('new_values')->implode(' '));
+    }
+
+    public function test_pusat_can_open_the_regional_account_edit_page(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $account = User::factory()->unit()->create();
+
+        $this->actingAs($pusat)
+            ->get("/admin/accounts/{$account->id}/edit")
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/Accounts/Edit')
+                ->where('account.id', $account->id)
+                ->where('account.unit_kerja_id', $account->unit_kerja_id));
     }
 
     public function test_inactive_unit_duplicate_username_and_missing_unit_fail_validation(): void
