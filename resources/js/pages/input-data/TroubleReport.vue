@@ -17,6 +17,25 @@
         </div>
       </div>
 
+      <section class="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-3" aria-label="Identitas subsystem">
+        <div>
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Wilayah</p>
+          <p class="mt-1 text-sm font-semibold text-slate-900">{{ selectedAreaLabel }}</p>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Jumlah unit</p>
+          <p class="mt-1 text-sm font-semibold tabular-nums text-slate-900">{{ formatNumber(totalUnits) }}</p>
+        </div>
+        <div>
+          <p class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <CalendarDaysIcon class="h-3.5 w-3.5" aria-hidden="true" />
+            Tanggal pemasangan subsystem
+          </p>
+          <p class="mt-1 text-sm font-semibold text-slate-900">{{ installationDateLabel }}</p>
+          <p v-if="installationDates.length > 1" class="mt-1 text-xs leading-5 text-amber-700">Terdapat lebih dari satu tanggal pada aset di subsystem ini.</p>
+        </div>
+      </section>
+
       <!-- Tabel Ringkasan (Biru - Modern) -->
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="bg-gradient-to-r from-[#4A72B2] to-[#3a5a8f] px-4 py-3 border-b border-slate-200">
@@ -220,7 +239,7 @@ import { ref, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import MainLayout from '@/layouts/MainLayout.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
-import { ActivityIcon, AlertTriangleIcon, PlusIcon, SettingsIcon, EditIcon, TrashIcon } from 'lucide-vue-next'
+import { ActivityIcon, AlertTriangleIcon, CalendarDaysIcon, PlusIcon, SettingsIcon, EditIcon, TrashIcon } from 'lucide-vue-next'
 import TroubleReportModal from '@/components/trouble-report/TroubleReportModal.vue'
 
 const props = defineProps({
@@ -237,6 +256,18 @@ const selectedLog = ref(null)
 const subsystemName = computed(() => props.subsystem || 'Subsystem Tidak Diketahui')
 const failureLogs = computed(() => props.failure_logs)
 const totalUnits = computed(() => props.assets.reduce((total, asset) => total + Number(asset.jumlah_unit || 0), 0))
+const selectedAreaLabel = computed(() => props.selected_area || 'Wilayah belum dipilih')
+const installationDates = computed(() => [...new Set(
+  props.assets.map((asset) => asset.tahun_pemasangan).filter(Boolean),
+)].sort())
+const formatDate = (value) => new Intl.DateTimeFormat('id-ID', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+}).format(new Date(`${value}T00:00:00`))
+const installationDateLabel = computed(() => installationDates.value.length
+  ? installationDates.value.map(formatDate).join(' • ')
+  : 'Belum tercatat')
 const summaryData = computed(() => {
   const summary = props.reliability[0]
   if (!summary && props.assets.length === 0) return null

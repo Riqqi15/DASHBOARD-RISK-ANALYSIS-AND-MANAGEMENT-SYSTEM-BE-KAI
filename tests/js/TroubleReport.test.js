@@ -15,7 +15,7 @@ const mountPage = (overrides = {}) => mount(TroubleReport, {
   props: {
     selected_area: 'DAOP1',
     subsystem: 'INTERLOCKING ELEKTRIK',
-    assets: [{ id: 1, jumlah_unit: 2 }],
+    assets: [{ id: 1, jumlah_unit: 2, tahun_pemasangan: '2020-01-01' }],
     reliability: [],
     failure_logs: [],
     spare_parts: [],
@@ -31,6 +31,29 @@ const mountPage = (overrides = {}) => mount(TroubleReport, {
 })
 
 describe('TroubleReport', () => {
+  it('shows the subsystem installation date once in the report identity', () => {
+    const wrapper = mountPage()
+
+    expect(wrapper.text()).toContain('Tanggal pemasangan subsystem')
+    expect(wrapper.text()).toContain('1 Januari 2020')
+    expect(wrapper.text()).toContain('DAOP1')
+  })
+
+  it('shows missing and inconsistent subsystem installation dates clearly', () => {
+    const missing = mountPage({ assets: [{ id: 1, jumlah_unit: 2, tahun_pemasangan: null }] })
+    const inconsistent = mountPage({
+      assets: [
+        { id: 1, jumlah_unit: 1, tahun_pemasangan: '2020-01-01' },
+        { id: 2, jumlah_unit: 1, tahun_pemasangan: '2021-02-03' },
+      ],
+    })
+
+    expect(missing.text()).toContain('Belum tercatat')
+    expect(inconsistent.text()).toContain('1 Januari 2020')
+    expect(inconsistent.text()).toContain('3 Februari 2021')
+    expect(inconsistent.text()).toContain('lebih dari satu tanggal')
+  })
+
   it('renders backend summary values and parity status without recalculating counts in the frontend', () => {
     const wrapper = mountPage({
       reliability: [{
