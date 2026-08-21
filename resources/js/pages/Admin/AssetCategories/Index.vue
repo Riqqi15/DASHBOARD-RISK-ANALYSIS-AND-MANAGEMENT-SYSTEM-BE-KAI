@@ -363,7 +363,7 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
     <section v-if="false" class="mt-8 border-t border-slate-200 pt-7" aria-labelledby="legacy-regional-assets-heading">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 id="regional-assets-heading" class="flex items-center gap-2 text-lg font-semibold text-slate-950"><Boxes :size="20" aria-hidden="true" /> Aset wilayah</h2>
+          <h2 id="legacy-regional-assets-heading" class="flex items-center gap-2 text-lg font-semibold text-slate-950"><Boxes :size="20" aria-hidden="true" /> Aset wilayah</h2>
           <p class="mt-1 text-sm text-slate-600">{{ selectedNode ? `Menampilkan ${selectedNode.name} beserta kategori turunannya.` : 'Pilih kategori untuk melihat aset.' }}</p>
         </div>
         <div class="flex flex-wrap gap-2">
