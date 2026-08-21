@@ -67,7 +67,6 @@ final class WorkbookParityAuditTest extends TestCase
             $subsystem = AssetSubsystem::factory()->create(['name' => $subsystemName]);
             Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
                 'subsystem' => mb_strtoupper($subsystemName),
-                'lokasi' => 'Daop 1',
                 'jumlah_unit' => 1, // Will be overridden by actual workbook data
             ]);
             $createdSubsystems[$subsystemName] = true;
@@ -182,7 +181,6 @@ final class WorkbookParityAuditTest extends TestCase
         $subsystem = AssetSubsystem::factory()->create(['name' => 'Interlocking Elektrik']);
         $asset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
             'subsystem' => 'INTERLOCKING ELEKTRIK',
-            'lokasi' => 'Daop 1',
             'jumlah_unit' => 2,
         ]);
 

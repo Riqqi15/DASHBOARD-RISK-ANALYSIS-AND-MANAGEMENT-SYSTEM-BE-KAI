@@ -25,7 +25,6 @@ const mountPage = (overrides = {}) => mount(Dashboard, {
         aset_prasarana_sintel: '1234',
         system: '1',
         subsystem: '1',
-        lokasi: 'a',
         jumlah_unit: 1,
         status: 'Aktif',
       },

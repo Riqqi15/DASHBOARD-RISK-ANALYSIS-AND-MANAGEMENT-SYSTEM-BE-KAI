@@ -202,7 +202,6 @@ final class FailureLogWorkbookImporterTest extends TestCase
         $subsystem = AssetSubsystem::factory()->create(['name' => $subsystemName]);
         $asset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
             'subsystem' => mb_strtoupper($subsystemName),
-            'lokasi' => 'Daop 1',
             'jumlah_unit' => 2,
         ]);
 

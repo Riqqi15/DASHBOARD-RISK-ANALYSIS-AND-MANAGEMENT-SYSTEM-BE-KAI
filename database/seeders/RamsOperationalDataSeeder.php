@@ -73,7 +73,6 @@ class RamsOperationalDataSeeder extends Seeder
                     'aset_prasarana_sintel' => $row['group'],
                     'system' => $row['system'],
                     'subsystem' => $row['subsystem'],
-                    'lokasi' => $row['location'],
                     'jumlah_unit' => $row['quantity'],
                     'tanggal_pemasangan' => $row['installed_at'],
                     'status' => AssetStatus::Aktif,

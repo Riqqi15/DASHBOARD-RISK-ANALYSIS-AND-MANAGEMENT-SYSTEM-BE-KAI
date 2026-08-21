@@ -58,7 +58,7 @@ const nodes = [
 const assets = {
   data: [{
     id: 7, nama_aset: 'Track Circuit STA', category_node: { id: 11111, name: 'TC-900' },
-    lokasi: 'Stasiun A', jumlah_unit: 4, tanggal_pemasangan: '2020-01-01', status: 'aktif',
+    jumlah_unit: 4, tanggal_pemasangan: '2020-01-01', status: 'aktif',
   }],
   links: [],
 }

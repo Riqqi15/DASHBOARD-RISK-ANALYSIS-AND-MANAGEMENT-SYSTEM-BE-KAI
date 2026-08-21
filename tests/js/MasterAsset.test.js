@@ -30,7 +30,6 @@ const props = {
       aset_prasarana_sintel: 'Peralatan Luar Sinyal Elektrik',
       system: 'Peraga Sinyal Elektrik',
       subsystem: 'Track Circuit',
-      lokasi: null,
       jumlah_unit: 12,
       tanggal_pemasangan: '2012-01-01',
       status: 'aktif',
