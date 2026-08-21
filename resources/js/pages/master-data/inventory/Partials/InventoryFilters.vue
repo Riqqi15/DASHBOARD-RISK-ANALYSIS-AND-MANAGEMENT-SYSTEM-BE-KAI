@@ -90,7 +90,7 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
             <option value="">Semua jenis</option>
             <option value="in">Masuk</option>
             <option value="out">Keluar</option>
-            <option value="opening">Saldo awal</option>
+            <option value="opening">Stok awal</option>
             <option value="correction">Koreksi</option>
           </select>
         </div>

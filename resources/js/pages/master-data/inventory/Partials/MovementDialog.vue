@@ -318,7 +318,7 @@ const focusFirstError = () => {
             <div>
               <label for="movement-type" class="mb-1.5 block text-sm font-medium text-slate-800">Jenis transaksi <span class="text-red-600">*</span></label>
               <select id="movement-type" v-model="form.type" name="type" :class="inputClass" :aria-invalid="invalid('type')" :aria-describedby="describedBy('type')" required>
-                <option value="in">Masuk</option><option v-if="canUseOut" value="out">Keluar</option><option v-if="canUseOpening" value="opening">Saldo awal</option>
+                <option value="in">Masuk</option><option v-if="canUseOut" value="out">Keluar</option><option v-if="canUseOpening" value="opening">Stok awal</option>
               </select>
               <p v-if="form.errors.type" id="movement-type-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ form.errors.type }}</p>
             </div>
@@ -355,13 +355,13 @@ const focusFirstError = () => {
 
           <section class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4" aria-label="Dampak transaksi">
             <p v-if="balanceKnown" class="sr-only">Stok setelah transaksi: {{ projectedStock }} {{ unitLabel }}</p>
-            <p v-else class="sr-only">Saldo belum terverifikasi pada halaman ini</p>
+            <p v-else class="sr-only">Stok belum terverifikasi pada halaman ini</p>
             <div data-stock-before><p class="text-sm font-semibold uppercase tracking-wider text-slate-500">Sebelum</p><p class="mt-1 font-mono text-xl font-semibold tabular-nums text-slate-900">{{ balanceKnown ? stockBefore : '—' }} <span v-if="balanceKnown" class="text-sm font-normal text-slate-500">{{ unitLabel }}</span></p></div>
             <ArrowRight :size="18" class="text-slate-400" aria-hidden="true" />
             <div class="text-right"><p class="text-sm font-semibold uppercase tracking-wider text-slate-500">Setelah transaksi</p><p class="mt-1 font-mono text-xl font-semibold tabular-nums" :class="projectedStock < 0 ? 'text-red-700' : 'text-slate-900'">{{ balanceKnown ? projectedStock : '—' }} <span v-if="balanceKnown" class="text-sm font-normal text-slate-500">{{ unitLabel }}</span></p></div>
           </section>
-          <p v-if="stateLoading" class="text-sm text-slate-500" aria-live="polite">Memverifikasi saldo unit dan suku cadang…</p>
-          <p v-else-if="!balanceKnown && selectedPart" class="text-sm text-slate-500">Saldo belum terverifikasi. Stok keluar tetap tidak tersedia sampai server mengonfirmasi saldo.</p>
+          <p v-if="stateLoading" class="text-sm text-slate-500" aria-live="polite">Memverifikasi stok unit dan suku cadang…</p>
+          <p v-else-if="!balanceKnown && selectedPart" class="text-sm text-slate-500">Stok belum terverifikasi. Stok keluar tetap tidak tersedia sampai server mengonfirmasi jumlah stok.</p>
 
           <p v-if="localError" data-stock-error class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700" role="alert">{{ localError }}</p>
           <p v-if="form.errors.movement" id="movement-error" tabindex="-1" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700 outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2" role="alert">{{ form.errors.movement }}</p>

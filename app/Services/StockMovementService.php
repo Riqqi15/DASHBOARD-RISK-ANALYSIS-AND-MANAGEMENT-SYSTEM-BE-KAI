@@ -81,7 +81,7 @@ class StockMovementService
                     ->where('spare_part_id', $authoritativePart->id)
                     ->exists())) {
                     throw ValidationException::withMessages([
-                        'type' => 'Saldo awal hanya dapat dicatat sebagai transaksi pertama.',
+                        'type' => 'Stok awal hanya dapat dicatat sebagai transaksi pertama.',
                     ]);
                 }
 

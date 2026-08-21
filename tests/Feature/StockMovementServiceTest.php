@@ -170,7 +170,7 @@ class StockMovementServiceTest extends TestCase
             quantity: 2,
             movementDate: Carbon::parse('2026-07-28'),
             referenceNumber: null,
-            notes: 'Koreksi saldo awal',
+            notes: 'Koreksi stok awal',
             idempotencyKey: '314a3f59-84ea-4d0d-ad32-7b81c81c1cb0',
             reverses: $original,
         );

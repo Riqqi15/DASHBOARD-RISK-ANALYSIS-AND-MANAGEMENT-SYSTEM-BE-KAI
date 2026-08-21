@@ -16,7 +16,7 @@ const canCorrect = (row) => row.is_correctable === true
 const movementMeta = {
   in: { label: 'Masuk', sign: '+', class: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
   out: { label: 'Keluar', sign: '−', class: 'text-red-700 bg-red-50 border-red-200' },
-  opening: { label: 'Saldo awal', sign: '+', class: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
+  opening: { label: 'Stok awal', sign: '+', class: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
   correction: { label: 'Koreksi', sign: '', class: 'text-amber-800 bg-amber-50 border-amber-200' },
 }
 const meta = (row) => movementMeta[row.type] ?? movementMeta[row.direction]
@@ -92,7 +92,7 @@ const pageLabel = (label) => label.includes('Previous') ? 'Sebelumnya' : label.i
     <div v-if="!loading && !error && !movements.data.length" class="px-5 py-12 text-center">
       <History :size="34" class="mx-auto text-slate-300" aria-hidden="true" />
       <h3 class="mt-3 text-sm font-semibold text-slate-900">Belum ada transaksi stok</h3>
-      <p class="mt-1 text-sm text-slate-500">Transaksi masuk, keluar, saldo awal, dan koreksi akan tercatat di sini.</p>
+      <p class="mt-1 text-sm text-slate-500">Transaksi masuk, keluar, stok awal, dan koreksi akan tercatat di sini.</p>
       <button v-if="canReset" data-history-reset type="button" class="mt-4 inline-flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-[#2d2a70] outline-none hover:bg-slate-50 focus:ring-2 focus:ring-[#2d2a70]" @click="$emit('reset')">Hapus filter riwayat</button>
     </div>
 

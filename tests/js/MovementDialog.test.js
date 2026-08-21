@@ -120,7 +120,7 @@ describe('MovementDialog', () => {
     expect(firstForm.idempotency_key).toBe('22222222-2222-4222-8222-222222222222')
   })
 
-  it('offers saldo awal only after selecting a zero-stock unit and part', async () => {
+  it('offers stok awal only after selecting a zero-stock unit and part', async () => {
     const wrapper = mountDialog({ initialPart: null })
     expect(wrapper.find('#movement-type option[value="opening"]').exists()).toBe(false)
 
@@ -162,7 +162,7 @@ describe('MovementDialog', () => {
 
     expect(wrapper.find('#movement-type option[value="out"]').exists()).toBe(false)
     expect(wrapper.find('#movement-type option[value="opening"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('Saldo belum terverifikasi pada halaman ini')
+    expect(wrapper.text()).toContain('Stok belum terverifikasi pada halaman ini')
     expect(wrapper.get('[data-stock-before]').text()).toContain('—')
   })
 
@@ -173,11 +173,11 @@ describe('MovementDialog', () => {
 
     await wrapper.get('#movement-unit').setValue('7')
     await wrapper.get('#movement-part').setValue('22')
-    expect(wrapper.text()).toContain('Memverifikasi saldo')
+    expect(wrapper.text()).toContain('Memverifikasi stok')
 
     await wrapper.get('#movement-part').setValue('21')
     expect(wrapper.find('#movement-type option[value="out"]').exists()).toBe(true)
-    expect(wrapper.text()).not.toContain('Memverifikasi saldo')
+    expect(wrapper.text()).not.toContain('Memverifikasi stok')
 
     resolveState({ ok: true, json: async () => ({ quantity: 0, can_open: true, can_out: false }) })
     await flushPromises()
