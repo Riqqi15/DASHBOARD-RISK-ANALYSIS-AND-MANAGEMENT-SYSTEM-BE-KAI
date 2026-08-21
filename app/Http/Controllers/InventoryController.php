@@ -100,7 +100,7 @@ class InventoryController extends Controller
             'can' => [
                 'choose_unit' => $request->user()->isPusat(),
                 'manage_master' => Gate::allows('create', SparePart::class),
-                'record_movement' => Gate::allows('viewAny', InventoryStock::class),
+                'record_movement' => $filters['unit_kerja_id'] !== '' && Gate::allows('viewAny', InventoryStock::class),
             ],
         ]);
     }
@@ -112,7 +112,11 @@ class InventoryController extends Controller
     {
         return Asset::query()
             ->visibleTo($request->user())
-            ->when($filters['unit_kerja_id'] !== '', fn (Builder $query): Builder => $query->where('unit_kerja_id', (int) $filters['unit_kerja_id']))
+            ->when(
+                $filters['unit_kerja_id'] !== '',
+                fn (Builder $query): Builder => $query->where('unit_kerja_id', (int) $filters['unit_kerja_id']),
+                fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+            )
             ->when($filters['asset_group_id'] !== '', fn (Builder $query): Builder => $query->whereHas(
                 'assetSubsystem.assetSystem',
                 fn (Builder $systems): Builder => $systems->where('asset_group_id', (int) $filters['asset_group_id']),
@@ -283,6 +287,7 @@ class InventoryController extends Controller
             ->when(
                 $filters['unit_kerja_id'] !== '',
                 fn (Builder $filtered): Builder => $filtered->where($table.'.unit_kerja_id', (int) $filters['unit_kerja_id']),
+                fn (Builder $filtered): Builder => $filtered->whereRaw('1 = 0'),
             );
     }
 
@@ -453,14 +458,22 @@ class InventoryController extends Controller
 
     private function activeUnitId(Request $request): ?int
     {
-        $value = $this->scalarString($request->input('unit_kerja_id'));
-        if (! $request->user()->isPusat() || ! ctype_digit($value)) {
-            return null;
+        if ($request->user()->isUnit()) {
+            return UnitKerja::query()
+                ->whereKey($request->user()->unit_kerja_id)
+                ->where('is_active', true)
+                ->value('id');
         }
 
-        return UnitKerja::query()
+        $value = $this->scalarString($request->input('unit_kerja_id'));
+        $selected = ctype_digit($value) ? UnitKerja::query()
             ->where('is_active', true)
             ->whereKey((int) $value)
+            ->value('id') : null;
+
+        return $selected ?? UnitKerja::query()
+            ->where('is_active', true)
+            ->orderBy('code')
             ->value('id');
     }
 

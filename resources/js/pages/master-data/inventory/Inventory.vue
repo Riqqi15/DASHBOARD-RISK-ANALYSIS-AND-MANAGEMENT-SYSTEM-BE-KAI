@@ -56,10 +56,10 @@ const tabs = computed(() => [
 const selectedUnit = computed(() => props.units.find((unit) => String(unit.id) === String(filterState.unit_kerja_id)))
 const scopedUnit = computed(() => props.stocks.data[0]?.unit ?? props.movements.data[0]?.unit)
 const unitContext = computed(() => props.can.choose_unit
-  ? selectedUnit.value ? `${selectedUnit.value.code} — ${selectedUnit.value.name}` : 'Seluruh unit kerja'
+  ? selectedUnit.value ? `${selectedUnit.value.code} — ${selectedUnit.value.name}` : 'Belum ada unit kerja aktif'
   : scopedUnit.value ? `${scopedUnit.value.code} — ${scopedUnit.value.name}` : 'Unit kerja akun Anda')
 const hasActiveFilters = computed(() => Boolean(
-  filterState.search || filterState.asset_group_id || filterState.asset_subsystem_id || filterState.unit_kerja_id
+  filterState.search || filterState.asset_group_id || filterState.asset_subsystem_id
   || (activeTab.value === 'stock' && filterState.stock_status !== 'all')
   || (activeTab.value === 'history' && (filterState.movement_type || filterState.date_from || filterState.date_to))
   || (activeTab.value === 'reconciliation' && filterState.reconciliation_status !== 'all')
@@ -110,6 +110,7 @@ const resetFilters = () => {
     reconciliation_status: 'all',
     master_page: '1',
   })
+  filterState.unit_kerja_id = props.filters.unit_kerja_id
   masterPage.value = 1
   visit()
 }

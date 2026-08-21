@@ -21,14 +21,15 @@ class AssetHierarchyQuery
             ? $user->unit_kerja_id
             : UnitKerja::query()->where('is_active', true)->whereKey($unitId)->value('id');
 
+        if ($effectiveUnitId === null) {
+            return collect();
+        }
+
         $ledger = fn (string $direction) => DB::table('stock_movements')
             ->join('spare_parts', 'spare_parts.id', '=', 'stock_movements.spare_part_id')
             ->whereColumn('spare_parts.asset_subsystem_id', 'asset_subsystems.id')
             ->where('stock_movements.direction', $direction)
-            ->when(
-                $effectiveUnitId !== null,
-                fn ($query) => $query->where('stock_movements.unit_kerja_id', $effectiveUnitId),
-            )
+            ->where('stock_movements.unit_kerja_id', $effectiveUnitId)
             ->selectRaw('COALESCE(SUM(stock_movements.quantity), 0)');
 
         return AssetSubsystem::query()
@@ -43,24 +44,15 @@ class AssetHierarchyQuery
             )
             ->with('assetSystem.assetGroup')
             ->withSum(
-                ['assets as total' => fn (Builder $assets): Builder => $assets->when(
-                    $effectiveUnitId !== null,
-                    fn (Builder $visible): Builder => $visible->where('unit_kerja_id', $effectiveUnitId),
-                )],
+                ['assets as total' => fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $effectiveUnitId)],
                 'jumlah_unit',
             )
             ->withSum(
-                ['openings as sparepart_in' => fn (Builder $openings): Builder => $openings->when(
-                    $effectiveUnitId !== null,
-                    fn (Builder $visible): Builder => $visible->where('unit_kerja_id', $effectiveUnitId),
-                )],
+                ['openings as sparepart_in' => fn (Builder $openings): Builder => $openings->where('unit_kerja_id', $effectiveUnitId)],
                 'sparepart_in',
             )
             ->withSum(
-                ['openings as sparepart_out' => fn (Builder $openings): Builder => $openings->when(
-                    $effectiveUnitId !== null,
-                    fn (Builder $visible): Builder => $visible->where('unit_kerja_id', $effectiveUnitId),
-                )],
+                ['openings as sparepart_out' => fn (Builder $openings): Builder => $openings->where('unit_kerja_id', $effectiveUnitId)],
                 'sparepart_out',
             )
             ->orderBy('asset_groups.sort_order')

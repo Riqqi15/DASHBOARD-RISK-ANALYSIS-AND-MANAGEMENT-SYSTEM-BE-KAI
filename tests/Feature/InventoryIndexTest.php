@@ -62,7 +62,7 @@ class InventoryIndexTest extends TestCase
                 ->where('movements.data.0.spare_part.detail_equipment', 'Relay Lama')
                 ->where('movements.data.0.posted_at', '2026-07-29T10:00:00+07:00')
                 ->where('movements.data.0.current_stock', 4)
-                ->where('filters.unit_kerja_id', '')
+                ->where('filters.unit_kerja_id', (string) $ownUnit->id)
                 ->where('can.choose_unit', false)
                 ->where('can.manage_master', false)
                 ->where('can.record_movement', true)
@@ -106,7 +106,7 @@ class InventoryIndexTest extends TestCase
                 ->where('movements.data', fn ($rows): bool => $this->hasHistoricalBreadcrumbs($rows, $expected)));
     }
 
-    public function test_pusat_selected_unit_scopes_stocks_history_stats_and_all_units_are_available_without_selection(): void
+    public function test_pusat_selected_unit_and_default_both_scope_all_operational_inventory_data(): void
     {
         $pusat = User::factory()->pusat()->create();
         $firstUnit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
@@ -136,12 +136,30 @@ class InventoryIndexTest extends TestCase
 
         $this->actingAs($pusat)->get('/inventory')
             ->assertInertia(fn (Assert $page) => $page
-                ->has('stocks.data', 2)
-                ->has('movements.data', 2)
+                ->has('stocks.data', 1)
+                ->where('stocks.data.0.unit.id', $firstUnit->id)
+                ->has('movements.data', 1)
+                ->where('movements.data.0.unit.id', $firstUnit->id)
                 ->where('stats.total_parts', 1)
-                ->where('stats.total_quantity', 28)
+                ->where('stats.total_quantity', 8)
                 ->where('stats.below_reorder', 1)
-                ->where('stats.movements_this_month', 2));
+                ->where('stats.movements_this_month', 1)
+                ->where('filters.unit_kerja_id', (string) $firstUnit->id));
+    }
+
+    public function test_pusat_without_active_unit_gets_empty_operational_inventory(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+
+        $this->actingAs($pusat)->get('/inventory')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.unit_kerja_id', '')
+                ->where('stats.total_parts', 0)
+                ->where('stats.total_quantity', 0)
+                ->has('stocks.data', 0)
+                ->has('movements.data', 0)
+                ->has('predictiveAssets', 0)
+                ->where('can.record_movement', false));
     }
 
     public function test_history_marks_only_uncorrected_original_movements_as_correctable(): void
@@ -182,12 +200,10 @@ class InventoryIndexTest extends TestCase
                     return $eligibility->get($corrected->id) === false
                         && $eligibility->get($available->id) === true
                         && $eligibility->get($correction->id) === false
-                        && collect([
-                            $inactivePartMovement,
-                            $deletedPartMovement,
-                            $inactiveUnitMovement,
-                            $deletedUnitMovement,
-                        ])->every(fn (StockMovement $movement): bool => $eligibility->get($movement->id) === false);
+                        && $eligibility->get($inactivePartMovement->id) === false
+                        && $eligibility->get($deletedPartMovement->id) === false
+                        && ! $eligibility->has($inactiveUnitMovement->id)
+                        && ! $eligibility->has($deletedUnitMovement->id);
                 }));
     }
 
@@ -437,8 +453,8 @@ class InventoryIndexTest extends TestCase
 
     public function test_master_asset_hierarchy_adds_ledger_to_baseline_without_cross_unit_leakage(): void
     {
-        $ownUnit = UnitKerja::factory()->create();
-        $otherUnit = UnitKerja::factory()->create();
+        $ownUnit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $otherUnit = UnitKerja::factory()->create(['code' => 'DAOP-2']);
         $user = User::factory()->unit($ownUnit)->create();
         [, , $subsystem] = $this->categoryPath('Signal', 'Interlocking', 'Track Circuit');
         Asset::factory()->for($ownUnit)->for($subsystem, 'assetSubsystem')->create();
@@ -473,15 +489,15 @@ class InventoryIndexTest extends TestCase
                 ->where('hierarchy.0.sparepart_out', 6));
         $this->actingAs($pusat)->get('/master-asset')
             ->assertInertia(fn (Assert $page) => $page
-                ->where('hierarchy.0.sparepart_in', 113)
+                ->where('hierarchy.0.sparepart_in', 13)
                 ->where('hierarchy.0.sparepart_out', 6));
     }
 
-    public function test_invalid_pusat_hierarchy_unit_selection_is_normalized_to_all_units(): void
+    public function test_invalid_pusat_hierarchy_unit_selection_falls_back_without_aggregate_leakage(): void
     {
         $pusat = User::factory()->pusat()->create();
-        $firstUnit = UnitKerja::factory()->create();
-        $secondUnit = UnitKerja::factory()->create();
+        $firstUnit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $secondUnit = UnitKerja::factory()->create(['code' => 'DAOP-2']);
         $inactiveUnit = UnitKerja::factory()->create(['is_active' => false]);
         [, , $subsystem] = $this->categoryPath('Signal all', 'System all', 'Subsystem all');
         Asset::factory()->for($firstUnit)->for($subsystem, 'assetSubsystem')->create(['jumlah_unit' => 4]);
@@ -496,19 +512,16 @@ class InventoryIndexTest extends TestCase
         ]);
 
         foreach ([$inactiveUnit->id, 999_999] as $invalidUnitId) {
-            $row = app(AssetHierarchyQuery::class)->forUser($pusat, $invalidUnitId, [$subsystem->id])->sole();
-            $this->assertSame(10, $row->total);
-            $this->assertSame(5, $row->sparepart_in);
-            $this->assertSame(3, $row->sparepart_out);
+            $this->assertTrue(app(AssetHierarchyQuery::class)->forUser($pusat, $invalidUnitId, [$subsystem->id])->isEmpty());
 
             $this->actingAs($pusat)->get('/master-asset?unit_kerja_id='.$invalidUnitId)
                 ->assertOk()
                 ->assertInertia(fn (Assert $page) => $page
-                    ->where('filters.unit_kerja_id', '')
-                    ->has('assets.data', 2)
-                    ->where('hierarchy.0.total', 10)
-                    ->where('hierarchy.0.sparepart_in', 5)
-                    ->where('hierarchy.0.sparepart_out', 3));
+                    ->where('filters.unit_kerja_id', (string) $firstUnit->id)
+                    ->has('assets.data', 1)
+                    ->where('hierarchy.0.total', 4)
+                    ->where('hierarchy.0.sparepart_in', 2)
+                    ->where('hierarchy.0.sparepart_out', 1));
         }
     }
 

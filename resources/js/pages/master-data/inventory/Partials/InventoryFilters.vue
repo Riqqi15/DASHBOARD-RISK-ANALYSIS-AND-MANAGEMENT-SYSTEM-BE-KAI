@@ -52,7 +52,6 @@ const inputClass = 'h-11 w-full rounded-lg border border-slate-300 bg-white px-3
       <div v-if="showUnit">
         <label for="inventory-unit" class="mb-1.5 block text-sm font-semibold text-slate-700">Unit kerja</label>
         <select id="inventory-unit" name="unit_kerja_id" :value="filters.unit_kerja_id" :class="inputClass" @change="update('unit_kerja_id', $event)">
-          <option value="">Semua unit kerja</option>
           <option v-for="unit in units" :key="unit.id" :value="String(unit.id)">{{ unit.code }} — {{ unit.name }}</option>
         </select>
       </div>

@@ -18,11 +18,16 @@ final class InventoryReconciliationService
      */
     public function reconcile(User $user, array $filters): array
     {
+        $unitId = $filters['unit_kerja_id'] ?? ($user->isUnit() ? (string) $user->unit_kerja_id : '');
         $assets = Asset::query()
             ->visibleTo($user)
             ->whereHas('latestPredictiveAssetSnapshot')
             ->with(['unitKerja:id,code,name', 'assetSubsystem.assetSystem.assetGroup', 'latestPredictiveAssetSnapshot'])
-            ->when($filters['unit_kerja_id'] ?? '', fn (Builder $query, string $id): Builder => $query->where('unit_kerja_id', (int) $id))
+            ->when(
+                $unitId !== '',
+                fn (Builder $query): Builder => $query->where('unit_kerja_id', (int) $unitId),
+                fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+            )
             ->when($filters['asset_subsystem_id'] ?? '', fn (Builder $query, string $id): Builder => $query->where('asset_subsystem_id', (int) $id))
             ->when($filters['asset_group_id'] ?? '', fn (Builder $query, string $id): Builder => $query->whereHas(
                 'assetSubsystem.assetSystem',
@@ -36,7 +41,11 @@ final class InventoryReconciliationService
         $stocks = InventoryStock::query()
             ->visibleTo($user)
             ->with(['unitKerja:id,code,name', 'sparePart.assetSubsystem.assetSystem.assetGroup'])
-            ->when($filters['unit_kerja_id'] ?? '', fn (Builder $query, string $id): Builder => $query->where('unit_kerja_id', (int) $id))
+            ->when(
+                $unitId !== '',
+                fn (Builder $query): Builder => $query->where('unit_kerja_id', (int) $unitId),
+                fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+            )
             ->when($filters['asset_subsystem_id'] ?? '', fn (Builder $query, string $id): Builder => $query->whereHas(
                 'sparePart', fn (Builder $parts): Builder => $parts->where('asset_subsystem_id', (int) $id),
             ))

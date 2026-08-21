@@ -43,8 +43,8 @@ class UnitSubsystemOpeningController extends Controller
         return redirect()->back()->with(
             'success',
             $changed
-                ? 'Saldo pembukaan unit berhasil diperbarui.'
-                : 'Saldo pembukaan unit tidak berubah.',
+                ? 'Stok pembukaan unit berhasil diperbarui.'
+                : 'Stok pembukaan unit tidak berubah.',
         );
     }
 

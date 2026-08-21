@@ -7,7 +7,7 @@ const categories = [
   { id: 2, name: 'Telekomunikasi', systems: [{ id: 22, name: 'Radio', subsystems: [{ id: 202, name: 'Radio Lokomotif' }] }] },
 ]
 const filters = {
-  search: '', asset_group_id: '', asset_subsystem_id: '', stock_status: 'all', unit_kerja_id: '',
+  search: '', asset_group_id: '', asset_subsystem_id: '', stock_status: 'all', unit_kerja_id: '7',
   movement_type: '', date_from: '', date_to: '',
 }
 
@@ -50,5 +50,12 @@ describe('InventoryFilters', () => {
       'search', 'unit_kerja_id', 'asset_group_id', 'asset_subsystem_id',
       'movement_type', 'date_from', 'date_to',
     ])
+  })
+
+  it('requires an explicit unit when the selector is available', () => {
+    const wrapper = mountFilters({ showUnit: true, units: [{ id: 7, code: 'DAOP-1', name: 'Daerah Operasi 1' }] })
+
+    expect(wrapper.get('#inventory-unit').text()).not.toContain('Semua unit kerja')
+    expect(wrapper.get('#inventory-unit').element.value).toBe('7')
   })
 })

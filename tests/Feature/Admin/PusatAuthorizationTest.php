@@ -87,7 +87,7 @@ class PusatAuthorizationTest extends TestCase
                 'asset_subsystem_id' => 999999,
             ])
             ->assertRedirect('/inventory')
-            ->assertSessionHas('success', 'Saldo pembukaan unit berhasil diperbarui.');
+            ->assertSessionHas('success', 'Stok pembukaan unit berhasil diperbarui.');
 
         $opening->refresh();
         $this->assertSame(7, $opening->sparepart_in);
@@ -110,7 +110,7 @@ class PusatAuthorizationTest extends TestCase
                 'sparepart_out' => 3,
             ])
             ->assertRedirect('/inventory')
-            ->assertSessionHas('success', 'Saldo pembukaan unit tidak berubah.');
+            ->assertSessionHas('success', 'Stok pembukaan unit tidak berubah.');
 
         $this->assertSame(1, AuditLog::query()->where('action', 'unit_subsystem_opening.updated')->count());
     }

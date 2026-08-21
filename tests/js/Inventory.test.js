@@ -94,7 +94,7 @@ const props = {
   units: [unit],
   filters: {
     search: '', asset_group_id: '', asset_subsystem_id: '', stock_status: 'all',
-    unit_kerja_id: '', tab: 'stock', movement_type: '', date_from: '', date_to: '', master_page: '1',
+    unit_kerja_id: '7', tab: 'stock', movement_type: '', date_from: '', date_to: '', master_page: '1',
   },
   can: { choose_unit: true, manage_master: true, record_movement: true },
   predictiveAssets: [],
@@ -277,7 +277,7 @@ describe('Inventory', () => {
     })
 
     await filtered.get('[data-stock-reset]').trigger('click')
-    expect(inertia.get).toHaveBeenCalledWith('/inventory', expect.objectContaining({ search: '' }), expect.any(Object))
+    expect(inertia.get).toHaveBeenCalledWith('/inventory', expect.objectContaining({ search: '', unit_kerja_id: '7' }), expect.any(Object))
 
     const empty = mountPage({ stocks: emptyStocks })
     await empty.get('[data-stock-record]').trigger('click')
