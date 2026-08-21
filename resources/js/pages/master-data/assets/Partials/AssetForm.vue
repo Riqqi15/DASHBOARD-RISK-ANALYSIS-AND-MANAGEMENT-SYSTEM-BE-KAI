@@ -17,7 +17,6 @@ const form = useForm({
   unit_kerja_id: props.asset?.unit_kerja_id ?? '',
   nama_aset: props.asset?.nama_aset ?? '',
   asset_subsystem_id: props.asset?.asset_subsystem_id ?? null,
-  lokasi: props.asset?.lokasi ?? '',
   jumlah_unit: props.asset?.jumlah_unit ?? 0,
   tanggal_pemasangan: props.asset?.tanggal_pemasangan ?? '',
   status: props.asset?.status ?? 'aktif',
@@ -72,11 +71,6 @@ const today = new Date().toISOString().slice(0, 10)
           <p v-if="form.errors.nama_aset" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.nama_aset }}</p>
         </div>
 
-        <div>
-          <label for="lokasi" class="mb-2 block text-sm font-medium text-slate-800">Lokasi <span class="font-normal text-slate-400">(opsional)</span></label>
-          <input id="lokasi" v-model="form.lokasi" :class="inputClass" maxlength="255" placeholder="Stasiun, lintas, atau lokasi pemasangan" autocomplete="off" />
-          <p v-if="form.errors.lokasi" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.lokasi }}</p>
-        </div>
       </div>
     </section>
 

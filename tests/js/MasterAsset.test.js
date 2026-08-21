@@ -103,17 +103,16 @@ describe('MasterAsset', () => {
     inertia.delete.mockReset()
   })
 
-  it('renders backend assets, statistics, and the empty location label', () => {
+  it('renders backend assets and statistics without a master-asset location', () => {
     const wrapper = mountPage()
 
     expect(wrapper.text()).toContain('Track Circuit Backend')
     expect(wrapper.text()).toContain('DAOP-1')
-    expect(wrapper.text()).toContain('Belum dilengkapi')
+    expect(wrapper.text()).not.toContain('Lokasi')
     expect(wrapper.text()).toContain('12')
     const desktop = wrapper.getComponent(AssetHierarchyTable)
     expect(desktop.text()).toContain('Sparepart IN')
     expect(desktop.text()).toContain('Track Circuit Backend')
-    expect(desktop.text()).toContain('Belum dilengkapi')
     expect(desktop.text()).toContain('Aktif')
     expect(desktop.text()).toContain('100')
     expect(desktop.text()).toContain('Axle Counter')

@@ -137,7 +137,7 @@ class AssetCategoryController extends Controller
             ->paginate(20)
             ->through(fn (Asset $asset): array => [
                 ...$asset->only([
-                    'id', 'unit_kerja_id', 'asset_category_node_id', 'nama_aset', 'lokasi',
+                    'id', 'unit_kerja_id', 'asset_category_node_id', 'nama_aset',
                     'jumlah_unit', 'tanggal_pemasangan', 'status', 'aset_prasarana_sintel', 'system', 'subsystem',
                 ]),
                 'unit_kerja' => $asset->unitKerja?->only(['id', 'code', 'name']),

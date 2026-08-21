@@ -226,7 +226,7 @@ final class ReliabilityWorkbookExportService
         ?Asset $asset,
         bool $first,
     ): void {
-        $sheet->setCellValue("B{$row}", $failure->location ?: $asset?->lokasi);
+        $sheet->setCellValue("B{$row}", $failure->location);
         $sheet->setCellValue("C{$row}", $failure->resort);
         $sheet->setCellValue("D{$row}", $failure->qc);
         $sheet->setCellValue("E{$row}", $failure->failure_event);

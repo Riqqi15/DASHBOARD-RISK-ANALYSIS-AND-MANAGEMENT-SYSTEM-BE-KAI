@@ -13,7 +13,6 @@ export class AssetModel {
     aset_prasarana_sintel, // Kelompok besar, mis. "1. PERALATAN DALAM SINYAL ELEKTRIK"
     system,                // Mis. "Interlocking Elektrik", "Track Circuit"
     subsystem,             // Mis. "Peraga Sinyal Elektrik Utama"
-    lokasi,                // Lokasi penempatan aset (stasiun/petak jalan)
     jumlah_unit = 1,       // Kolom TOTAL pada Predictive Data Asset
     tahun_pemasangan,      // Kolom Tanggal Pemasangan
     status = 'Aktif'       // Aktif / Non-aktif / Dalam perbaikan
@@ -24,7 +23,6 @@ export class AssetModel {
     this.aset_prasarana_sintel = aset_prasarana_sintel;
     this.system = system;
     this.subsystem = subsystem;
-    this.lokasi = lokasi;
     this.jumlah_unit = jumlah_unit;
     this.tahun_pemasangan = tahun_pemasangan;
     this.status = status;

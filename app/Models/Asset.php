@@ -22,7 +22,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'aset_prasarana_sintel',
     'system',
     'subsystem',
-    'lokasi',
     'jumlah_unit',
     'tanggal_pemasangan',
     'status',
@@ -120,7 +119,6 @@ class Asset extends Model
             fn (Builder $assets, string $term): Builder => $assets->where(
                 fn (Builder $fields): Builder => $fields
                     ->where('nama_aset', 'like', "%{$term}%")
-                    ->orWhere('lokasi', 'like', "%{$term}%")
                     ->orWhereHas('assetSubsystem', fn (Builder $subsystem): Builder => $subsystem->where('name', 'like', "%{$term}%"))
                     ->orWhereHas('assetSubsystem.assetSystem', fn (Builder $system): Builder => $system->where('name', 'like', "%{$term}%"))
                     ->orWhereHas('assetSubsystem.assetSystem.assetGroup', fn (Builder $group): Builder => $group->where('name', 'like', "%{$term}%"))

@@ -32,11 +32,6 @@ defineEmits(['close', 'submit'])
         <p class="mt-2 text-xs text-slate-500">Dapat diperbarui lagi melalui halaman Master Aset.</p>
         <p v-if="form.errors.tanggal_pemasangan" role="alert" class="mt-2 text-sm text-red-600">{{ form.errors.tanggal_pemasangan }}</p>
       </div>
-      <div class="sm:col-span-2">
-        <label for="taxonomy-asset-location" class="mb-2 block text-sm font-medium text-slate-800">Lokasi <span class="font-normal text-slate-400">(opsional)</span></label>
-        <input id="taxonomy-asset-location" v-model="form.lokasi" maxlength="255" class="h-11 w-full rounded-lg border border-slate-300 px-3.5 text-sm outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10" />
-        <p v-if="form.errors.lokasi" role="alert" class="mt-2 text-sm text-red-600">{{ form.errors.lokasi }}</p>
-      </div>
       <p v-if="Object.keys(form.errors).length" role="alert" class="sm:col-span-2 text-sm text-red-600">Periksa kembali data yang ditandai, lalu simpan ulang.</p>
       <div class="flex justify-end gap-3 border-t border-slate-200 pt-5 sm:col-span-2">
         <button type="button" class="h-11 rounded-lg border border-slate-300 px-5 text-sm font-medium text-slate-700 hover:bg-slate-50" :disabled="form.processing" @click="$emit('close')">Batal</button>

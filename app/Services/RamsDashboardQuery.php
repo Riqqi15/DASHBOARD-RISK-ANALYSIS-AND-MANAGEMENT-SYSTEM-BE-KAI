@@ -340,7 +340,7 @@ class RamsDashboardQuery
                 'asset',
                 fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id),
             ))
-            ->with('asset:id,lokasi')
+            ->with('asset:id')
             ->latest('updated_at')
             ->get()
             ->map(fn (RiskRegister $register): array => [
@@ -355,7 +355,6 @@ class RamsDashboardQuery
                     RiskRegisterStatus::InProgress => 'In Progress',
                     RiskRegisterStatus::Closed => 'Closed',
                 },
-                'location' => $register->asset->lokasi,
             ])->all();
     }
 
@@ -400,7 +399,6 @@ class RamsDashboardQuery
             'aset_prasarana_sintel' => $asset->assetSubsystem->assetSystem->assetGroup->name,
             'system' => $asset->assetSubsystem->assetSystem->name,
             'subsystem' => $asset->assetSubsystem->name,
-            'lokasi' => $asset->lokasi,
             'jumlah_unit' => $asset->jumlah_unit,
             'tahun_pemasangan' => $asset->tanggal_pemasangan?->toDateString(),
             'status' => $asset->status->label(),

@@ -212,7 +212,6 @@ const openAsset = () => {
     unit_kerja_id: canChooseUnit.value ? selectedUnit.value : undefined,
     asset_category_node_id: selectedNode.value.id,
     nama_aset: selectedNode.value.name,
-    lokasi: '',
     jumlah_unit: 1,
     tanggal_pemasangan: '',
     status: 'aktif',
@@ -347,16 +346,16 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
             </div>
             <div class="overflow-x-auto">
               <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
-                <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600"><tr><th class="px-4 py-3">Nama aset</th><th class="px-4 py-3">Kategori</th><th class="px-4 py-3">Lokasi</th><th class="px-4 py-3 text-right">Unit</th><th class="px-4 py-3">Pemasangan</th><th class="px-4 py-3">Status</th></tr></thead>
+                <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600"><tr><th class="px-4 py-3">Nama aset</th><th class="px-4 py-3">Kategori</th><th class="px-4 py-3 text-right">Unit</th><th class="px-4 py-3">Pemasangan</th><th class="px-4 py-3">Status</th></tr></thead>
                 <tbody class="divide-y divide-slate-100">
-                  <tr v-for="asset in assets.data" :key="asset.id" class="text-slate-700"><td class="px-4 py-3 font-semibold text-slate-950">{{ asset.nama_aset }}</td><td class="px-4 py-3">{{ asset.category_node?.name || asset.subsystem || '—' }}</td><td class="px-4 py-3">{{ asset.lokasi || '—' }}</td><td class="px-4 py-3 text-right tabular-nums">{{ asset.jumlah_unit }}</td><td class="whitespace-nowrap px-4 py-3">{{ formatDate(asset.tanggal_pemasangan) }}</td><td class="px-4 py-3"><span class="rounded-full px-2 py-1 text-xs font-medium" :class="asset.status === 'aktif' ? 'bg-emerald-50 text-emerald-700' : asset.status === 'dalam_perbaikan' ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600'">{{ statusLabel(asset.status) }}</span></td></tr>
-                  <tr v-if="!assets.data.length"><td colspan="6" class="px-6 py-16 text-center"><p class="font-semibold text-slate-700">Belum ada aset pada kategori ini</p><p class="mt-1 text-xs text-slate-500">Gunakan tombol Tambah aset untuk mulai mengisi data {{ activeUnit?.code }}.</p></td></tr>
+                  <tr v-for="asset in assets.data" :key="asset.id" class="text-slate-700"><td class="px-4 py-3 font-semibold text-slate-950">{{ asset.nama_aset }}</td><td class="px-4 py-3">{{ asset.category_node?.name || asset.subsystem || '—' }}</td><td class="px-4 py-3 text-right tabular-nums">{{ asset.jumlah_unit }}</td><td class="whitespace-nowrap px-4 py-3">{{ formatDate(asset.tanggal_pemasangan) }}</td><td class="px-4 py-3"><span class="rounded-full px-2 py-1 text-xs font-medium" :class="asset.status === 'aktif' ? 'bg-emerald-50 text-emerald-700' : asset.status === 'dalam_perbaikan' ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600'">{{ statusLabel(asset.status) }}</span></td></tr>
+                  <tr v-if="!assets.data.length"><td colspan="5" class="px-6 py-16 text-center"><p class="font-semibold text-slate-700">Belum ada aset pada kategori ini</p><p class="mt-1 text-xs text-slate-500">Gunakan tombol Tambah aset untuk mulai mengisi data {{ activeUnit?.code }}.</p></td></tr>
                 </tbody>
               </table>
             </div>
             <nav v-if="assets.links?.length > 3" aria-label="Halaman aset" class="flex flex-wrap justify-end gap-1 border-t border-slate-200 p-3"><Link v-for="link in assets.links" :key="link.label" :href="link.url || '#'" class="flex min-h-10 min-w-10 items-center justify-center rounded-lg px-3 text-sm" :class="link.active ? 'bg-[#171650] text-white' : link.url ? 'text-slate-700 hover:bg-slate-100' : 'pointer-events-none text-slate-400'" preserve-scroll v-html="link.label" /></nav>
           </div>
-          <div v-else class="flex min-h-[38rem] items-center justify-center px-8 text-center"><div><Boxes :size="34" class="mx-auto text-slate-300" aria-hidden="true" /><h3 class="mt-4 text-base font-semibold text-slate-800">Pilih kategori terlebih dahulu</h3><p class="mt-2 max-w-sm text-sm leading-6 text-slate-500">Aset, lokasi, jumlah unit, dan status akan muncul di panel ini.</p></div></div>
+          <div v-else class="flex min-h-[38rem] items-center justify-center px-8 text-center"><div><Boxes :size="34" class="mx-auto text-slate-300" aria-hidden="true" /><h3 class="mt-4 text-base font-semibold text-slate-800">Pilih kategori terlebih dahulu</h3><p class="mt-2 max-w-sm text-sm leading-6 text-slate-500">Aset, jumlah unit, tanggal pemasangan, dan status akan muncul di panel ini.</p></div></div>
         </section>
       </div>
     </section>
@@ -377,13 +376,12 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
         <div class="overflow-x-auto">
           <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
             <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
-              <tr><th class="px-4 py-3">Nama aset</th><th class="px-4 py-3">Kategori</th><th class="px-4 py-3">Lokasi</th><th class="px-4 py-3 text-right">Jumlah unit</th><th class="px-4 py-3">Pemasangan</th><th class="px-4 py-3">Status</th></tr>
+              <tr><th class="px-4 py-3">Nama aset</th><th class="px-4 py-3">Kategori</th><th class="px-4 py-3 text-right">Jumlah unit</th><th class="px-4 py-3">Pemasangan</th><th class="px-4 py-3">Status</th></tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-for="asset in assets.data" :key="asset.id" class="text-slate-700">
                 <td class="px-4 py-3 font-semibold text-slate-950">{{ asset.nama_aset }}</td>
                 <td class="px-4 py-3">{{ asset.category_node?.name || asset.subsystem || '—' }}</td>
-                <td class="px-4 py-3">{{ asset.lokasi || '—' }}</td>
                 <td class="px-4 py-3 text-right tabular-nums">{{ asset.jumlah_unit }}</td>
                 <td class="px-4 py-3 whitespace-nowrap">{{ formatDate(asset.tanggal_pemasangan) }}</td>
                 <td class="px-4 py-3"><span class="rounded-full px-2 py-1 text-xs font-medium" :class="asset.status === 'aktif' ? 'bg-emerald-50 text-emerald-700' : asset.status === 'dalam_perbaikan' ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600'">{{ statusLabel(asset.status) }}</span></td>

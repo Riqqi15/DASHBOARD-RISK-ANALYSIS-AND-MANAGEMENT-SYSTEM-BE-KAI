@@ -26,7 +26,7 @@ const form = useForm(emptyForm())
 const filtered = computed(() => props.registers.filter((item) => {
   const term = search.value.trim().toLowerCase()
   const matchesStatus = status.value === 'all' || item.status === status.value
-  const haystack = [item.risk_event, item.risk_cause, item.part_number, item.asset?.name, item.asset?.location]
+  const haystack = [item.risk_event, item.risk_cause, item.part_number, item.asset?.name]
     .filter(Boolean).join(' ').toLowerCase()
   return matchesStatus && (!term || haystack.includes(term))
 }))
@@ -126,7 +126,7 @@ const statusLabel = value => ({ open: 'Open', in_progress: 'In Progress', closed
         <div class="flex flex-wrap gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
           <label class="relative min-w-[240px] flex-1">
             <Search class="pointer-events-none absolute left-3 top-2.5 text-slate-400" :size="18" />
-            <input v-model="search" type="search" placeholder="Cari risiko, aset, lokasi…" class="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" />
+            <input v-model="search" type="search" placeholder="Cari risiko atau aset…" class="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" />
           </label>
           <select v-model="status" class="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-orange-400">
             <option value="all">Semua Status</option>
@@ -157,7 +157,7 @@ const statusLabel = value => ({ open: 'Open', in_progress: 'In Progress', closed
                 </td>
                 <td class="px-5 py-4">
                   <p class="font-medium text-slate-800">{{ item.asset?.name || '-' }}</p>
-                  <p class="mt-1 text-xs text-slate-500">{{ item.asset?.unit?.code }} · {{ item.asset?.location || 'Lokasi belum diisi' }}</p>
+                  <p class="mt-1 text-xs text-slate-500">{{ item.asset?.unit?.code }}</p>
                 </td>
                 <td class="whitespace-nowrap px-5 py-4">
                   <span class="inline-flex rounded-lg border px-2.5 py-1 font-bold" :class="ratingTone(item.rating)">{{ item.likelihood }} × {{ item.consequence }} = {{ item.rating }}</span>
@@ -185,7 +185,7 @@ const statusLabel = value => ({ open: 'Open', in_progress: 'In Progress', closed
           <button class="rounded-lg p-2 text-slate-500 hover:bg-slate-100" @click="closeDialog"><X :size="19" /></button>
         </header>
         <form class="grid gap-4 p-6 md:grid-cols-2" @submit.prevent="submit">
-          <label class="md:col-span-2"><span class="mb-1.5 block text-sm font-semibold text-slate-700">Aset</span><select v-model="form.asset_id" required class="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"><option value="">Pilih aset</option><option v-for="asset in assets" :key="asset.id" :value="asset.id">{{ asset.unit?.code }} · {{ asset.name }} · {{ asset.location || '-' }}</option></select><span v-if="form.errors.asset_id" class="mt-1 block text-xs text-red-600">{{ form.errors.asset_id }}</span></label>
+          <label class="md:col-span-2"><span class="mb-1.5 block text-sm font-semibold text-slate-700">Aset</span><select v-model="form.asset_id" required class="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"><option value="">Pilih aset</option><option v-for="asset in assets" :key="asset.id" :value="asset.id">{{ asset.unit?.code }} · {{ asset.name }}</option></select><span v-if="form.errors.asset_id" class="mt-1 block text-xs text-red-600">{{ form.errors.asset_id }}</span></label>
           <label><span class="mb-1.5 block text-sm font-semibold text-slate-700">Part Number</span><input v-model="form.part_number" class="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm" /></label>
           <label><span class="mb-1.5 block text-sm font-semibold text-slate-700">Subsystem/Sub</span><input v-model="form.sub" class="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm" /></label>
           <label class="md:col-span-2"><span class="mb-1.5 block text-sm font-semibold text-slate-700">Peristiwa Risiko</span><input v-model="form.risk_event" required class="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm" /><span v-if="form.errors.risk_event" class="mt-1 block text-xs text-red-600">{{ form.errors.risk_event }}</span></label>

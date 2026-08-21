@@ -101,7 +101,6 @@ describe('AssetForm', () => {
         unit_kerja_id: 1,
         nama_aset: 'Track Circuit Backend',
         asset_subsystem_id: 101,
-        lokasi: 'Stasiun Gambir',
         jumlah_unit: 12,
         tanggal_pemasangan: '2012-01-01',
         status: 'aktif',
@@ -110,7 +109,7 @@ describe('AssetForm', () => {
     })
 
     expect(wrapper.get('#nama-aset').element.value).toBe('Track Circuit Backend')
-    expect(wrapper.get('#lokasi').element.value).toBe('Stasiun Gambir')
+    expect(wrapper.find('#lokasi').exists()).toBe(false)
     expect(wrapper.get('[name="asset_subsystem_id"]').element.value).toBe('101')
     await wrapper.get('form').trigger('submit')
 

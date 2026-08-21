@@ -80,7 +80,7 @@ const paginationLabel = (label) => label
         <p class="text-sm font-medium text-orange-600">Data referensi operasional</p>
         <h2 class="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Master Aset</h2>
         <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-          Kelola identitas aset Sintel, jumlah unit, lokasi, dan status operasional sesuai wilayah akses Anda.
+          Kelola identitas aset Sintel, jumlah unit, tanggal pemasangan, dan status operasional sesuai wilayah akses Anda.
         </p>
       </div>
       <Link href="/master-asset/create" class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#ea580c] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#c2410c]">
@@ -129,7 +129,7 @@ const paginationLabel = (label) => label
         <label class="relative">
           <span class="sr-only">Cari aset</span>
           <Search :size="17" class="pointer-events-none absolute left-3 top-3 text-slate-400" aria-hidden="true" />
-          <input id="asset-search" v-model="filters.search" type="search" class="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-sm outline-none transition focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" placeholder="Cari nama, system, subsystem, atau lokasi..." />
+          <input id="asset-search" v-model="filters.search" type="search" class="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-sm outline-none transition focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" placeholder="Cari nama, system, atau subsystem..." />
         </label>
         <select v-if="can.choose_unit" id="asset-unit" v-model="filters.unit_kerja_id" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#2d2a70]" aria-label="Filter unit kerja">
           <option value="">Semua unit kerja</option>

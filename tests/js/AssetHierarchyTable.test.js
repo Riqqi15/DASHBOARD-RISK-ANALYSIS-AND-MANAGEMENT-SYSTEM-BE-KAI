@@ -31,7 +31,6 @@ const assets = [{
   id: 41,
   asset_subsystem_id: 101,
   nama_aset: 'Track Circuit Gambir',
-  lokasi: 'Stasiun Gambir',
   jumlah_unit: 81,
   status: 'aktif',
   unit_kerja: { id: 1, code: 'DAOP-1', name: 'Daerah Operasi 1 Jakarta' },
@@ -45,7 +44,6 @@ const secondAsset = {
   ...assets[0],
   id: 42,
   nama_aset: 'Track Circuit Manggarai',
-  lokasi: 'Stasiun Manggarai',
   status: 'nonaktif',
 }
 const statusOptions = [
@@ -91,7 +89,7 @@ describe('AssetHierarchyTable', () => {
     expect(wrapper.get('[data-system-id="11"]').findAll('td')).toHaveLength(7)
   })
 
-  it('shows current-page asset name, location, and status in the desktop subsystem detail', () => {
+  it('shows current-page asset name and status in the desktop subsystem detail', () => {
     const wrapper = mount(AssetHierarchyTable, {
       props: { rows, assets, legacySummary: null, statusOptions },
       global: { stubs: { Link: true } },
@@ -99,7 +97,6 @@ describe('AssetHierarchyTable', () => {
     const subsystem = wrapper.get('[data-subsystem-id="101"]')
 
     expect(subsystem.text()).toContain('Track Circuit Gambir')
-    expect(subsystem.text()).toContain('Stasiun Gambir')
     expect(subsystem.text()).toContain('Aktif')
   })
 
@@ -151,7 +148,6 @@ describe('AssetHierarchyTable', () => {
       id: 52,
       asset_subsystem_id: null,
       nama_aset: 'Aset Warisan',
-      lokasi: null,
       category: null,
       jumlah_unit: 3,
     }
@@ -177,7 +173,6 @@ describe('AssetHierarchyCard', () => {
 
     expect(wrapper.text()).toContain('Peralatan Luar Sinyal Elektrik / Peraga Sinyal Elektrik / Track Circuit')
     expect(wrapper.text()).toContain('Track Circuit Gambir')
-    expect(wrapper.text()).toContain('Stasiun Gambir')
     expect(wrapper.text()).toContain('Aktif')
     expect(wrapper.text()).toContain('81')
     expect(wrapper.text()).toContain('7')
@@ -199,8 +194,6 @@ describe('AssetHierarchyCard', () => {
     expect(card.findAll('[data-asset-detail]')).toHaveLength(2)
     expect(card.text()).toContain('Track Circuit Gambir')
     expect(card.text()).toContain('Track Circuit Manggarai')
-    expect(card.text()).toContain('Stasiun Gambir')
-    expect(card.text()).toContain('Stasiun Manggarai')
     expect(card.text()).toContain('Aktif')
     expect(card.text()).toContain('Nonaktif')
     expect(card.text()).toContain('DAOP-1 — Daerah Operasi 1 Jakarta')

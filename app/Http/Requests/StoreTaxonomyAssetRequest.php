@@ -27,7 +27,6 @@ class StoreTaxonomyAssetRequest extends FormRequest
                 Rule::exists('asset_category_nodes', 'id')->where(fn ($query) => $query->where('is_active', true)->whereNull('deleted_at')),
             ],
             'nama_aset' => ['required', 'string', 'max:255'],
-            'lokasi' => ['nullable', 'string', 'max:255'],
             'jumlah_unit' => ['required', 'integer', 'min:0'],
             'tanggal_pemasangan' => ['nullable', 'date', 'before_or_equal:today'],
             'status' => ['required', Rule::enum(AssetStatus::class)],
@@ -53,7 +52,6 @@ class StoreTaxonomyAssetRequest extends FormRequest
             'aset_prasarana_sintel' => $names->get(1)?->name ?? '',
             'system' => $names->get(2)?->name ?? '',
             'subsystem' => $names->get(3)?->name ?? '',
-            'lokasi' => $this->validated('lokasi'),
             'jumlah_unit' => $this->validated('jumlah_unit'),
             'tanggal_pemasangan' => $this->validated('tanggal_pemasangan'),
             'status' => $this->validated('status'),
@@ -63,12 +61,12 @@ class StoreTaxonomyAssetRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $values = [];
-        foreach (['nama_aset', 'lokasi'] as $field) {
+        foreach (['nama_aset'] as $field) {
             if (! $this->exists($field)) {
                 continue;
             }
             $value = preg_replace('/\s+/u', ' ', trim($this->string($field)->toString())) ?? '';
-            $values[$field] = $field === 'lokasi' && $value === '' ? null : $value;
+            $values[$field] = $value;
         }
         $this->merge($values);
     }

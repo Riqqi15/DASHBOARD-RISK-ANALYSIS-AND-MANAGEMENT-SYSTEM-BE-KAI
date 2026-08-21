@@ -192,7 +192,6 @@ class AssetCategoryBackfillTest extends TestCase
             'aset_prasarana_sintel' => 'Group Exact',
             'system' => 'System Exact',
             'subsystem' => 'Subsystem Exact',
-            'lokasi' => 'KM 12+300',
             'jumlah_unit' => 17,
             'tanggal_pemasangan' => '2021-03-04',
             'status' => AssetStatus::DalamPerbaikan,

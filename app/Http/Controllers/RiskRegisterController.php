@@ -47,7 +47,6 @@ final class RiskRegisterController extends Controller
             'assets' => $assets->map(fn (Asset $asset): array => [
                 'id' => $asset->id,
                 'name' => $asset->nama_aset,
-                'location' => $asset->lokasi,
                 'subsystem' => $asset->assetSubsystem?->name,
                 'unit' => $asset->unitKerja?->only(['id', 'code', 'name']),
             ])->values(),
@@ -68,7 +67,6 @@ final class RiskRegisterController extends Controller
                 'source' => $register->source_key ? 'excel' : 'manual',
                 'asset' => [
                     'name' => $register->asset->nama_aset,
-                    'location' => $register->asset->lokasi,
                     'subsystem' => $register->asset->assetSubsystem?->name,
                     'unit' => $register->asset->unitKerja?->only(['id', 'code', 'name']),
                 ],

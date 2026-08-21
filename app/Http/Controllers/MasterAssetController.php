@@ -272,7 +272,6 @@ class MasterAssetController extends Controller
                 'aset_prasarana_sintel',
                 'system',
                 'subsystem',
-                'lokasi',
                 'jumlah_unit',
             ]),
             'status' => $asset->status->value,

@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { MapPin, Pencil, Trash2 } from 'lucide-vue-next'
+import { Pencil, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps({
   rows: { type: Array, required: true },
@@ -131,10 +131,6 @@ const cards = computed(() => {
               <p class="text-sm font-semibold text-slate-900">{{ asset.nama_aset }}</p>
               <span class="inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset" :class="statusClass(asset.status)">{{ statusLabel(asset.status) }}</span>
             </div>
-            <p class="mt-1.5 flex items-center gap-1.5 text-xs" :class="asset.lokasi ? 'text-slate-600' : 'italic text-slate-400'">
-              <MapPin :size="13" aria-hidden="true" />
-              {{ asset.lokasi || 'Belum dilengkapi' }}
-            </p>
             <p v-if="showUnit" class="mt-1.5 text-xs font-medium text-[#171650]">{{ unitLabel(asset) }}</p>
             <div class="mt-2 flex justify-end gap-1 border-t border-slate-100 pt-2">
               <Link :href="`/master-asset/${asset.id}/edit`" class="inline-flex h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-[#2d2a70] outline-none transition hover:bg-blue-50 focus-visible:ring-2 focus-visible:ring-[#171650] motion-reduce:transition-none" :aria-label="`Edit aset ${asset.nama_aset}`">

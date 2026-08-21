@@ -50,7 +50,6 @@ class ImportMasterAssetsTest extends TestCase
 
         $asset->update([
             'nama_aset' => 'Nama yang disunting pengguna',
-            'lokasi' => 'Stasiun Gambir',
             'status' => AssetStatus::DalamPerbaikan,
         ]);
         $this->rewriteTotal($path, 18);
@@ -62,7 +61,6 @@ class ImportMasterAssetsTest extends TestCase
         $asset->refresh();
         $this->assertSame(18, $asset->jumlah_unit);
         $this->assertSame('Nama yang disunting pengguna', $asset->nama_aset);
-        $this->assertSame('Stasiun Gambir', $asset->lokasi);
         $this->assertSame(AssetStatus::DalamPerbaikan, $asset->status);
     }
 

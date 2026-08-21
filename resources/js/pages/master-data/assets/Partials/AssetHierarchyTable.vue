@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { ChevronDown, ChevronRight, MapPin, Pencil, Trash2 } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps({
   rows: { type: Array, required: true },
@@ -237,10 +237,6 @@ const groupControlIds = (group) => group.systems.flatMap((system) => [
                         <p class="text-xs font-medium text-slate-800">{{ asset.nama_aset }}</p>
                         <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset" :class="statusClass(asset.status)">{{ statusLabel(asset.status) }}</span>
                       </div>
-                      <p class="mt-1 flex items-center gap-1 text-[11px]" :class="asset.lokasi ? 'text-slate-500' : 'italic text-slate-400'">
-                        <MapPin :size="12" aria-hidden="true" />
-                        {{ asset.lokasi || 'Belum dilengkapi' }}
-                      </p>
                       <p v-if="showUnit" class="mt-1 text-[11px] font-medium text-[#171650]">{{ unitLabel(asset) }}</p>
                     </div>
                   </div>

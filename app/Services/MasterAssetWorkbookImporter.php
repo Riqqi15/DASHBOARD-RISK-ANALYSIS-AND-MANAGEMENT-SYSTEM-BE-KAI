@@ -336,7 +336,6 @@ class MasterAssetWorkbookImporter
                 $asset = Asset::query()->create([
                     ...$sourceValues,
                     'nama_aset' => $subsystem,
-                    'lokasi' => null,
                     'status' => AssetStatus::Aktif,
                 ]);
                 $this->auditLogger->record('asset.import_created', $asset, [], $this->auditValues($asset));
@@ -833,7 +832,6 @@ class MasterAssetWorkbookImporter
                 'aset_prasarana_sintel',
                 'system',
                 'subsystem',
-                'lokasi',
                 'jumlah_unit',
                 'source_key',
             ]),

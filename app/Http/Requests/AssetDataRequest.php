@@ -63,7 +63,6 @@ abstract class AssetDataRequest extends FormRequest
             'aset_prasarana_sintel' => ['prohibited'],
             'system' => ['prohibited'],
             'subsystem' => ['prohibited'],
-            'lokasi' => ['nullable', 'string', 'max:255'],
             'jumlah_unit' => ['required', 'integer', 'min:0'],
             'tanggal_pemasangan' => ['nullable', 'date', 'before_or_equal:today'],
             'status' => ['required', Rule::enum(AssetStatus::class)],
@@ -75,7 +74,6 @@ abstract class AssetDataRequest extends FormRequest
         $data = $this->safe()->only([
             'asset_subsystem_id',
             'nama_aset',
-            'lokasi',
             'jumlah_unit',
             'tanggal_pemasangan',
             'status',
@@ -95,13 +93,13 @@ abstract class AssetDataRequest extends FormRequest
     {
         $normalized = [];
 
-        foreach (['nama_aset', 'lokasi'] as $field) {
+        foreach (['nama_aset'] as $field) {
             if (! $this->exists($field)) {
                 continue;
             }
 
             $value = preg_replace('/\s+/u', ' ', trim($this->string($field)->toString()));
-            $normalized[$field] = $field === 'lokasi' && $value === '' ? null : $value;
+            $normalized[$field] = $value;
         }
 
         $this->merge($normalized);

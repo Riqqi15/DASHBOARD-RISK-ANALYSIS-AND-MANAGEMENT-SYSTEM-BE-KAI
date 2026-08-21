@@ -29,13 +29,13 @@ class MasterAssetSchemaTest extends TestCase
             'aset_prasarana_sintel',
             'system',
             'subsystem',
-            'lokasi',
             'jumlah_unit',
             'tanggal_pemasangan',
             'status',
             'source_key',
             'deleted_at',
         ]));
+        $this->assertFalse(Schema::hasColumn('assets', 'lokasi'));
         $this->assertSame(AssetStatus::DalamPerbaikan, $asset->status);
         $this->assertSame('2019-06-10', $asset->tanggal_pemasangan->toDateString());
 

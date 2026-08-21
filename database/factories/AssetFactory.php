@@ -18,7 +18,6 @@ class AssetFactory extends Factory
             'aset_prasarana_sintel' => 'PERALATAN LUAR SINYAL ELEKTRIK',
             'system' => 'PERAGA SINYAL ELEKTRIK',
             'subsystem' => fake()->randomElement(['TRACK CIRCUIT', 'AXLE COUNTER']),
-            'lokasi' => fake()->optional()->city(),
             'jumlah_unit' => fake()->numberBetween(0, 100),
             'tanggal_pemasangan' => fake()->optional()->dateTimeBetween('-20 years'),
             'status' => AssetStatus::Aktif,

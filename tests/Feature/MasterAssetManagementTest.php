@@ -225,7 +225,6 @@ class MasterAssetManagementTest extends TestCase
         $this->assertDatabaseHas('assets', [
             'unit_kerja_id' => $unit->id,
             'nama_aset' => 'Track Circuit Gambir',
-            'lokasi' => null,
         ]);
         $this->assertDatabaseHas('audit_logs', ['action' => 'asset.created']);
     }
@@ -607,7 +606,6 @@ class MasterAssetManagementTest extends TestCase
             'unit_kerja_id' => $asset->unit_kerja_id,
             ...$this->categoryAssetPayload($asset->assetSubsystem, [
                 'nama_aset' => 'Nama Aset Diperbarui',
-                'lokasi' => 'Stasiun Gambir',
                 'jumlah_unit' => 20,
                 'tanggal_pemasangan' => '2018-01-01',
                 'status' => 'dalam_perbaikan',
@@ -629,7 +627,6 @@ class MasterAssetManagementTest extends TestCase
         return [
             'asset_subsystem_id' => $subsystem->id,
             'nama_aset' => '  Track   Circuit Gambir  ',
-            'lokasi' => '',
             'jumlah_unit' => 12,
             'tanggal_pemasangan' => '2019-06-10',
             'status' => 'aktif',

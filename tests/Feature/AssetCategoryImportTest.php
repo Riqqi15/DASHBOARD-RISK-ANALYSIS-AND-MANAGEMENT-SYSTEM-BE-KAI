@@ -312,7 +312,6 @@ class AssetCategoryImportTest extends TestCase
             ->create([
                 'source_key' => $legacyKey,
                 'nama_aset' => 'Nama suntingan operator',
-                'lokasi' => 'Stasiun Gambir',
                 'status' => 'dalam_perbaikan',
             ]);
         $path = $this->workbook([
@@ -330,7 +329,6 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame($stableKey, $asset->source_key);
         $this->assertSame($subsystem->id, $asset->asset_subsystem_id);
         $this->assertSame('Nama suntingan operator', $asset->nama_aset);
-        $this->assertSame('Stasiun Gambir', $asset->lokasi);
         $this->assertSame('dalam_perbaikan', $asset->status->value);
 
         $subsystem->update(['name' => 'Track Circuit Hasil Rename Admin']);
@@ -364,7 +362,6 @@ class AssetCategoryImportTest extends TestCase
                     "rams:master-asset:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$globalSubsystem->id}",
                 ),
                 'nama_aset' => 'Nama suntingan operator',
-                'lokasi' => 'Stasiun Gambir',
                 'status' => 'dalam_perbaikan',
             ]);
         $path = $this->workbook([
@@ -388,7 +385,6 @@ class AssetCategoryImportTest extends TestCase
         $this->assertNotSame($globalSubsystem->id, $asset->asset_subsystem_id);
         $this->assertSame($unit->id, $asset->assetSubsystem->assetSystem->assetGroup->unit_kerja_id);
         $this->assertSame('Nama suntingan operator', $asset->nama_aset);
-        $this->assertSame('Stasiun Gambir', $asset->lokasi);
         $this->assertSame('dalam_perbaikan', $asset->status->value);
         $this->assertSame(2, $asset->jumlah_unit);
     }
@@ -412,7 +408,7 @@ class AssetCategoryImportTest extends TestCase
             'sha256',
             "rams:unit-subsystem-opening:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$subsystemId}",
         );
-        $asset->update(['nama_aset' => 'Nama operator', 'lokasi' => 'Gambir', 'status' => 'dalam_perbaikan']);
+        $asset->update(['nama_aset' => 'Nama operator', 'status' => 'dalam_perbaikan']);
 
         $unit->update(['code' => 'DAOP-RENAME']);
         $this->rewriteImportValues($path, total: 8, sparepartIn: 4, sparepartOut: 2);
@@ -428,7 +424,6 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame($expectedAssetKey, $asset->source_key);
         $this->assertSame($expectedOpeningKey, $opening->source_key);
         $this->assertSame('Nama operator', $asset->nama_aset);
-        $this->assertSame('Gambir', $asset->lokasi);
         $this->assertSame('dalam_perbaikan', $asset->status->value);
         $this->assertSame(8, $asset->jumlah_unit);
         $this->assertSame(4, $opening->sparepart_in);
