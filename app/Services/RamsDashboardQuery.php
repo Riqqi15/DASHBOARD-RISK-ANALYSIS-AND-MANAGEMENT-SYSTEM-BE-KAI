@@ -12,6 +12,7 @@ use App\Models\InventoryStock;
 use App\Models\PredictiveAssetSnapshot;
 use App\Models\RamsImportBatch;
 use App\Models\RamsImportChange;
+use App\Models\ReliabilityExcelSnapshot;
 use App\Models\ReliabilitySummary;
 use App\Models\RiskMatrix;
 use App\Models\RiskRegister;
@@ -203,11 +204,13 @@ class RamsDashboardQuery
                 fn (float $product, ReliabilitySummary $summary): float => $product * (float) $summary->availability,
                 1.0,
             );
-        $oldestInstallation = (clone $assets)->whereNotNull('tanggal_pemasangan')->min('tanggal_pemasangan');
-        $manualStartDate = $unit?->operating_start_date?->toDateString();
-        $operatingStartDate = $manualStartDate ?? ($oldestInstallation
-            ? CarbonImmutable::parse($oldestInstallation)->toDateString()
-            : null);
+        $importedBaselineDate = ReliabilityExcelSnapshot::query()
+            ->whereIn('asset_id', $assetIds)
+            ->whereNotNull('baseline_date')
+            ->latest('imported_at')
+            ->latest('id')
+            ->value('baseline_date');
+        $operatingStartDate = $unit?->operating_start_date?->toDateString() ?? $importedBaselineDate;
         $latestPredictive = PredictiveAssetSnapshot::query()
             ->whereIn('asset_id', $assetIds)
             ->orderByDesc('calculated_at')
@@ -226,7 +229,6 @@ class RamsDashboardQuery
             'operatingDays' => $operatingStartDate
                 ? (int) CarbonImmutable::parse($operatingStartDate)->startOfDay()->diffInDays(now()->startOfDay())
                 : null,
-            'operatingStartDate' => $operatingStartDate,
             'reliabilityGroups' => $this->reliabilityGroups($latestReliability, $unit),
             'latestImport' => $this->latestImport($unit),
             'totalFailure' => FailureLog::query()->whereIn('asset_id', $assetIds)->count(),

@@ -7,6 +7,7 @@ import UnitForm from './Partials/UnitForm.vue'
 defineProps({
   unit: { type: Object, required: true },
   typeOptions: { type: Array, required: true },
+  importedBaselineDate: { type: String, default: null },
 })
 </script>
 
@@ -30,7 +31,7 @@ defineProps({
     </div>
 
     <section class="max-w-4xl rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-      <UnitForm :unit="unit" :type-options="typeOptions" submit-label="Simpan perubahan" />
+      <UnitForm :unit="unit" :type-options="typeOptions" :imported-baseline-date="importedBaselineDate" submit-label="Simpan perubahan" />
     </section>
   </MainLayout>
 </template>

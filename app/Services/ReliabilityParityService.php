@@ -73,7 +73,7 @@ final class ReliabilityParityService
                         'sheet_name' => 'Ringkasan Keandalan',
                         'source_row' => null,
                         'source_column' => null,
-                        'message' => "Selisih parity pada aset {$asset->nama_aset}. Detail: " . implode(', ', $mismatches) . ". Penyebab: {$causeText}",
+                        'message' => "Selisih parity pada aset {$asset->nama_aset}. Detail: ".implode(', ', $mismatches).". Penyebab: {$causeText}",
                         'severity' => 'warning',
                     ];
                 }
@@ -84,15 +84,19 @@ final class ReliabilityParityService
 
     public function recalculateAsset(Asset $asset, ?CarbonImmutable $fallbackCalculationDate = null): ?ReliabilitySummary
     {
+        $asset->loadMissing('unitKerja');
         $snapshot = ReliabilityExcelSnapshot::query()
             ->where('asset_id', $asset->id)
             ->latest('imported_at')
             ->latest('id')
             ->first();
 
-        $baselineDate = $snapshot?->baseline_date
-            ? CarbonImmutable::instance($snapshot->baseline_date)
-            : ($asset->tanggal_pemasangan ? CarbonImmutable::instance($asset->tanggal_pemasangan)->startOfDay() : CarbonImmutable::parse('2020-01-01'));
+        $baselineDate = $asset->unitKerja?->operating_start_date
+            ? CarbonImmutable::instance($asset->unitKerja->operating_start_date)->startOfDay()
+            : ($snapshot?->baseline_date ? CarbonImmutable::instance($snapshot->baseline_date)->startOfDay() : null);
+        if (! $baselineDate) {
+            return null;
+        }
         $calculationDate = $fallbackCalculationDate
             ? $fallbackCalculationDate->startOfDay()
             : ($snapshot?->calculation_date

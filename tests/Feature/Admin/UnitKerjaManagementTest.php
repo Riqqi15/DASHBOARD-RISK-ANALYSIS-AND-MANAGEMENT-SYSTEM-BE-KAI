@@ -3,6 +3,10 @@
 namespace Tests\Feature\Admin;
 
 use App\Enums\UnitType;
+use App\Models\Asset;
+use App\Models\AuditLog;
+use App\Models\ReliabilityExcelSnapshot;
+use App\Models\ReliabilitySummary;
 use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -35,6 +39,9 @@ class UnitKerjaManagementTest extends TestCase
             'name' => 'Daerah Operasi Sepuluh',
             'type' => 'daop',
             'is_active' => false,
+            'operating_start_date' => '',
+            'baseline_change_reason' => '',
+            'baseline_change_confirmed' => false,
         ])->assertRedirect('/admin/units');
 
         $this->assertDatabaseHas('unit_kerjas', [
@@ -67,6 +74,72 @@ class UnitKerjaManagementTest extends TestCase
             'type' => 'unknown',
             'is_active' => true,
         ])->assertSessionHasErrors(['code', 'type']);
+    }
+
+    public function test_baseline_change_requires_confirmation_reason_audit_and_recalculation(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $unit = UnitKerja::factory()->create([
+            'code' => 'DAOP-BASELINE',
+            'operating_start_date' => null,
+        ]);
+        $asset = Asset::factory()->for($unit)->create();
+        ReliabilityExcelSnapshot::query()->create([
+            'asset_id' => $asset->id,
+            'workbook_hash' => str_repeat('b', 64),
+            'workbook_name' => 'RAMS.xlsm',
+            'sheet_name' => 'Interlocking Elektrik',
+            'source_row' => 4,
+            'baseline_date' => '2020-01-01',
+            'calculation_date' => '2021-01-01',
+            'summary_values' => [],
+            'formula_profile' => ['downtime_mode' => 'minutes', 'interval_baseline_date' => '2020-01-01'],
+            'imported_at' => now(),
+        ]);
+        $payload = [
+            'code' => $unit->code,
+            'name' => $unit->name,
+            'type' => $unit->type->value,
+            'is_active' => true,
+            'operating_start_date' => '2019-01-01',
+        ];
+
+        $this->actingAs($pusat)->put("/admin/units/{$unit->id}", $payload)
+            ->assertSessionHasErrors(['baseline_change_reason', 'baseline_change_confirmed']);
+
+        $this->actingAs($pusat)->put("/admin/units/{$unit->id}", [
+            ...$payload,
+            'baseline_change_reason' => 'Koreksi sesuai hasil validasi KAI',
+            'baseline_change_confirmed' => true,
+        ])->assertRedirect('/admin/units');
+
+        $this->assertSame('2019-01-01', $unit->fresh()->operating_start_date?->toDateString());
+        $audit = AuditLog::query()->where('action', 'unit.baseline_updated')->sole();
+        $this->assertSame('Koreksi sesuai hasil validasi KAI', $audit->new_values['reason']);
+        $this->assertSame('2019-01-01', ReliabilitySummary::query()->sole()->baseline_date?->toDateString());
+    }
+
+    public function test_edit_exposes_latest_imported_baseline_without_showing_it_on_dashboard(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $unit = UnitKerja::factory()->create();
+        $asset = Asset::factory()->for($unit)->create();
+        ReliabilityExcelSnapshot::query()->create([
+            'asset_id' => $asset->id,
+            'workbook_hash' => str_repeat('c', 64),
+            'workbook_name' => 'RAMS.xlsm',
+            'sheet_name' => 'Interlocking Elektrik',
+            'source_row' => 4,
+            'baseline_date' => '2020-01-01',
+            'calculation_date' => '2021-01-01',
+            'summary_values' => [],
+            'imported_at' => now(),
+        ]);
+
+        $this->actingAs($pusat)->get("/admin/units/{$unit->id}/edit")
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/Units/Edit')
+                ->where('importedBaselineDate', '2020-01-01'));
     }
 
     public function test_index_supports_allow_listed_filters_and_pagination(): void
