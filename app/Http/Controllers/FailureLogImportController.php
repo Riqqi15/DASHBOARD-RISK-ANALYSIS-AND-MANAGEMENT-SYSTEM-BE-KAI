@@ -78,15 +78,19 @@ final class FailureLogImportController extends Controller
             return $redirect->with('error', 'Import Data RAMS gagal. Periksa daftar masalah.');
         }
         if ($batch->status !== 'succeeded') {
-            return $redirect->with('success', 'Workbook masuk antrean import. Progres dapat dipantau pada riwayat batch.');
+            return $redirect->with(
+                'success',
+                'Workbook masuk antrean import. Progres dapat dipantau pada riwayat batch.',
+            );
         }
 
         $result = $importer->resultForBatch($batch);
         $redirect->with('import_result', $result);
         $issueCount = count($result['issues']);
-        $message = $issueCount === 0
-            ? 'Import Data RAMS selesai tanpa masalah.'
-            : "Import Data RAMS selesai dengan {$issueCount} masalah yang dilewati.";
+        $message =
+            $issueCount === 0
+                ? 'Import Data RAMS selesai tanpa masalah.'
+                : "Import Data RAMS selesai dengan {$issueCount} masalah yang dilewati.";
 
         return $redirect->with('success', $message);
     }
@@ -106,21 +110,25 @@ final class FailureLogImportController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        return response()->stream(function () use ($issues) {
-            $file = fopen('php://output', 'w');
-            // Add BOM for Excel UTF-8 support
-            fwrite($file, "\xEF\xBB\xBF");
-            fputcsv($file, ['Sheet', 'Baris', 'Kolom', 'Keparahan', 'Pesan Masalah']);
-            foreach ($issues as $issue) {
-                fputcsv($file, [
-                    $issue->sheet_name ?? '-',
-                    $issue->source_row ?? '-',
-                    $issue->source_column ?? '-',
-                    strtoupper($issue->severity),
-                    $issue->message,
-                ]);
-            }
-            fclose($file);
-        }, 200, $headers);
+        return response()->stream(
+            function () use ($issues) {
+                $file = fopen('php://output', 'w');
+                // Add BOM for Excel UTF-8 support
+                fwrite($file, "\xEF\xBB\xBF");
+                fputcsv($file, ['Sheet', 'Baris', 'Kolom', 'Keparahan', 'Pesan Masalah']);
+                foreach ($issues as $issue) {
+                    fputcsv($file, [
+                        $issue->sheet_name ?? '-',
+                        $issue->source_row ?? '-',
+                        $issue->source_column ?? '-',
+                        strtoupper($issue->severity),
+                        $issue->message,
+                    ]);
+                }
+                fclose($file);
+            },
+            200,
+            $headers,
+        );
     }
 }

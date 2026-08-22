@@ -26,7 +26,10 @@ final class RamsReportController extends Controller
         return Inertia::render('reports/Index', [
             'selected_area' => $unit?->code,
             'units' => $user->isPusat()
-                ? UnitKerja::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name'])
+                ? UnitKerja::query()
+                    ->where('is_active', true)
+                    ->orderBy('code')
+                    ->get(['id', 'code', 'name'])
                 : [],
         ]);
     }
@@ -43,22 +46,28 @@ final class RamsReportController extends Controller
         }
 
         $unit = $request->selectedUnit();
-        $workbook = $report === 'reliability'
-            ? $reliabilityExporter->workbook(
-                $request->user(),
-                $unit ?? abort(422, 'Unit kerja tidak tersedia untuk export Reliability'),
-            )
-            : $exporter->workbook($report, $request->user(), $unit);
+        $workbook =
+            $report === 'reliability'
+                ? $reliabilityExporter->workbook(
+                    $request->user(),
+                    $unit ?? abort(422, 'Unit kerja tidak tersedia untuk export Reliability'),
+                )
+                : $exporter->workbook($report, $request->user(), $unit);
         $scope = $unit?->code ?? 'NASIONAL';
-        $filename = 'RAMS_'.strtoupper(str_replace('-', '_', $report))."_{$scope}_".now()->format('Ymd_His').'.xlsx';
+        $filename =
+            'RAMS_'.strtoupper(str_replace('-', '_', $report))."_{$scope}_".now()->format('Ymd_His').'.xlsx';
 
-        return response()->streamDownload(function () use ($workbook): void {
-            (new Xlsx($workbook))->save('php://output');
-            $workbook->disconnectWorksheets();
-        }, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Cache-Control' => 'no-store, no-cache',
-        ]);
+        return response()->streamDownload(
+            function () use ($workbook): void {
+                (new Xlsx($workbook))->save('php://output');
+                $workbook->disconnectWorksheets();
+            },
+            $filename,
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'no-store, no-cache',
+            ],
+        );
     }
 
     public function downloadPdf(
@@ -81,7 +90,8 @@ final class RamsReportController extends Controller
         $dompdf->setPaper('a4', 'landscape');
         $dompdf->render();
 
-        $filename = 'RAMS_'.strtoupper(str_replace('-', '_', $report))."_{$scope}_{$generatedAt->format('Ymd_His')}.pdf";
+        $filename =
+            'RAMS_'.strtoupper(str_replace('-', '_', $report))."_{$scope}_{$generatedAt->format('Ymd_His')}.pdf";
 
         return response($dompdf->output(), 200, [
             'Content-Type' => 'application/pdf',

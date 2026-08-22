@@ -34,12 +34,8 @@ final class FailureLogImportService
     }
 
     /** @return array<string, mixed> */
-    public function processBatch(
-        RamsImportBatch $batch,
-        string $path,
-        UnitKerja $unit,
-        ?User $actor = null,
-    ): array {
+    public function processBatch(RamsImportBatch $batch, string $path, UnitKerja $unit, ?User $actor = null): array
+    {
         $batch->update([
             'status' => 'processing',
             'progress_stage' => 'Membaca workbook',
@@ -48,13 +44,7 @@ final class FailureLogImportService
             'finished_at' => null,
         ]);
 
-        $workbook = new UploadedFile(
-            $path,
-            $batch->workbook_name,
-            null,
-            null,
-            true,
-        );
+        $workbook = new UploadedFile($path, $batch->workbook_name, null, null, true);
         $result = $this->import($workbook, $unit, $batch->dry_run, $actor, $batch);
         $batch->refresh()->update([
             'progress_stage' => $result['status'] === 'succeeded' ? 'Import selesai' : 'Import gagal',
@@ -69,13 +59,17 @@ final class FailureLogImportService
     {
         $batch->loadMissing(['unitKerja', 'issues']);
         $summary = $batch->summary ?? [];
-        $summary['issues'] = $batch->issues->map(fn ($issue): array => [
-            'sheet_name' => $issue->sheet_name,
-            'source_row' => $issue->source_row,
-            'source_column' => $issue->source_column,
-            'severity' => $issue->severity,
-            'message' => $issue->message,
-        ])->all();
+        $summary['issues'] = $batch->issues
+            ->map(
+                fn ($issue): array => [
+                    'sheet_name' => $issue->sheet_name,
+                    'source_row' => $issue->source_row,
+                    'source_column' => $issue->source_column,
+                    'severity' => $issue->severity,
+                    'message' => $issue->message,
+                ],
+            )
+            ->all();
 
         return $this->result($batch, $batch->unitKerja, $summary);
     }
@@ -98,26 +92,24 @@ final class FailureLogImportService
             throw new RuntimeException('Fingerprint workbook gagal dibuat.');
         }
 
-        $fingerprint = hash('sha256', implode('|', [
-            $workbookHash,
-            (string) $unit->id,
-            self::IMPORT_VERSION,
-        ]));
+        $fingerprint = hash('sha256', implode('|', [$workbookHash, (string) $unit->id, self::IMPORT_VERSION]));
         $batch ??= new RamsImportBatch;
-        $batch->fill([
-            'unit_kerja_id' => $unit->id,
-            'uploaded_by_user_id' => $actor?->id,
-            'fingerprint' => $fingerprint,
-            'import_version' => self::IMPORT_VERSION,
-            'workbook_name' => $workbook->getClientOriginalName(),
-            'file_size' => $workbook->getSize() ?: 0,
-            'status' => 'processing',
-            'dry_run' => $dryRun,
-            'summary' => null,
-            'error_message' => null,
-            'started_at' => now(),
-            'finished_at' => null,
-        ])->save();
+        $batch
+            ->fill([
+                'unit_kerja_id' => $unit->id,
+                'uploaded_by_user_id' => $actor?->id,
+                'fingerprint' => $fingerprint,
+                'import_version' => self::IMPORT_VERSION,
+                'workbook_name' => $workbook->getClientOriginalName(),
+                'file_size' => $workbook->getSize() ?: 0,
+                'status' => 'processing',
+                'dry_run' => $dryRun,
+                'summary' => null,
+                'error_message' => null,
+                'started_at' => now(),
+                'finished_at' => null,
+            ])
+            ->save();
         $batch->issues()->delete();
 
         DB::beginTransaction();
@@ -166,11 +158,13 @@ final class FailureLogImportService
                     'duplicates_skipped' => 0,
                     'duplicate_locations' => [],
                     'skipped' => 0,
-                    'issues' => [[
-                        'sheet_name' => 'LxC',
-                        'severity' => 'warning',
-                        'message' => 'Sheet LxC tidak tersedia; sinkronisasi Risk Register dilewati.',
-                    ]],
+                    'issues' => [
+                        [
+                            'sheet_name' => 'LxC',
+                            'severity' => 'warning',
+                            'message' => 'Sheet LxC tidak tersedia; sinkronisasi Risk Register dilewati.',
+                        ],
+                    ],
                 ];
             $this->progress($batch, 'Memproses kebutuhan suku cadang', 65);
             $sparePartSummary = $this->sparePartImporter->supports($path)
@@ -187,11 +181,13 @@ final class FailureLogImportService
                     'duplicates_skipped' => 0,
                     'duplicate_locations' => [],
                     'skipped' => 0,
-                    'issues' => [[
-                        'sheet_name' => 'Reorder Stock',
-                        'severity' => 'warning',
-                        'message' => 'Sheet Reorder Stock tidak tersedia; sinkronisasi suku cadang dilewati.',
-                    ]],
+                    'issues' => [
+                        [
+                            'sheet_name' => 'Reorder Stock',
+                            'severity' => 'warning',
+                            'message' => 'Sheet Reorder Stock tidak tersedia; sinkronisasi suku cadang dilewati.',
+                        ],
+                    ],
                 ];
 
             $this->progress($batch, 'Memproses Trouble Report', 78);
@@ -217,37 +213,44 @@ final class FailureLogImportService
             $summary['spare_parts_updated'] = (int) ($sparePartSummary['updated'] ?? 0);
             $summary['spare_parts_unchanged'] = (int) ($sparePartSummary['unchanged'] ?? 0);
             $summary['spare_parts_skipped'] = (int) ($sparePartSummary['skipped'] ?? 0);
-            $summary['data_updated'] = (int) ($summary['updated'] ?? 0)
-                + $summary['master_assets_updated']
-                + $summary['risk_matrices_updated']
-                + $summary['risk_registers_updated']
-                + $summary['spare_parts_updated'];
-            $summary['data_unchanged'] = (int) ($summary['unchanged'] ?? 0)
-                + $summary['master_assets_unchanged']
-                + $summary['risk_matrices_unchanged']
-                + $summary['risk_registers_unchanged']
-                + $summary['spare_parts_unchanged'];
-            $summary['duplicates_skipped'] = (int) ($summary['duplicates_skipped'] ?? 0)
-                + (int) ($masterSummary['duplicates_skipped'] ?? 0)
-                + (int) ($riskMatrixSummary['duplicates_skipped'] ?? 0)
-                + (int) ($riskRegisterSummary['duplicates_skipped'] ?? 0)
-                + (int) ($sparePartSummary['duplicates_skipped'] ?? 0);
-            $summary['duplicate_locations'] = array_values(array_unique(array_merge(
-                $summary['duplicate_locations'] ?? [],
-                $masterSummary['duplicate_locations'] ?? [],
-                $riskMatrixSummary['duplicate_locations'] ?? [],
-                $riskRegisterSummary['duplicate_locations'] ?? [],
-                $sparePartSummary['duplicate_locations'] ?? [],
-            )));
+            $summary['data_updated'] =
+                (int) ($summary['updated'] ?? 0) +
+                $summary['master_assets_updated'] +
+                $summary['risk_matrices_updated'] +
+                $summary['risk_registers_updated'] +
+                $summary['spare_parts_updated'];
+            $summary['data_unchanged'] =
+                (int) ($summary['unchanged'] ?? 0) +
+                $summary['master_assets_unchanged'] +
+                $summary['risk_matrices_unchanged'] +
+                $summary['risk_registers_unchanged'] +
+                $summary['spare_parts_unchanged'];
+            $summary['duplicates_skipped'] =
+                (int) ($summary['duplicates_skipped'] ?? 0) +
+                (int) ($masterSummary['duplicates_skipped'] ?? 0) +
+                (int) ($riskMatrixSummary['duplicates_skipped'] ?? 0) +
+                (int) ($riskRegisterSummary['duplicates_skipped'] ?? 0) +
+                (int) ($sparePartSummary['duplicates_skipped'] ?? 0);
+            $summary['duplicate_locations'] = array_values(
+                array_unique(
+                    array_merge(
+                        $summary['duplicate_locations'] ?? [],
+                        $masterSummary['duplicate_locations'] ?? [],
+                        $riskMatrixSummary['duplicate_locations'] ?? [],
+                        $riskRegisterSummary['duplicate_locations'] ?? [],
+                        $sparePartSummary['duplicate_locations'] ?? [],
+                    ),
+                ),
+            );
             sort($summary['duplicate_locations'], SORT_NATURAL | SORT_FLAG_CASE);
             $summary['issues'] = [
-                ...($summary['issues'] ?? []),
-                ...($masterSummary['issues'] ?? []),
-                ...($riskMatrixSummary['issues'] ?? []),
-                ...($riskRegisterSummary['issues'] ?? []),
-                ...($sparePartSummary['issues'] ?? []),
-                ...($snapshotSummary['issues'] ?? []),
-                ...($paritySummary['issues'] ?? []),
+                ...$summary['issues'] ?? [],
+                ...$masterSummary['issues'] ?? [],
+                ...$riskMatrixSummary['issues'] ?? [],
+                ...$riskRegisterSummary['issues'] ?? [],
+                ...$sparePartSummary['issues'] ?? [],
+                ...$snapshotSummary['issues'] ?? [],
+                ...$paritySummary['issues'] ?? [],
             ];
 
             if (is_array($beforeSnapshot)) {
@@ -324,13 +327,15 @@ final class FailureLogImportService
                     'excel_data_missing' => 0,
                     'not_compared' => 0,
                 ],
-                'issues' => [[
-                    'sheet_name' => null,
-                    'source_row' => null,
-                    'source_column' => null,
-                    'severity' => $issue->severity,
-                    'message' => $issue->message,
-                ]],
+                'issues' => [
+                    [
+                        'sheet_name' => null,
+                        'source_row' => null,
+                        'source_column' => null,
+                        'severity' => $issue->severity,
+                        'message' => $issue->message,
+                    ],
+                ],
             ];
         }
     }
@@ -377,21 +382,28 @@ final class FailureLogImportService
                 'excel_data_missing' => 0,
                 'not_compared' => 0,
             ],
-            'issues' => array_map(fn (array $issue): array => [
-                'sheet_name' => $issue['sheet_name'] ?? null,
-                'source_row' => $issue['source_row'] ?? null,
-                'source_column' => $issue['source_column'] ?? null,
-                'severity' => $issue['severity'] ?? 'warning',
-                'message' => $issue['message'],
-            ], $summary['issues'] ?? []),
+            'issues' => array_map(
+                fn (array $issue): array => [
+                    'sheet_name' => $issue['sheet_name'] ?? null,
+                    'source_row' => $issue['source_row'] ?? null,
+                    'source_column' => $issue['source_column'] ?? null,
+                    'severity' => $issue['severity'] ?? 'warning',
+                    'message' => $issue['message'],
+                ],
+                $summary['issues'] ?? [],
+            ),
         ];
     }
 
     private function progress(RamsImportBatch $batch, string $stage, int $percent): void
     {
-        Cache::put(self::progressCacheKey($batch->id), [
-            'stage' => $stage,
-            'percent' => $percent,
-        ], now()->addHours(2));
+        Cache::put(
+            self::progressCacheKey($batch->id),
+            [
+                'stage' => $stage,
+                'percent' => $percent,
+            ],
+            now()->addHours(2),
+        );
     }
 }

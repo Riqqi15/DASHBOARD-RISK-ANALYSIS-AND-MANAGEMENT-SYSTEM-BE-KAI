@@ -26,7 +26,8 @@ class AssetSystemController extends Controller
 
         try {
             $group = DB::transaction(function () use ($request, $groupId): AssetGroup {
-                // Every dependency creator must lock/revalidate its active parent; Task 4 assets must do this for their subsystem.
+                // Every dependency creator must lock and revalidate its active parent.
+                // Asset creation must do the same for its subsystem.
                 $group = AssetGroup::query()->where('is_active', true)->lockForUpdate()->findOrFail($groupId);
                 $system = AssetSystem::query()->create([
                     'asset_group_id' => $group->id,
@@ -44,7 +45,8 @@ class AssetSystemController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('admin.asset-categories.index', ['unit_kerja_id' => $group->unit_kerja_id, 'group' => $group->id])
+        return redirect()
+            ->route('admin.asset-categories.index', ['unit_kerja_id' => $group->unit_kerja_id, 'group' => $group->id])
             ->with('success', 'Sistem aset berhasil ditambahkan.');
     }
 
@@ -59,18 +61,24 @@ class AssetSystemController extends Controller
                     'dashboard_color' => $request->validated('dashboard_color'),
                     'dashboard_color_source' => $request->validated('dashboard_color') ? 'manual' : null,
                 ]);
-                $this->auditLogger->record('asset_category.updated', $assetSystem, $before, $this->auditValues($assetSystem->fresh()));
+                $this->auditLogger->record(
+                    'asset_category.updated',
+                    $assetSystem,
+                    $before,
+                    $this->auditValues($assetSystem->fresh()),
+                );
             });
         } catch (QueryException $exception) {
             $this->throwIfDuplicate($exception);
             throw $exception;
         }
 
-        return redirect()->route('admin.asset-categories.index', [
-            'unit_kerja_id' => $assetSystem->assetGroup()->value('unit_kerja_id'),
-            'group' => $assetSystem->asset_group_id,
-            'system' => $assetSystem->id,
-        ])
+        return redirect()
+            ->route('admin.asset-categories.index', [
+                'unit_kerja_id' => $assetSystem->assetGroup()->value('unit_kerja_id'),
+                'group' => $assetSystem->asset_group_id,
+                'system' => $assetSystem->id,
+            ])
             ->with('success', 'Sistem aset berhasil diperbarui.');
     }
 
@@ -88,17 +96,26 @@ class AssetSystemController extends Controller
 
             $before = $this->auditValues($system);
             $system->update(['is_active' => $requestedStatus]);
-            $this->auditLogger->record('asset_category.status_changed', $system, $before, $this->auditValues($system->fresh()));
+            $this->auditLogger->record(
+                'asset_category.status_changed',
+                $system,
+                $before,
+                $this->auditValues($system->fresh()),
+            );
 
             return true;
         });
 
-        return redirect()->route('admin.asset-categories.index', [
-            'unit_kerja_id' => $assetSystem->assetGroup()->value('unit_kerja_id'),
-            'group' => $groupId,
-            'system' => $systemId,
-        ])
-            ->with('success', $changed ? 'Status sistem aset berhasil diperbarui.' : 'Status sistem aset tidak berubah.');
+        return redirect()
+            ->route('admin.asset-categories.index', [
+                'unit_kerja_id' => $assetSystem->assetGroup()->value('unit_kerja_id'),
+                'group' => $groupId,
+                'system' => $systemId,
+            ])
+            ->with(
+                'success',
+                $changed ? 'Status sistem aset berhasil diperbarui.' : 'Status sistem aset tidak berubah.',
+            );
     }
 
     public function destroy(AssetSystem $assetSystem): RedirectResponse
@@ -111,7 +128,10 @@ class AssetSystemController extends Controller
             $system = AssetSystem::query()->lockForUpdate()->findOrFail($systemId);
             $blockers = array_filter([
                 'subsistem' => $system->subsystems()->withTrashed()->count(),
-                'alias sumber' => AssetCategorySourceAlias::query()->where('category_type', 'system')->where('category_id', $system->id)->count(),
+                'alias sumber' => AssetCategorySourceAlias::query()
+                    ->where('category_type', 'system')
+                    ->where('category_id', $system->id)
+                    ->count(),
             ]);
 
             if ($blockers !== []) {
@@ -126,13 +146,17 @@ class AssetSystemController extends Controller
         });
 
         if ($blockers !== []) {
-            return redirect()->back()->withErrors(['category' => $this->blockedMessage($blockers)]);
+            return redirect()
+                ->back()
+                ->withErrors(['category' => $this->blockedMessage($blockers)]);
         }
 
-        return redirect()->route('admin.asset-categories.index', [
-            'unit_kerja_id' => $assetSystem->assetGroup()->value('unit_kerja_id'),
-            'group' => $groupId,
-        ])->with('success', 'Sistem aset berhasil dihapus.');
+        return redirect()
+            ->route('admin.asset-categories.index', [
+                'unit_kerja_id' => $assetSystem->assetGroup()->value('unit_kerja_id'),
+                'group' => $groupId,
+            ])
+            ->with('success', 'Sistem aset berhasil dihapus.');
     }
 
     private function auditValues(AssetSystem $system): array

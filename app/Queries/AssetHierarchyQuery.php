@@ -44,15 +44,30 @@ class AssetHierarchyQuery
             )
             ->with('assetSystem.assetGroup')
             ->withSum(
-                ['assets as total' => fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $effectiveUnitId)],
+                [
+                    'assets as total' => fn (Builder $assets): Builder => $assets->where(
+                        'unit_kerja_id',
+                        $effectiveUnitId,
+                    ),
+                ],
                 'jumlah_unit',
             )
             ->withSum(
-                ['openings as sparepart_in' => fn (Builder $openings): Builder => $openings->where('unit_kerja_id', $effectiveUnitId)],
+                [
+                    'openings as sparepart_in' => fn (Builder $openings): Builder => $openings->where(
+                        'unit_kerja_id',
+                        $effectiveUnitId,
+                    ),
+                ],
                 'sparepart_in',
             )
             ->withSum(
-                ['openings as sparepart_out' => fn (Builder $openings): Builder => $openings->where('unit_kerja_id', $effectiveUnitId)],
+                [
+                    'openings as sparepart_out' => fn (Builder $openings): Builder => $openings->where(
+                        'unit_kerja_id',
+                        $effectiveUnitId,
+                    ),
+                ],
                 'sparepart_out',
             )
             ->orderBy('asset_groups.sort_order')
@@ -66,13 +81,13 @@ class AssetHierarchyQuery
                 $subsystem->setAttribute('total', (int) ($subsystem->getAttribute('total') ?? 0));
                 $subsystem->setAttribute(
                     'sparepart_in',
-                    (int) ($subsystem->getAttribute('sparepart_in') ?? 0)
-                        + (int) ($subsystem->getAttribute('ledger_in') ?? 0),
+                    (int) ($subsystem->getAttribute('sparepart_in') ?? 0) +
+                        (int) ($subsystem->getAttribute('ledger_in') ?? 0),
                 );
                 $subsystem->setAttribute(
                     'sparepart_out',
-                    (int) ($subsystem->getAttribute('sparepart_out') ?? 0)
-                        + (int) ($subsystem->getAttribute('ledger_out') ?? 0),
+                    (int) ($subsystem->getAttribute('sparepart_out') ?? 0) +
+                        (int) ($subsystem->getAttribute('ledger_out') ?? 0),
                 );
                 $subsystem->offsetUnset('ledger_in');
                 $subsystem->offsetUnset('ledger_out');

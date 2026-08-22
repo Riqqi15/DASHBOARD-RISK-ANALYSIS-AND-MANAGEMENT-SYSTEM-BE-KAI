@@ -46,16 +46,18 @@ class AssetCategoryImportTest extends TestCase
     public function test_unit_subsystem_opening_schema_is_available(): void
     {
         $this->assertTrue(Schema::hasTable('unit_subsystem_openings'));
-        $this->assertTrue(Schema::hasColumns('unit_subsystem_openings', [
-            'id',
-            'unit_kerja_id',
-            'asset_subsystem_id',
-            'source_key',
-            'sparepart_in',
-            'sparepart_out',
-            'created_at',
-            'updated_at',
-        ]));
+        $this->assertTrue(
+            Schema::hasColumns('unit_subsystem_openings', [
+                'id',
+                'unit_kerja_id',
+                'asset_subsystem_id',
+                'source_key',
+                'sparepart_in',
+                'sparepart_out',
+                'created_at',
+                'updated_at',
+            ]),
+        );
     }
 
     public function test_opening_factory_builds_a_consistent_chain_and_model_scope(): void
@@ -78,10 +80,7 @@ class AssetCategoryImportTest extends TestCase
         $this->assertTrue($opening->unitKerja->unitSubsystemOpenings->contains($opening));
         $this->assertTrue($opening->assetSubsystem->openings->contains($opening));
         $this->assertTrue($opening->assetSubsystem->unitSubsystemOpenings->contains($opening));
-        $this->assertSame(
-            [$opening->id],
-            UnitSubsystemOpening::query()->visibleTo($regional)->pluck('id')->all(),
-        );
+        $this->assertSame([$opening->id], UnitSubsystemOpening::query()->visibleTo($regional)->pluck('id')->all());
         $this->assertNotSame($opening->unit_kerja_id, $other->unit_kerja_id);
     }
 
@@ -89,15 +88,24 @@ class AssetCategoryImportTest extends TestCase
     {
         $opening = UnitSubsystemOpening::factory()->create();
 
-        $this->assertMysqlError(1062, fn () => UnitSubsystemOpening::factory()->create([
-            'source_key' => $opening->source_key,
-        ]));
-        $this->assertMysqlError(1062, fn () => UnitSubsystemOpening::factory()->create([
-            'unit_kerja_id' => $opening->unit_kerja_id,
-            'asset_subsystem_id' => $opening->asset_subsystem_id,
-        ]));
+        $this->assertMysqlError(
+            1062,
+            fn () => UnitSubsystemOpening::factory()->create([
+                'source_key' => $opening->source_key,
+            ]),
+        );
+        $this->assertMysqlError(
+            1062,
+            fn () => UnitSubsystemOpening::factory()->create([
+                'unit_kerja_id' => $opening->unit_kerja_id,
+                'asset_subsystem_id' => $opening->asset_subsystem_id,
+            ]),
+        );
         $this->assertMysqlError(1451, fn () => UnitKerja::query()->findOrFail($opening->unit_kerja_id)->forceDelete());
-        $this->assertMysqlError(1451, fn () => AssetSubsystem::query()->findOrFail($opening->asset_subsystem_id)->forceDelete());
+        $this->assertMysqlError(
+            1451,
+            fn () => AssetSubsystem::query()->findOrFail($opening->asset_subsystem_id)->forceDelete(),
+        );
     }
 
     public function test_import_creates_category_assets_and_exact_openings_then_reimports_without_duplicates(): void
@@ -110,17 +118,20 @@ class AssetCategoryImportTest extends TestCase
 
         $first = app(MasterAssetWorkbookImporter::class)->import($path, $unit);
 
-        $this->assertSame([
-            'created' => 2,
-            'updated' => 0,
-            'unchanged' => 0,
-            'duplicates_skipped' => 0,
-            'duplicate_locations' => [],
-            'skipped' => 0,
-            'openings_created' => 2,
-            'openings_updated' => 0,
-            'predictive_snapshots' => 0,
-        ], $first);
+        $this->assertSame(
+            [
+                'created' => 2,
+                'updated' => 0,
+                'unchanged' => 0,
+                'duplicates_skipped' => 0,
+                'duplicate_locations' => [],
+                'skipped' => 0,
+                'openings_created' => 2,
+                'openings_updated' => 0,
+                'predictive_snapshots' => 0,
+            ],
+            $first,
+        );
         $group = AssetGroup::query()->sole();
         $system = AssetSystem::query()->sole();
         $trackCircuit = AssetSubsystem::query()->where('name', 'Track Circuit')->sole();
@@ -159,27 +170,28 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame(2, AuditLog::query()->where('action', 'unit_subsystem_opening.imported')->count());
     }
 
-    public function test_unchanged_reimport_has_zero_updates_and_no_duplicate_asset_or_opening_audits_in_result_and_command(): void
+    public function test_unchanged_reimport_has_no_updates_duplicates_or_audits(): void
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909]]);
 
         app(MasterAssetWorkbookImporter::class)->import($path, $unit);
         $unchanged = app(MasterAssetWorkbookImporter::class)->import($path, $unit);
 
-        $this->assertSame([
-            'created' => 0,
-            'updated' => 0,
-            'unchanged' => 1,
-            'duplicates_skipped' => 1,
-            'duplicate_locations' => ['Predictive Data Asset!3'],
-            'skipped' => 0,
-            'openings_created' => 0,
-            'openings_updated' => 0,
-            'predictive_snapshots' => 0,
-        ], $unchanged);
+        $this->assertSame(
+            [
+                'created' => 0,
+                'updated' => 0,
+                'unchanged' => 1,
+                'duplicates_skipped' => 1,
+                'duplicate_locations' => ['Predictive Data Asset!3'],
+                'skipped' => 0,
+                'openings_created' => 0,
+                'openings_updated' => 0,
+                'predictive_snapshots' => 0,
+            ],
+            $unchanged,
+        );
         $this->artisan('rams:import-master-assets', ['workbook' => $path, '--unit' => 'DAOP-1'])
             ->expectsOutputToContain('Dibuat: 0')
             ->expectsOutputToContain('Diperbarui: 0')
@@ -198,9 +210,7 @@ class AssetCategoryImportTest extends TestCase
     public function test_missing_sparepart_header_aborts_before_any_workbook_write(): void
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Subsystem', 1, 2, 3, 40909],
-        ], includeSparepartOut: false);
+        $path = $this->workbook([['Kelompok', 'System', 'Subsystem', 1, 2, 3, 40909]], includeSparepartOut: false);
 
         try {
             app(MasterAssetWorkbookImporter::class)->import($path, $unit);
@@ -219,9 +229,7 @@ class AssetCategoryImportTest extends TestCase
     public function test_negative_opening_quantity_aborts_the_atomic_workbook_import(): void
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Subsystem', 1, -1, 0, 40909],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Subsystem', 1, -1, 0, 40909]]);
 
         try {
             app(MasterAssetWorkbookImporter::class)->import($path, $unit);
@@ -251,9 +259,7 @@ class AssetCategoryImportTest extends TestCase
         ];
 
         foreach ($cases as [$label, $header, [$total, $sparepartIn, $sparepartOut]]) {
-            $path = $this->workbook([
-                ['Kelompok', 'System', 'Subsystem', $total, $sparepartIn, $sparepartOut, 40909],
-            ]);
+            $path = $this->workbook([['Kelompok', 'System', 'Subsystem', $total, $sparepartIn, $sparepartOut, 40909]]);
             $caught = null;
 
             try {
@@ -303,8 +309,12 @@ class AssetCategoryImportTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
         $group = AssetGroup::factory()->create(['name' => 'Kelompok Sinyal']);
-        $system = AssetSystem::factory()->for($group)->create(['name' => 'Interlocking Elektrik']);
-        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Track Circuit']);
+        $system = AssetSystem::factory()
+            ->for($group)
+            ->create(['name' => 'Interlocking Elektrik']);
+        $subsystem = AssetSubsystem::factory()
+            ->for($system)
+            ->create(['name' => 'Track Circuit']);
         $legacyKey = hash('sha256', 'DAOP-1|Predictive Data Asset|Interlocking   Elektrik|Track   Circuit');
         $asset = Asset::factory()
             ->for($unit)
@@ -314,16 +324,16 @@ class AssetCategoryImportTest extends TestCase
                 'nama_aset' => 'Nama suntingan operator',
                 'status' => 'dalam_perbaikan',
             ]);
-        $path = $this->workbook([
-            ['Kelompok Sinyal', 'Interlocking   Elektrik', 'Track   Circuit', 22, 4, 1, 40909],
-        ]);
+        $path = $this->workbook([['Kelompok Sinyal', 'Interlocking   Elektrik', 'Track   Circuit', 22, 4, 1, 40909]]);
 
         app(MasterAssetWorkbookImporter::class)->import($path, $unit);
 
         $asset->refresh();
         $stableKey = hash(
             'sha256',
-            "rams:master-asset:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$asset->asset_subsystem_id}",
+            "rams:master-asset:v2|unit_id={$unit->id}|"
+                .'sheet=Predictive Data Asset|'
+                ."asset_subsystem_id={$asset->asset_subsystem_id}",
         );
         $this->assertDatabaseCount('assets', 1);
         $this->assertSame($stableKey, $asset->source_key);
@@ -348,33 +358,31 @@ class AssetCategoryImportTest extends TestCase
             'unit_kerja_id' => null,
             'name' => '1. Peralatan Dalam Sinyal Elektrik',
         ]);
-        $globalSystem = AssetSystem::factory()->for($globalGroup)->create([
-            'name' => 'Interlocking Elektrik',
-        ]);
-        $globalSubsystem = AssetSubsystem::factory()->for($globalSystem)->create([
-            'name' => 'Interlocking Elektrik',
-        ]);
+        $globalSystem = AssetSystem::factory()
+            ->for($globalGroup)
+            ->create([
+                'name' => 'Interlocking Elektrik',
+            ]);
+        $globalSubsystem = AssetSubsystem::factory()
+            ->for($globalSystem)
+            ->create([
+                'name' => 'Interlocking Elektrik',
+            ]);
         $asset = Asset::factory()
             ->for($unit)
             ->for($globalSubsystem, 'assetSubsystem')
             ->create([
                 'source_key' => hash(
                     'sha256',
-                    "rams:master-asset:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$globalSubsystem->id}",
+                    "rams:master-asset:v2|unit_id={$unit->id}|"
+                        .'sheet=Predictive Data Asset|'
+                        ."asset_subsystem_id={$globalSubsystem->id}",
                 ),
                 'nama_aset' => 'Nama suntingan operator',
                 'status' => 'dalam_perbaikan',
             ]);
         $path = $this->workbook([
-            [
-                '1. Peralatan Dalam Sinyal Elektrik',
-                'Interlocking Elektrik',
-                'Interlocking Elektrik',
-                2,
-                0,
-                0,
-                40909,
-            ],
+            ['1. Peralatan Dalam Sinyal Elektrik', 'Interlocking Elektrik', 'Interlocking Elektrik', 2, 0, 0, 40909],
         ]);
 
         $result = app(MasterAssetWorkbookImporter::class)->import($path, $unit);
@@ -393,9 +401,7 @@ class AssetCategoryImportTest extends TestCase
     public function test_v2_source_keys_survive_unit_code_rename_without_duplicates_or_lost_edits(): void
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909]]);
 
         app(MasterAssetWorkbookImporter::class)->import($path, $unit);
         $asset = Asset::query()->sole();
@@ -407,7 +413,9 @@ class AssetCategoryImportTest extends TestCase
         );
         $expectedOpeningKey = hash(
             'sha256',
-            "rams:unit-subsystem-opening:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$subsystemId}",
+            "rams:unit-subsystem-opening:v2|unit_id={$unit->id}|"
+                .'sheet=Predictive Data Asset|'
+                ."asset_subsystem_id={$subsystemId}",
         );
         $asset->update(['nama_aset' => 'Nama operator', 'status' => 'dalam_perbaikan']);
 
@@ -431,35 +439,48 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame(2, $opening->sparepart_out);
     }
 
-    public function test_unique_prior_code_key_falls_back_by_unit_and_subsystem_after_code_changed_without_merging_manual_asset(): void
+    public function test_prior_code_falls_back_without_merging_manual_asset(): void
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-OLD']);
         $group = AssetGroup::factory()->create(['name' => 'Kelompok']);
-        $system = AssetSystem::factory()->for($group)->create(['name' => 'System']);
-        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Subsystem']);
+        $system = AssetSystem::factory()
+            ->for($group)
+            ->create(['name' => 'System']);
+        $subsystem = AssetSubsystem::factory()
+            ->for($system)
+            ->create(['name' => 'Subsystem']);
         $priorCodeKey = hash('sha256', "DAOP-OLD|Predictive Data Asset|{$subsystem->id}");
-        $importedAsset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
-            'source_key' => $priorCodeKey,
-            'nama_aset' => 'Imported candidate',
-        ]);
-        $manualAsset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
-            'source_key' => null,
-            'nama_aset' => 'Manual asset',
-        ]);
-        $priorOpening = UnitSubsystemOpening::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
-            'source_key' => hash('sha256', "DAOP-OLD|Predictive Data Asset|{$subsystem->id}|opening"),
-        ]);
+        $importedAsset = Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create([
+                'source_key' => $priorCodeKey,
+                'nama_aset' => 'Imported candidate',
+            ]);
+        $manualAsset = Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create([
+                'source_key' => null,
+                'nama_aset' => 'Manual asset',
+            ]);
+        $priorOpening = UnitSubsystemOpening::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create([
+                'source_key' => hash('sha256', "DAOP-OLD|Predictive Data Asset|{$subsystem->id}|opening"),
+            ]);
         $unit->update(['code' => 'DAOP-NEW']);
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Subsystem', 9, 1, 0, 40909],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Subsystem', 9, 1, 0, 40909]]);
 
         app(MasterAssetWorkbookImporter::class)->import($path, $unit->fresh());
 
         $importedAsset->refresh();
         $expectedV2Key = hash(
             'sha256',
-            "rams:master-asset:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$importedAsset->asset_subsystem_id}",
+            "rams:master-asset:v2|unit_id={$unit->id}|"
+                .'sheet=Predictive Data Asset|'
+                ."asset_subsystem_id={$importedAsset->asset_subsystem_id}",
         );
         $this->assertDatabaseCount('assets', 2);
         $this->assertSame($expectedV2Key, $importedAsset->source_key);
@@ -470,7 +491,9 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame(
             hash(
                 'sha256',
-                "rams:unit-subsystem-opening:v2|unit_id={$unit->id}|sheet=Predictive Data Asset|asset_subsystem_id={$importedAsset->asset_subsystem_id}",
+                "rams:unit-subsystem-opening:v2|unit_id={$unit->id}|"
+                    .'sheet=Predictive Data Asset|'
+                    ."asset_subsystem_id={$importedAsset->asset_subsystem_id}",
             ),
             $priorOpening->fresh()->source_key,
         );
@@ -564,9 +587,7 @@ class AssetCategoryImportTest extends TestCase
     public function test_opening_import_audit_is_written_only_for_create_or_changed_values(): void
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Subsystem', 1, 2, 0, 40909],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Subsystem', 1, 2, 0, 40909]]);
 
         app(MasterAssetWorkbookImporter::class)->import($path, $unit);
         app(MasterAssetWorkbookImporter::class)->import($path, $unit);
@@ -597,25 +618,50 @@ class AssetCategoryImportTest extends TestCase
 
         $laterGroup = AssetGroup::factory()->create(['name' => 'Alpha Group', 'sort_order' => 2]);
         $firstGroup = AssetGroup::factory()->create(['name' => 'Zulu Group', 'sort_order' => 1, 'is_active' => false]);
-        $laterSystem = AssetSystem::factory()->for($laterGroup)->create(['name' => 'Alpha System', 'sort_order' => 2]);
-        $firstSystem = AssetSystem::factory()->for($firstGroup)->create(['name' => 'Zulu System', 'sort_order' => 1, 'is_active' => false]);
-        $laterSubsystem = AssetSubsystem::factory()->for($laterSystem)->create(['name' => 'Alpha Subsystem', 'sort_order' => 2]);
-        $firstSubsystem = AssetSubsystem::factory()->for($firstSystem)->create(['name' => 'Zulu Subsystem', 'sort_order' => 1, 'is_active' => false]);
-        $deletedSubsystem = AssetSubsystem::factory()->for($firstSystem)->create(['name' => 'Deleted Subsystem']);
+        $laterSystem = AssetSystem::factory()
+            ->for($laterGroup)
+            ->create(['name' => 'Alpha System', 'sort_order' => 2]);
+        $firstSystem = AssetSystem::factory()
+            ->for($firstGroup)
+            ->create(['name' => 'Zulu System', 'sort_order' => 1, 'is_active' => false]);
+        $laterSubsystem = AssetSubsystem::factory()
+            ->for($laterSystem)
+            ->create(['name' => 'Alpha Subsystem', 'sort_order' => 2]);
+        $firstSubsystem = AssetSubsystem::factory()
+            ->for($firstSystem)
+            ->create(['name' => 'Zulu Subsystem', 'sort_order' => 1, 'is_active' => false]);
+        $deletedSubsystem = AssetSubsystem::factory()
+            ->for($firstSystem)
+            ->create(['name' => 'Deleted Subsystem']);
         $deletedSubsystem->delete();
 
-        Asset::factory()->for($ownUnit)->for($firstSubsystem, 'assetSubsystem')->create(['jumlah_unit' => 4]);
-        Asset::factory()->for($otherUnit)->for($firstSubsystem, 'assetSubsystem')->create(['jumlah_unit' => 9]);
-        $deletedAsset = Asset::factory()->for($ownUnit)->for($firstSubsystem, 'assetSubsystem')->create(['jumlah_unit' => 100]);
+        Asset::factory()
+            ->for($ownUnit)
+            ->for($firstSubsystem, 'assetSubsystem')
+            ->create(['jumlah_unit' => 4]);
+        Asset::factory()
+            ->for($otherUnit)
+            ->for($firstSubsystem, 'assetSubsystem')
+            ->create(['jumlah_unit' => 9]);
+        $deletedAsset = Asset::factory()
+            ->for($ownUnit)
+            ->for($firstSubsystem, 'assetSubsystem')
+            ->create(['jumlah_unit' => 100]);
         $deletedAsset->delete();
-        UnitSubsystemOpening::factory()->for($ownUnit)->for($firstSubsystem, 'assetSubsystem')->create([
-            'sparepart_in' => 3,
-            'sparepart_out' => 1,
-        ]);
-        UnitSubsystemOpening::factory()->for($otherUnit)->for($firstSubsystem, 'assetSubsystem')->create([
-            'sparepart_in' => 8,
-            'sparepart_out' => 2,
-        ]);
+        UnitSubsystemOpening::factory()
+            ->for($ownUnit)
+            ->for($firstSubsystem, 'assetSubsystem')
+            ->create([
+                'sparepart_in' => 3,
+                'sparepart_out' => 1,
+            ]);
+        UnitSubsystemOpening::factory()
+            ->for($otherUnit)
+            ->for($firstSubsystem, 'assetSubsystem')
+            ->create([
+                'sparepart_in' => 8,
+                'sparepart_out' => 2,
+            ]);
 
         $queries = [];
         DB::listen(function (QueryExecuted $query) use (&$queries): void {
@@ -648,9 +694,9 @@ class AssetCategoryImportTest extends TestCase
         $queries = [];
         $filtered = app(AssetHierarchyQuery::class)->forUser($pusat, $ownUnit->id, [$laterSubsystem->id]);
         $this->assertSame([$laterSubsystem->id], $filtered->pluck('id')->all());
-        $this->assertTrue(collect($queries)->contains(
-            fn (string $sql): bool => str_contains($sql, '`asset_subsystems`.`id` in ('),
-        ));
+        $this->assertTrue(
+            collect($queries)->contains(fn (string $sql): bool => str_contains($sql, '`asset_subsystems`.`id` in (')),
+        );
     }
 
     private function assertMysqlError(int $expectedErrorNumber, Closure $operation): void
@@ -671,17 +717,25 @@ class AssetCategoryImportTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
         $group = AssetGroup::factory()->create(['name' => 'Kelompok']);
-        $system = AssetSystem::factory()->for($group)->create(['name' => 'System']);
-        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Subsystem']);
-        $first = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
-            'source_key' => hash('sha256', 'first-import-candidate'),
-        ]);
-        $second = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
-            'source_key' => hash('sha256', 'second-import-candidate'),
-        ]);
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909],
-        ]);
+        $system = AssetSystem::factory()
+            ->for($group)
+            ->create(['name' => 'System']);
+        $subsystem = AssetSubsystem::factory()
+            ->for($system)
+            ->create(['name' => 'Subsystem']);
+        $first = Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create([
+                'source_key' => hash('sha256', 'first-import-candidate'),
+            ]);
+        $second = Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create([
+                'source_key' => hash('sha256', 'second-import-candidate'),
+            ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909]]);
 
         return [$path, $first, $second];
     }
@@ -733,21 +787,33 @@ class AssetCategoryImportTest extends TestCase
     }
 
     /**
-     * @param  list<array{string, string, string, int|float|string|null, int|float|string|null, int|float|string|null, mixed}>  $rows
+     * @param  list<array{
+     *     string,
+     *     string,
+     *     string,
+     *     int|float|string|null,
+     *     int|float|string|null,
+     *     int|float|string|null,
+     *     mixed
+     * }>  $rows
      */
     private function workbook(array $rows, bool $includeSparepartOut = true): string
     {
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Predictive Data Asset');
-        $sheet->fromArray([
-            'ASET PRASARANA SINTEL',
-            'System',
-            'Subsystem',
-            'TOTAL',
-            'Sparepart IN',
-            $includeSparepartOut ? 'Sparepart OUT' : 'Kolom Salah',
-        ], null, 'A2');
+        $sheet->fromArray(
+            [
+                'ASET PRASARANA SINTEL',
+                'System',
+                'Subsystem',
+                'TOTAL',
+                'Sparepart IN',
+                $includeSparepartOut ? 'Sparepart OUT' : 'Kolom Salah',
+            ],
+            null,
+            'A2',
+        );
         $sheet->setCellValue('AA2', 'Tanggal Pemasangan');
 
         foreach ($rows as $offset => [$group, $system, $subsystem, $total, $sparepartIn, $sparepartOut, $date]) {

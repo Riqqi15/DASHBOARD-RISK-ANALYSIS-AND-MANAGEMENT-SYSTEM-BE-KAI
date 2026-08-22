@@ -28,14 +28,16 @@ try {
     }
 
     $action = $argv[1] ?? '';
-    $scope = $action === 'setup' || $action === 'cleanup' ? ($argv[2] ?? '') : ($argv[4] ?? '');
+    $scope = $action === 'setup' || $action === 'cleanup' ? $argv[2] ?? '' : $argv[4] ?? '';
 
     if ($scope === '') {
         throw new InvalidArgumentException('A non-empty race scope is required.');
     }
 
     if ($action === 'setup') {
-        $user = User::factory()->pusat()->create(['email' => "{$scope}@example.test"]);
+        $user = User::factory()
+            ->pusat()
+            ->create(['email' => "{$scope}@example.test"]);
         $group = AssetGroup::factory()->create(['name' => $scope]);
 
         echo json_encode(['group_id' => $group->id, 'user_id' => $user->id], JSON_THROW_ON_ERROR);
@@ -45,21 +47,29 @@ try {
 
     if ($action === 'cleanup') {
         DB::transaction(function () use ($scope): void {
-            AssetGroup::withTrashed()->where('normalized_name', mb_strtolower($scope))->get()->each(function (AssetGroup $group): void {
-                AuditLog::query()
-                    ->where('auditable_type', $group->getMorphClass())
-                    ->where('auditable_id', $group->id)
-                    ->delete();
-                AssetSystem::withTrashed()->where('asset_group_id', $group->id)->get()->each(function (AssetSystem $system): void {
+            AssetGroup::withTrashed()
+                ->where('normalized_name', mb_strtolower($scope))
+                ->get()
+                ->each(function (AssetGroup $group): void {
                     AuditLog::query()
-                        ->where('auditable_type', $system->getMorphClass())
-                        ->where('auditable_id', $system->id)
+                        ->where('auditable_type', $group->getMorphClass())
+                        ->where('auditable_id', $group->id)
                         ->delete();
-                    $system->forceDelete();
+                    AssetSystem::withTrashed()
+                        ->where('asset_group_id', $group->id)
+                        ->get()
+                        ->each(function (AssetSystem $system): void {
+                            AuditLog::query()
+                                ->where('auditable_type', $system->getMorphClass())
+                                ->where('auditable_id', $system->id)
+                                ->delete();
+                            $system->forceDelete();
+                        });
+                    $group->forceDelete();
                 });
-                $group->forceDelete();
-            });
-            User::query()->where('email', "{$scope}@example.test")->delete();
+            User::query()
+                ->where('email', "{$scope}@example.test")
+                ->delete();
         });
 
         echo '{"cleaned":true}';

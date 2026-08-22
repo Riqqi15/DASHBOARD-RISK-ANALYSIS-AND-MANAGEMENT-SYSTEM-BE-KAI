@@ -18,9 +18,11 @@ class RamsDashboardBackendTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_dashboard_marks_only_meaningfully_changed_families_from_latest_successful_regional_import(): void
+    public function test_dashboard_marks_changed_families_from_latest_regional_import(): void
     {
-        $pusat = User::factory()->pusat()->create(['is_active' => true]);
+        $pusat = User::factory()
+            ->pusat()
+            ->create(['is_active' => true]);
         $daop = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         $otherUnit = UnitKerja::factory()->create(['code' => 'DAOP-4', 'is_active' => true]);
 
@@ -65,14 +67,18 @@ class RamsDashboardBackendTest extends TestCase
         $this->actingAs($pusat)
             ->get('/dashboard?area=DAOP1')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('summary.latestImport.date', '2026-08-20')
-                ->where('summary.latestImport.groupCodes', ['PDSE']));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->where('summary.latestImport.date', '2026-08-20')
+                    ->where('summary.latestImport.groupCodes', ['PDSE']),
+            );
     }
 
     public function test_dashboard_exposes_empty_asset_categories_without_assets_in_selected_area(): void
     {
-        $pusat = User::factory()->pusat()->create(['is_active' => true]);
+        $pusat = User::factory()
+            ->pusat()
+            ->create(['is_active' => true]);
         $daop = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         AssetGroup::query()->create([
             'unit_kerja_id' => $daop->id,
@@ -84,17 +90,21 @@ class RamsDashboardBackendTest extends TestCase
         $this->actingAs($pusat)
             ->get('/dashboard?area=DAOP1')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('dashboard/Dashboard')
-                ->has('asset_categories', 1)
-                ->where('asset_categories.0.name', '1234')
-                ->where('asset_categories.0.systems', [])
-                ->has('assets', 0));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->component('dashboard/Dashboard')
+                    ->has('asset_categories', 1)
+                    ->where('asset_categories.0.name', '1234')
+                    ->where('asset_categories.0.systems', [])
+                    ->has('assets', 0),
+            );
     }
 
     public function test_dashboard_exposes_a_dynamic_family_card_for_each_regional_root_category(): void
     {
-        $pusat = User::factory()->pusat()->create(['is_active' => true]);
+        $pusat = User::factory()
+            ->pusat()
+            ->create(['is_active' => true]);
         $daopOne = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         $daopFour = UnitKerja::factory()->create(['code' => 'DAOP-4', 'is_active' => true]);
 
@@ -118,19 +128,23 @@ class RamsDashboardBackendTest extends TestCase
         $this->actingAs($pusat)
             ->get('/dashboard?area=DAOP1')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->has('summary.reliabilityGroups', 1)
-                ->where('summary.reliabilityGroups.0.code', 'DS')
-                ->where('summary.reliabilityGroups.0.name', 'DAYA SATU')
-                ->where('summary.reliabilityGroups.0.color', '#123ABC')
-                ->where('summary.reliabilityGroups.0.asset_count', 0)
-                ->where('summary.reliabilityGroups.0.reliability', null)
-                ->where('summary.reliabilityGroups.0.availability', null));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->has('summary.reliabilityGroups', 1)
+                    ->where('summary.reliabilityGroups.0.code', 'DS')
+                    ->where('summary.reliabilityGroups.0.name', 'DAYA SATU')
+                    ->where('summary.reliabilityGroups.0.color', '#123ABC')
+                    ->where('summary.reliabilityGroups.0.asset_count', 0)
+                    ->where('summary.reliabilityGroups.0.reliability', null)
+                    ->where('summary.reliabilityGroups.0.availability', null),
+            );
     }
 
     public function test_dashboard_category_tree_is_scoped_to_selected_area(): void
     {
-        $pusat = User::factory()->pusat()->create(['is_active' => true]);
+        $pusat = User::factory()
+            ->pusat()
+            ->create(['is_active' => true]);
         $daop = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         $divre = UnitKerja::factory()->create(['code' => 'DIVRE-IV', 'is_active' => true]);
 
@@ -167,93 +181,117 @@ class RamsDashboardBackendTest extends TestCase
         $this->actingAs($pusat)
             ->get('/dashboard?area=DAOP1')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('selected_area', 'DAOP-1')
-                ->where('asset_categories.0.name', 'SINTEL DAOP')
-                ->where('asset_categories.0.dashboard_color', '#FF0000')
-                ->where('asset_categories.0.systems.0.name', 'SYSTEM DAOP')
-                ->where('asset_categories.0.systems.0.dashboard_color', '#FFC000')
-                ->where('asset_categories.0.systems.0.subsystems.0.name', 'SUBSYSTEM DAOP')
-                ->where('asset_categories.0.systems.0.subsystems.0.dashboard_color', '#FFFF00')
-                ->where('asset_categories', fn ($categories) => $categories->pluck('name')->doesntContain('SINTEL DIVRE')));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->where('selected_area', 'DAOP-1')
+                    ->where('asset_categories.0.name', 'SINTEL DAOP')
+                    ->where('asset_categories.0.dashboard_color', '#FF0000')
+                    ->where('asset_categories.0.systems.0.name', 'SYSTEM DAOP')
+                    ->where('asset_categories.0.systems.0.dashboard_color', '#FFC000')
+                    ->where('asset_categories.0.systems.0.subsystems.0.name', 'SUBSYSTEM DAOP')
+                    ->where('asset_categories.0.systems.0.subsystems.0.dashboard_color', '#FFFF00')
+                    ->where(
+                        'asset_categories',
+                        fn ($categories) => $categories->pluck('name')->doesntContain('SINTEL DIVRE'),
+                    ),
+            );
 
         $this->actingAs($pusat)
             ->get('/dashboard?area=DIVRE4')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('selected_area', 'DIVRE-IV')
-                ->where('asset_categories.0.name', 'SINTEL DIVRE')
-                ->where('asset_categories', fn ($categories) => $categories->pluck('name')->doesntContain('SINTEL DAOP')));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->where('selected_area', 'DIVRE-IV')
+                    ->where('asset_categories.0.name', 'SINTEL DIVRE')
+                    ->where(
+                        'asset_categories',
+                        fn ($categories) => $categories->pluck('name')->doesntContain('SINTEL DAOP'),
+                    ),
+            );
     }
 
     public function test_pusat_dashboard_defaults_to_first_active_unit_instead_of_national_scope(): void
     {
-        $pusat = User::factory()->pusat()->create(['is_active' => true]);
+        $pusat = User::factory()
+            ->pusat()
+            ->create(['is_active' => true]);
         UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         UnitKerja::factory()->create(['code' => 'DIVRE-IV', 'is_active' => true]);
 
         $this->actingAs($pusat)
             ->get('/dashboard')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('dashboard/Dashboard')
-                ->where('selected_area', 'DAOP-1'));
+            ->assertInertia(
+                fn (Assert $page) => $page->component('dashboard/Dashboard')->where('selected_area', 'DAOP-1'),
+            );
     }
 
     public function test_dashboard_pages_read_seeded_database_with_area_authorization(): void
     {
-        $pusat = User::factory()->pusat()->create(['is_active' => true]);
+        $pusat = User::factory()
+            ->pusat()
+            ->create(['is_active' => true]);
         $this->seed(RamsOperationalDataSeeder::class);
 
         $this->actingAs($pusat)
             ->get('/dashboard')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('dashboard/Dashboard')
-                ->where('selected_area', 'DAOP-1')
-                ->where('summary.totalAset', 17)
-                ->has('assets', 17));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->component('dashboard/Dashboard')
+                    ->where('selected_area', 'DAOP-1')
+                    ->where('summary.totalAset', 17)
+                    ->has('assets', 17),
+            );
 
         $this->actingAs($pusat)
             ->get('/risk-matrix?area=DIVRE4')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('dashboard/RiskMatrix')
-                ->where('selected_area', 'DIVRE-IV')
-                ->has('risks', 5));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->component('dashboard/RiskMatrix')
+                    ->where('selected_area', 'DIVRE-IV')
+                    ->has('risks', 5),
+            );
 
         $daopId = UnitKerja::query()->where('code', 'DAOP-1')->value('id');
         $this->actingAs($pusat)
             ->get('/inventory?unit_kerja_id='.$daopId)
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('master-data/inventory/Inventory')
-                ->where('filters.unit_kerja_id', (string) $daopId)
-                ->where('stocks.total', 41)
-                ->has('stocks.data', 20));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->component('master-data/inventory/Inventory')
+                    ->where('filters.unit_kerja_id', (string) $daopId)
+                    ->where('stocks.total', 41)
+                    ->has('stocks.data', 20),
+            );
 
         $this->actingAs($pusat)->get('/dashboard?area=UNKNOWN')->assertNotFound();
     }
 
     public function test_regional_user_is_limited_to_its_own_unit(): void
     {
-        $pusat = User::factory()->pusat()->create(['is_active' => true]);
+        $pusat = User::factory()
+            ->pusat()
+            ->create(['is_active' => true]);
         $this->seed(RamsOperationalDataSeeder::class);
         $unit = UnitKerja::query()->where('code', 'DAOP-1')->sole();
-        $regional = User::factory()->unit($unit)->create(['is_active' => true]);
+        $regional = User::factory()
+            ->unit($unit)
+            ->create(['is_active' => true]);
 
         $this->actingAs($regional)
             ->get('/dashboard')
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('dashboard/Dashboard')
-                ->where('summary.totalAset', 17)
-                ->has('assets', 17)
-                ->where('selected_area', 'DAOP-1'));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->component('dashboard/Dashboard')
+                    ->where('summary.totalAset', 17)
+                    ->has('assets', 17)
+                    ->where('selected_area', 'DAOP-1'),
+            );
 
-        $this->actingAs($regional)
-            ->get('/dashboard?area=DIVRE4')
-            ->assertSessionHasErrors('area');
+        $this->actingAs($regional)->get('/dashboard?area=DIVRE4')->assertSessionHasErrors('area');
 
         $this->assertTrue($pusat->exists);
     }

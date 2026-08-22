@@ -14,7 +14,9 @@ class AdminUserSeeder extends Seeder
         $admin = config('rams.admin');
 
         if (! $admin['name'] || ! $admin['username'] || ! $admin['password']) {
-            throw new RuntimeException('Set RAMS_ADMIN_NAME, RAMS_ADMIN_USERNAME, and RAMS_ADMIN_PASSWORD before seeding.');
+            throw new RuntimeException(
+                'Set RAMS_ADMIN_NAME, RAMS_ADMIN_USERNAME, and RAMS_ADMIN_PASSWORD before seeding.',
+            );
         }
 
         User::query()->updateOrCreate(

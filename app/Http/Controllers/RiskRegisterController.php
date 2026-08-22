@@ -51,36 +51,47 @@ final class RiskRegisterController extends Controller
             'selected_area' => $unit?->code,
             'can_choose_unit' => $user->isPusat(),
             'units' => $user->isPusat()
-                ? UnitKerja::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name'])
+                ? UnitKerja::query()
+                    ->where('is_active', true)
+                    ->orderBy('code')
+                    ->get(['id', 'code', 'name'])
                 : [],
-            'assets' => $assets->map(fn (Asset $asset): array => [
-                'id' => $asset->id,
-                'name' => $asset->nama_aset,
-                'subsystem' => $asset->assetSubsystem?->name,
-                'unit' => $asset->unitKerja?->only(['id', 'code', 'name']),
-            ])->values(),
-            'registers' => $registers->map(fn (RiskRegister $register): array => [
-                'id' => $register->id,
-                'asset_id' => $register->asset_id,
-                'part_number' => $register->part_number,
-                'sub' => $register->sub,
-                'risk_event' => $register->risk_event,
-                'risk_cause' => $register->risk_cause,
-                'impact' => $register->impact,
-                'part_name' => $register->part_name,
-                'recommendation' => $register->recommendation,
-                'likelihood' => $register->likelihood,
-                'consequence' => $register->consequence,
-                'rating' => $register->rating,
-                'status' => $register->status->value,
-                'source' => $register->source_key ? 'excel' : 'manual',
-                'asset' => [
-                    'name' => $register->asset->nama_aset,
-                    'subsystem' => $register->asset->assetSubsystem?->name,
-                    'unit' => $register->asset->unitKerja?->only(['id', 'code', 'name']),
-                ],
-                'updated_at' => $register->updated_at->toIso8601String(),
-            ])->values(),
+            'assets' => $assets
+                ->map(
+                    fn (Asset $asset): array => [
+                        'id' => $asset->id,
+                        'name' => $asset->nama_aset,
+                        'subsystem' => $asset->assetSubsystem?->name,
+                        'unit' => $asset->unitKerja?->only(['id', 'code', 'name']),
+                    ],
+                )
+                ->values(),
+            'registers' => $registers
+                ->map(
+                    fn (RiskRegister $register): array => [
+                        'id' => $register->id,
+                        'asset_id' => $register->asset_id,
+                        'part_number' => $register->part_number,
+                        'sub' => $register->sub,
+                        'risk_event' => $register->risk_event,
+                        'risk_cause' => $register->risk_cause,
+                        'impact' => $register->impact,
+                        'part_name' => $register->part_name,
+                        'recommendation' => $register->recommendation,
+                        'likelihood' => $register->likelihood,
+                        'consequence' => $register->consequence,
+                        'rating' => $register->rating,
+                        'status' => $register->status->value,
+                        'source' => $register->source_key ? 'excel' : 'manual',
+                        'asset' => [
+                            'name' => $register->asset->nama_aset,
+                            'subsystem' => $register->asset->assetSubsystem?->name,
+                            'unit' => $register->asset->unitKerja?->only(['id', 'code', 'name']),
+                        ],
+                        'updated_at' => $register->updated_at->toIso8601String(),
+                    ],
+                )
+                ->values(),
         ]);
     }
 
@@ -92,16 +103,22 @@ final class RiskRegisterController extends Controller
         return $this->scopedRedirect($request, $unit)->with('success', 'Risk Register berhasil ditambahkan.');
     }
 
-    public function update(UpdateRiskRegisterRequest $request, RiskRegister $riskRegister, RiskRegisterService $service): RedirectResponse
-    {
+    public function update(
+        UpdateRiskRegisterRequest $request,
+        RiskRegister $riskRegister,
+        RiskRegisterService $service,
+    ): RedirectResponse {
         $unit = $this->mutationUnit($request);
         $service->update($riskRegister, $request->safe()->except('unit_kerja_id'), $request->user(), $unit->id);
 
         return $this->scopedRedirect($request, $unit)->with('success', 'Risk Register berhasil diperbarui.');
     }
 
-    public function destroy(RamsAreaRequest $request, RiskRegister $riskRegister, RiskRegisterService $service): RedirectResponse
-    {
+    public function destroy(
+        RamsAreaRequest $request,
+        RiskRegister $riskRegister,
+        RiskRegisterService $service,
+    ): RedirectResponse {
         $unit = $request->selectedUnit();
         abort_if($unit === null, 404);
         $service->delete($riskRegister, $request->user(), $unit->id);
@@ -111,9 +128,7 @@ final class RiskRegisterController extends Controller
 
     private function mutationUnit(StoreRiskRegisterRequest|UpdateRiskRegisterRequest $request): UnitKerja
     {
-        $unitId = $request->user()->isUnit()
-            ? $request->user()->unit_kerja_id
-            : $request->integer('unit_kerja_id');
+        $unitId = $request->user()->isUnit() ? $request->user()->unit_kerja_id : $request->integer('unit_kerja_id');
 
         return UnitKerja::query()->where('is_active', true)->findOrFail($unitId);
     }

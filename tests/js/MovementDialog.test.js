@@ -243,7 +243,7 @@ describe('MovementDialog', () => {
 
   it('adds modal scrolling and form metadata without ASCII ellipsis placeholders', () => {
     const wrapper = mountDialog()
-    expect(wrapper.get('[role="dialog"]').classes()).toContain('overscroll-contain')
+    expect(wrapper.get('dialog').classes()).toContain('overscroll-contain')
     expect(wrapper.get('form').attributes('name')).toBe('stock-movement')
     expect(wrapper.get('form').attributes('autocomplete')).toBe('off')
     expect(wrapper.findAll('[placeholder]').every((field) => !field.attributes('placeholder').includes('...'))).toBe(true)
@@ -293,7 +293,7 @@ describe('MovementDialog', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await wrapper.vm.$nextTick()
     await wrapper.vm.$nextTick()
-    expect(wrapper.get('[role="dialog"]').element.contains(document.activeElement)).toBe(true)
+    expect(wrapper.get('dialog').element.contains(document.activeElement)).toBe(true)
     wrapper.unmount()
   })
 

@@ -37,7 +37,8 @@ class AssetGroupController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('admin.asset-categories.index', ['unit_kerja_id' => $request->validated('unit_kerja_id')])
+        return redirect()
+            ->route('admin.asset-categories.index', ['unit_kerja_id' => $request->validated('unit_kerja_id')])
             ->with('success', 'Kelompok aset berhasil ditambahkan.');
     }
 
@@ -52,14 +53,23 @@ class AssetGroupController extends Controller
                     'dashboard_color' => $request->validated('dashboard_color'),
                     'dashboard_color_source' => $request->validated('dashboard_color') ? 'manual' : null,
                 ]);
-                $this->auditLogger->record('asset_category.updated', $assetGroup, $before, $this->auditValues($assetGroup->fresh()));
+                $this->auditLogger->record(
+                    'asset_category.updated',
+                    $assetGroup,
+                    $before,
+                    $this->auditValues($assetGroup->fresh()),
+                );
             });
         } catch (QueryException $exception) {
             $this->throwIfDuplicate($exception);
             throw $exception;
         }
 
-        return redirect()->route('admin.asset-categories.index', ['unit_kerja_id' => $assetGroup->unit_kerja_id, 'group' => $assetGroup->id])
+        return redirect()
+            ->route('admin.asset-categories.index', [
+                'unit_kerja_id' => $assetGroup->unit_kerja_id,
+                'group' => $assetGroup->id,
+            ])
             ->with('success', 'Kelompok aset berhasil diperbarui.');
     }
 
@@ -76,13 +86,25 @@ class AssetGroupController extends Controller
 
             $before = $this->auditValues($group);
             $group->update(['is_active' => $requestedStatus]);
-            $this->auditLogger->record('asset_category.status_changed', $group, $before, $this->auditValues($group->fresh()));
+            $this->auditLogger->record(
+                'asset_category.status_changed',
+                $group,
+                $before,
+                $this->auditValues($group->fresh()),
+            );
 
             return true;
         });
 
-        return redirect()->route('admin.asset-categories.index', ['unit_kerja_id' => $assetGroup->unit_kerja_id, 'group' => $groupId])
-            ->with('success', $changed ? 'Status kelompok aset berhasil diperbarui.' : 'Status kelompok aset tidak berubah.');
+        return redirect()
+            ->route('admin.asset-categories.index', [
+                'unit_kerja_id' => $assetGroup->unit_kerja_id,
+                'group' => $groupId,
+            ])
+            ->with(
+                'success',
+                $changed ? 'Status kelompok aset berhasil diperbarui.' : 'Status kelompok aset tidak berubah.',
+            );
     }
 
     public function destroy(AssetGroup $assetGroup): RedirectResponse
@@ -94,7 +116,10 @@ class AssetGroupController extends Controller
             $group = AssetGroup::query()->lockForUpdate()->findOrFail($groupId);
             $blockers = array_filter([
                 'sistem' => $group->systems()->withTrashed()->count(),
-                'alias sumber' => AssetCategorySourceAlias::query()->where('category_type', 'group')->where('category_id', $group->id)->count(),
+                'alias sumber' => AssetCategorySourceAlias::query()
+                    ->where('category_type', 'group')
+                    ->where('category_id', $group->id)
+                    ->count(),
             ]);
 
             if ($blockers !== []) {
@@ -109,10 +134,13 @@ class AssetGroupController extends Controller
         });
 
         if ($blockers !== []) {
-            return redirect()->back()->withErrors(['category' => $this->blockedMessage($blockers)]);
+            return redirect()
+                ->back()
+                ->withErrors(['category' => $this->blockedMessage($blockers)]);
         }
 
-        return redirect()->route('admin.asset-categories.index', ['unit_kerja_id' => $assetGroup->unit_kerja_id])
+        return redirect()
+            ->route('admin.asset-categories.index', ['unit_kerja_id' => $assetGroup->unit_kerja_id])
             ->with('success', 'Kelompok aset berhasil dihapus.');
     }
 

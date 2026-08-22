@@ -25,20 +25,36 @@ final class RamsReportExportTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
         $other = UnitKerja::factory()->create(['code' => 'DAOP-4']);
-        $asset = Asset::factory()->for($unit)->create(['nama_aset' => 'ASET-DAOP-1']);
-        $otherAsset = Asset::factory()->for($other)->create(['nama_aset' => 'ASET-DAOP-4']);
+        $asset = Asset::factory()
+            ->for($unit)
+            ->create(['nama_aset' => 'ASET-DAOP-1']);
+        $otherAsset = Asset::factory()
+            ->for($other)
+            ->create(['nama_aset' => 'ASET-DAOP-4']);
         $part = SparePart::factory()->create(['detail_equipment' => 'Relay DAOP-1']);
-        InventoryStock::factory()->for($unit)->for($part)->create(['quantity' => 7]);
-        FailureLog::factory()->for($asset)->create(['failure_event' => 'Gangguan DAOP-1']);
+        InventoryStock::factory()
+            ->for($unit)
+            ->for($part)
+            ->create(['quantity' => 7]);
+        FailureLog::factory()
+            ->for($asset)
+            ->create(['failure_event' => 'Gangguan DAOP-1']);
         ReliabilitySummary::factory()->for($asset)->create();
-        RiskRegister::factory()->for($asset)->create(['risk_event' => 'Risiko DAOP-1']);
-        RiskRegister::factory()->for($otherAsset)->create(['risk_event' => 'RAHASIA DAOP-4']);
+        RiskRegister::factory()
+            ->for($asset)
+            ->create(['risk_event' => 'Risiko DAOP-1']);
+        RiskRegister::factory()
+            ->for($otherAsset)
+            ->create(['risk_event' => 'RAHASIA DAOP-4']);
         $user = User::factory()->unit($unit)->create();
 
         foreach (['inventory', 'trouble-report', 'risk-register', 'reliability'] as $report) {
             $response = $this->actingAs($user)->get("/reports/{$report}/xlsx");
             $response->assertOk();
-            $response->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            $response->assertHeader(
+                'content-type',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            );
             $this->assertStringContainsString('.xlsx', (string) $response->headers->get('content-disposition'));
 
             $path = tempnam(sys_get_temp_dir(), 'rams-report-').'.xlsx';
@@ -95,10 +111,7 @@ final class RamsReportExportTest extends TestCase
         try {
             file_put_contents($path, $response->streamedContent());
             $workbook = IOFactory::load($path);
-            $names = array_map(
-                static fn ($sheet): string => $sheet->getTitle(),
-                $workbook->getAllSheets(),
-            );
+            $names = array_map(static fn ($sheet): string => $sheet->getTitle(), $workbook->getAllSheets());
 
             $this->assertSame('Ringkasan Reliability', $names[0]);
             $this->assertContains('Interlocking Elektrik', $names);
@@ -114,10 +127,18 @@ final class RamsReportExportTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
         $other = UnitKerja::factory()->create(['code' => 'DAOP-4']);
-        $asset = Asset::factory()->for($unit)->create(['nama_aset' => 'ASET-DAOP-1']);
-        $otherAsset = Asset::factory()->for($other)->create(['nama_aset' => 'ASET-DAOP-4']);
-        RiskRegister::factory()->for($asset)->create(['risk_event' => 'Risiko DAOP-1']);
-        RiskRegister::factory()->for($otherAsset)->create(['risk_event' => 'RAHASIA DAOP-4']);
+        $asset = Asset::factory()
+            ->for($unit)
+            ->create(['nama_aset' => 'ASET-DAOP-1']);
+        $otherAsset = Asset::factory()
+            ->for($other)
+            ->create(['nama_aset' => 'ASET-DAOP-4']);
+        RiskRegister::factory()
+            ->for($asset)
+            ->create(['risk_event' => 'Risiko DAOP-1']);
+        RiskRegister::factory()
+            ->for($otherAsset)
+            ->create(['risk_event' => 'RAHASIA DAOP-4']);
         $user = User::factory()->unit($unit)->create();
 
         foreach (['inventory', 'trouble-report', 'risk-register', 'reliability'] as $report) {

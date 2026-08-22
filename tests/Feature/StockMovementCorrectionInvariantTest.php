@@ -19,27 +19,42 @@ class StockMovementCorrectionInvariantTest extends TestCase
 
     public function test_database_allows_multiple_normal_movements_but_only_one_correction_per_source(): void
     {
-        $index = DB::selectOne("SHOW INDEX FROM stock_movements WHERE Key_name = 'stock_movements_one_correction_per_source'");
+        $index = DB::selectOne(
+            "SHOW INDEX FROM stock_movements WHERE Key_name = 'stock_movements_one_correction_per_source'",
+        );
         $this->assertNotNull($index);
         $this->assertSame(0, (int) $index->Non_unique);
 
         $unit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
         $actor = User::factory()->pusat()->create();
-        StockMovement::factory()->count(2)->for($unit)->for($part)->for($actor, 'actor')->create([
-            'reverses_movement_id' => null,
-        ]);
+        StockMovement::factory()
+            ->count(2)
+            ->for($unit)
+            ->for($part)
+            ->for($actor, 'actor')
+            ->create([
+                'reverses_movement_id' => null,
+            ]);
         $source = StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create();
-        StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
-            'type' => StockMovementType::Correction,
-            'reverses_movement_id' => $source->id,
-        ]);
-
-        try {
-            StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
+        StockMovement::factory()
+            ->for($unit)
+            ->for($part)
+            ->for($actor, 'actor')
+            ->create([
                 'type' => StockMovementType::Correction,
                 'reverses_movement_id' => $source->id,
             ]);
+
+        try {
+            StockMovement::factory()
+                ->for($unit)
+                ->for($part)
+                ->for($actor, 'actor')
+                ->create([
+                    'type' => StockMovementType::Correction,
+                    'reverses_movement_id' => $source->id,
+                ]);
             $this->fail('Expected the database correction invariant to reject a duplicate source.');
         } catch (QueryException $exception) {
             $this->assertSame('23000', $exception->errorInfo[0] ?? null);
@@ -64,7 +79,9 @@ class StockMovementCorrectionInvariantTest extends TestCase
 
             $migration->up();
 
-            $this->assertTrue(Schema::hasIndex('stock_movements', 'stock_movements_one_correction_per_source', 'unique'));
+            $this->assertTrue(
+                Schema::hasIndex('stock_movements', 'stock_movements_one_correction_per_source', 'unique'),
+            );
             $this->assertFalse(
                 Schema::hasIndex('stock_movements', 'stock_movements_reverses_movement_lookup'),
                 "Fallback foreign-key index remains after up cycle {$cycle}.",

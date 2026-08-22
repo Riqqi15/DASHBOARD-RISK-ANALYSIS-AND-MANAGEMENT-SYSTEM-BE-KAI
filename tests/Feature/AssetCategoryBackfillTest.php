@@ -31,9 +31,7 @@ class AssetCategoryBackfillTest extends TestCase
 
         Artisan::call('migrate:fresh', ['--force' => true]);
 
-        $migration = require database_path(
-            'migrations/2026_07_28_000003_make_asset_subsystem_id_required.php',
-        );
+        $migration = require database_path('migrations/2026_07_28_000003_make_asset_subsystem_id_required.php');
         $migration->down();
     }
 
@@ -317,7 +315,9 @@ class AssetCategoryBackfillTest extends TestCase
     public function test_unaliased_soft_deleted_nested_category_conflict_is_contextual_and_atomic(): void
     {
         $group = AssetGroup::factory()->create(['name' => 'Existing Group']);
-        $deletedSystem = AssetSystem::factory()->for($group)->create(['name' => 'Deleted System']);
+        $deletedSystem = AssetSystem::factory()
+            ->for($group)
+            ->create(['name' => 'Deleted System']);
         $deletedSystem->delete();
         $asset = $this->legacyAsset([
             'aset_prasarana_sintel' => 'Existing Group',
@@ -377,12 +377,7 @@ class AssetCategoryBackfillTest extends TestCase
         $subsystemName = "Retry Subsystem {$suffix}";
 
         try {
-            $process = $this->categoryResolverProcess([
-                'retry-backfill',
-                $groupName,
-                $systemName,
-                $subsystemName,
-            ]);
+            $process = $this->categoryResolverProcess(['retry-backfill', $groupName, $systemName, $subsystemName]);
             $process->setTimeout(30);
             $process->mustRun();
             $result = json_decode($process->getOutput(), true, 512, JSON_THROW_ON_ERROR);
@@ -392,12 +387,7 @@ class AssetCategoryBackfillTest extends TestCase
             $this->assertSame(0, $result['skipped']);
             $this->assertNotNull($result['asset_subsystem_id']);
         } finally {
-            $cleanup = $this->categoryResolverProcess([
-                'cleanup',
-                $groupName,
-                $systemName,
-                $subsystemName,
-            ]);
+            $cleanup = $this->categoryResolverProcess(['cleanup', $groupName, $systemName, $subsystemName]);
             $cleanup->setTimeout(30);
             $cleanup->mustRun();
         }
@@ -427,7 +417,7 @@ class AssetCategoryBackfillTest extends TestCase
         ]);
 
         $exitCode = Artisan::call('rams:backfill-asset-categories');
-        $output = preg_replace('/\s+/u', ' ', Artisan::output()) ?? Artisan::output();
+        $output = preg_replace("/\s+/u", ' ', Artisan::output()) ?? Artisan::output();
 
         $this->assertSame(1, $exitCode);
         $this->assertStringContainsString('Backfill kategori aset gagal:', $output);
@@ -501,14 +491,20 @@ class AssetCategoryBackfillTest extends TestCase
             $this->assertSame($resolvedIds[0], $resolvedIds[1]);
             $this->assertSame(1, AssetGroup::query()->where('normalized_name', mb_strtolower($groupName))->count());
             $this->assertSame(1, AssetSystem::query()->where('normalized_name', mb_strtolower($systemName))->count());
-            $this->assertSame(1, AssetSubsystem::query()->where('normalized_name', mb_strtolower($subsystemName))->count());
-            $this->assertSame(3, AssetCategorySourceAlias::query()
-                ->whereIn('normalized_source_path', [
-                    mb_strtolower($groupName),
-                    mb_strtolower($groupName.'|'.$systemName),
-                    mb_strtolower($groupName.'|'.$systemName.'|'.$subsystemName),
-                ])
-                ->count());
+            $this->assertSame(
+                1,
+                AssetSubsystem::query()->where('normalized_name', mb_strtolower($subsystemName))->count(),
+            );
+            $this->assertSame(
+                3,
+                AssetCategorySourceAlias::query()
+                    ->whereIn('normalized_source_path', [
+                        mb_strtolower($groupName),
+                        mb_strtolower($groupName.'|'.$systemName),
+                        mb_strtolower($groupName.'|'.$systemName.'|'.$subsystemName),
+                    ])
+                    ->count(),
+            );
         } finally {
             File::put("{$barrier}.go", 'go');
             foreach ($processes as $process) {
@@ -517,20 +513,11 @@ class AssetCategoryBackfillTest extends TestCase
                 }
             }
 
-            $cleanup = $this->categoryResolverProcess([
-                'cleanup',
-                $groupName,
-                $systemName,
-                $subsystemName,
-            ]);
+            $cleanup = $this->categoryResolverProcess(['cleanup', $groupName, $systemName, $subsystemName]);
             $cleanup->setTimeout(30);
             $cleanup->mustRun();
 
-            File::delete([
-                "{$barrier}.go",
-                "{$barrier}.1.ready",
-                "{$barrier}.2.ready",
-            ]);
+            File::delete(["{$barrier}.go", "{$barrier}.1.ready", "{$barrier}.2.ready"]);
         }
     }
 
@@ -555,12 +542,17 @@ class AssetCategoryBackfillTest extends TestCase
 
     private function legacyAsset(array $attributes = []): Asset
     {
-        return Asset::factory()->create(array_merge([
-            'asset_subsystem_id' => null,
-            'aset_prasarana_sintel' => 'Peralatan Luar Sinyal Elektrik',
-            'system' => 'Peraga Sinyal Elektrik',
-            'subsystem' => 'Axle Counter',
-        ], $attributes));
+        return Asset::factory()->create(
+            array_merge(
+                [
+                    'asset_subsystem_id' => null,
+                    'aset_prasarana_sintel' => 'Peralatan Luar Sinyal Elektrik',
+                    'system' => 'Peraga Sinyal Elektrik',
+                    'subsystem' => 'Axle Counter',
+                ],
+                $attributes,
+            ),
+        );
     }
 
     /** @param list<string> $arguments */

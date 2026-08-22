@@ -66,11 +66,13 @@ final class RiskRegisterWorkbookImporterTest extends TestCase
     public function test_blank_risk_text_is_stored_as_dash(): void
     {
         [$unit] = $this->assetContext();
-        $path = $this->workbook([$this->validRow([
-            'cause' => '',
-            'impact' => '',
-            'part_name' => '',
-        ])]);
+        $path = $this->workbook([
+            $this->validRow([
+                'cause' => '',
+                'impact' => '',
+                'part_name' => '',
+            ]),
+        ]);
 
         $result = app(RiskRegisterWorkbookImporter::class)->import($path, $unit);
 
@@ -102,9 +104,12 @@ final class RiskRegisterWorkbookImporterTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         $subsystem = AssetSubsystem::factory()->create(['name' => 'Interlocking Elektrik']);
-        $asset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
-            'subsystem' => 'INTERLOCKING ELEKTRIK',
-        ]);
+        $asset = Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create([
+                'subsystem' => 'INTERLOCKING ELEKTRIK',
+            ]);
 
         return [$unit, $asset];
     }
@@ -125,20 +130,34 @@ final class RiskRegisterWorkbookImporterTest extends TestCase
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('LxC');
-        $sheet->fromArray(['Kelompok', 'Aset', 'Sub', 'Risk Event', 'Cause', 'Impact', 'Part', 'Likelihood', 'Consequence']);
+        $sheet->fromArray([
+            'Kelompok',
+            'Aset',
+            'Sub',
+            'Risk Event',
+            'Cause',
+            'Impact',
+            'Part',
+            'Likelihood',
+            'Consequence',
+        ]);
 
         foreach ($rows as $offset => $row) {
-            $sheet->fromArray([
-                'PDSE',
-                $row['asset'],
-                $row['sub'],
-                $row['event'],
-                $row['cause'],
-                $row['impact'],
-                $row['part_name'],
-                $row['likelihood'],
-                $row['consequence'],
-            ], null, 'A'.(2 + $offset));
+            $sheet->fromArray(
+                [
+                    'PDSE',
+                    $row['asset'],
+                    $row['sub'],
+                    $row['event'],
+                    $row['cause'],
+                    $row['impact'],
+                    $row['part_name'],
+                    $row['likelihood'],
+                    $row['consequence'],
+                ],
+                null,
+                'A'.(2 + $offset),
+            );
         }
 
         (new Xlsx($spreadsheet))->save($path);
@@ -150,15 +169,18 @@ final class RiskRegisterWorkbookImporterTest extends TestCase
      */
     private function validRow(array $overrides = []): array
     {
-        return [...[
-            'asset' => 'Interlocking Elektrik',
-            'sub' => 'Interlocking Elektrik',
-            'event' => 'Gangguan interlocking',
-            'cause' => 'Modul rusak',
-            'impact' => 'Operasi terganggu',
-            'part_name' => 'Signal module',
-            'likelihood' => 2,
-            'consequence' => 3,
-        ], ...$overrides];
+        return [
+            ...[
+                'asset' => 'Interlocking Elektrik',
+                'sub' => 'Interlocking Elektrik',
+                'event' => 'Gangguan interlocking',
+                'cause' => 'Modul rusak',
+                'impact' => 'Operasi terganggu',
+                'part_name' => 'Signal module',
+                'likelihood' => 2,
+                'consequence' => 3,
+            ],
+            ...$overrides,
+        ];
     }
 }

@@ -28,11 +28,17 @@ final class InventoryReconciliationService
                 fn (Builder $query): Builder => $query->where('unit_kerja_id', (int) $unitId),
                 fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
             )
-            ->when($filters['asset_subsystem_id'] ?? '', fn (Builder $query, string $id): Builder => $query->where('asset_subsystem_id', (int) $id))
-            ->when($filters['asset_group_id'] ?? '', fn (Builder $query, string $id): Builder => $query->whereHas(
-                'assetSubsystem.assetSystem',
-                fn (Builder $systems): Builder => $systems->where('asset_group_id', (int) $id),
-            ))
+            ->when(
+                $filters['asset_subsystem_id'] ?? '',
+                fn (Builder $query, string $id): Builder => $query->where('asset_subsystem_id', (int) $id),
+            )
+            ->when(
+                $filters['asset_group_id'] ?? '',
+                fn (Builder $query, string $id): Builder => $query->whereHas(
+                    'assetSubsystem.assetSystem',
+                    fn (Builder $systems): Builder => $systems->where('asset_group_id', (int) $id),
+                ),
+            )
             ->search($filters['search'] ?? '')
             ->orderBy('unit_kerja_id')
             ->orderBy('nama_aset')
@@ -46,46 +52,75 @@ final class InventoryReconciliationService
                 fn (Builder $query): Builder => $query->where('unit_kerja_id', (int) $unitId),
                 fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
             )
-            ->when($filters['asset_subsystem_id'] ?? '', fn (Builder $query, string $id): Builder => $query->whereHas(
-                'sparePart', fn (Builder $parts): Builder => $parts->where('asset_subsystem_id', (int) $id),
-            ))
-            ->when($filters['asset_group_id'] ?? '', fn (Builder $query, string $id): Builder => $query->whereHas(
-                'sparePart.assetSubsystem.assetSystem',
-                fn (Builder $systems): Builder => $systems->where('asset_group_id', (int) $id),
-            ))
+            ->when(
+                $filters['asset_subsystem_id'] ?? '',
+                fn (Builder $query, string $id): Builder => $query->whereHas(
+                    'sparePart',
+                    fn (Builder $parts): Builder => $parts->where('asset_subsystem_id', (int) $id),
+                ),
+            )
+            ->when(
+                $filters['asset_group_id'] ?? '',
+                fn (Builder $query, string $id): Builder => $query->whereHas(
+                    'sparePart.assetSubsystem.assetSystem',
+                    fn (Builder $systems): Builder => $systems->where('asset_group_id', (int) $id),
+                ),
+            )
             ->when($filters['search'] ?? '', function (Builder $query, string $search): Builder {
-                return $query->whereHas('sparePart', fn (Builder $parts): Builder => $parts
-                    ->where('code', 'like', "%{$search}%")
-                    ->orWhere('equipment', 'like', "%{$search}%")
-                    ->orWhere('detail_equipment', 'like', "%{$search}%"));
+                return $query->whereHas(
+                    'sparePart',
+                    fn (Builder $parts): Builder => $parts
+                        ->where('code', 'like', "%{$search}%")
+                        ->orWhere('equipment', 'like', "%{$search}%")
+                        ->orWhere('detail_equipment', 'like', "%{$search}%"),
+                );
             })
             ->get();
 
-        $stocksByScope = $stocks->groupBy(fn (InventoryStock $stock): string => $this->scopeKey(
-            $stock->unit_kerja_id,
-            $stock->sparePart->asset_subsystem_id,
-        ));
+        $stocksByScope = $stocks->groupBy(
+            fn (InventoryStock $stock): string => $this->scopeKey(
+                $stock->unit_kerja_id,
+                $stock->sparePart->asset_subsystem_id,
+            ),
+        );
         $usedStockIds = [];
         $rows = [];
 
         foreach ($assets as $asset) {
             $snapshot = $asset->latestPredictiveAssetSnapshot;
-            $candidates = $stocksByScope->get($this->scopeKey($asset->unit_kerja_id, $asset->asset_subsystem_id), collect());
+            $candidates = $stocksByScope->get(
+                $this->scopeKey($asset->unit_kerja_id, $asset->asset_subsystem_id),
+                collect(),
+            );
             $exact = $this->exactCandidates($candidates, $asset->nama_aset);
-            $matched = $exact->count() === 1
-                ? $exact->first()
-                : ($exact->isEmpty() && $candidates->count() === 1 ? $candidates->first() : null);
+            $matched =
+                $exact->count() === 1
+                    ? $exact->first()
+                    : ($exact->isEmpty() && $candidates->count() === 1
+                        ? $candidates->first()
+                        : null);
 
             if ($matched instanceof InventoryStock) {
                 $usedStockIds[$matched->id] = true;
                 $excel = (int) $snapshot->current_stock;
                 $ledger = (int) $matched->quantity;
-                $rows[] = $this->matchedRow($asset, $matched, $excel, $ledger, $exact->count() === 1 ? 'exact' : 'subsystem_only');
+                $rows[] = $this->matchedRow(
+                    $asset,
+                    $matched,
+                    $excel,
+                    $ledger,
+                    $exact->count() === 1 ? 'exact' : 'subsystem_only',
+                );
 
                 continue;
             }
 
-            $rows[] = $this->assetOnlyRow($asset, (int) $snapshot->current_stock, $candidates->isEmpty() ? 'missing_ledger' : 'ambiguous', $candidates->count());
+            $rows[] = $this->assetOnlyRow(
+                $asset,
+                (int) $snapshot->current_stock,
+                $candidates->isEmpty() ? 'missing_ledger' : 'ambiguous',
+                $candidates->count(),
+            );
         }
 
         foreach ($stocks as $stock) {
@@ -122,10 +157,13 @@ final class InventoryReconciliationService
     {
         $needle = $this->normalize($assetName);
 
-        return $candidates->filter(fn (InventoryStock $stock): bool => in_array($needle, [
-            $this->normalize($stock->sparePart->detail_equipment),
-            $this->normalize($stock->sparePart->equipment),
-        ], true));
+        return $candidates->filter(
+            fn (InventoryStock $stock): bool => in_array(
+                $needle,
+                [$this->normalize($stock->sparePart->detail_equipment), $this->normalize($stock->sparePart->equipment)],
+                true,
+            ),
+        );
     }
 
     /** @return array<string, mixed> */
@@ -215,6 +253,10 @@ final class InventoryReconciliationService
 
     private function normalize(?string $value): string
     {
-        return Str::of($value ?? '')->lower()->ascii()->replaceMatches('/[^a-z0-9]+/', '')->toString();
+        return Str::of($value ?? '')
+            ->lower()
+            ->ascii()
+            ->replaceMatches('/[^a-z0-9]+/', '')
+            ->toString();
     }
 }

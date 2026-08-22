@@ -21,7 +21,11 @@ const statusMeta = {
   empty: { label: 'Habis', class: 'border-red-300 bg-red-50 text-red-800', dot: 'bg-red-600' },
 }
 const meta = (status) => statusMeta[status] ?? { label: status, class: 'border-slate-200 bg-slate-50 text-slate-700', dot: 'bg-slate-400' }
-const pageLabel = (label) => label.includes('Previous') ? 'Sebelumnya' : label.includes('Next') ? 'Berikutnya' : label.replaceAll('&laquo;', '').replaceAll('&raquo;', '')
+const pageLabel = (label) => {
+  if (label.includes('Previous')) return 'Sebelumnya'
+  if (label.includes('Next')) return 'Berikutnya'
+  return label.replaceAll('&laquo;', '').replaceAll('&raquo;', '')
+}
 </script>
 
 <template>

@@ -18,8 +18,13 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        DB::statement('ALTER TABLE risk_matrices ADD CONSTRAINT chk_risk_matrices_likelihood CHECK (likelihood BETWEEN 1 AND 4)');
-        DB::statement('ALTER TABLE risk_matrices ADD CONSTRAINT chk_risk_matrices_consequence CHECK (consequence BETWEEN 1 AND 4)');
+        DB::statement(
+            'ALTER TABLE risk_matrices ADD CONSTRAINT chk_risk_matrices_likelihood CHECK (likelihood BETWEEN 1 AND 4)',
+        );
+        DB::statement(
+            'ALTER TABLE risk_matrices ADD CONSTRAINT '
+                .'chk_risk_matrices_consequence CHECK (consequence BETWEEN 1 AND 4)',
+        );
     }
 
     public function down(): void

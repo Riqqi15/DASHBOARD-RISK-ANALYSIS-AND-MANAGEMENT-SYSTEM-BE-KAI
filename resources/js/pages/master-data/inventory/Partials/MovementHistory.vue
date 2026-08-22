@@ -23,7 +23,11 @@ const meta = (row) => movementMeta[row.type] ?? movementMeta[row.direction]
 const signedQuantity = (row) => `${row.direction === 'out' ? '−' : '+'}${row.quantity} ${row.spare_part.unit_of_measure}`
 const formatDate = (value) => value ? new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(new Date(`${value}T00:00:00+07:00`)) : '—'
 const formatTime = (value) => value ? new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }).format(new Date(value)).replace(':', '.') : '—'
-const pageLabel = (label) => label.includes('Previous') ? 'Sebelumnya' : label.includes('Next') ? 'Berikutnya' : label.replaceAll('&laquo;', '').replaceAll('&raquo;', '')
+const pageLabel = (label) => {
+  if (label.includes('Previous')) return 'Sebelumnya'
+  if (label.includes('Next')) return 'Berikutnya'
+  return label.replaceAll('&laquo;', '').replaceAll('&raquo;', '')
+}
 </script>
 
 <template>

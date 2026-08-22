@@ -24,23 +24,25 @@ class SparePartManagementTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $subsystem = AssetSubsystem::factory()->create();
 
-        $this->actingAs($pusat)->post(route('admin.spare-parts.store'), [
-            'asset_subsystem_id' => $subsystem->id,
-            'code' => '  SP   001  ',
-            'equipment' => '  Brake   Assembly  ',
-            'detail_equipment' => '  Main   cylinder  ',
-            'max_yearly_failure' => '12.50',
-            'average_yearly_failure' => '6.25',
-            'max_lead_time_months' => '4.50',
-            'average_lead_time_months' => '2.25',
-            'safety_stock' => 5,
-            'lead_time_demand' => 10,
-            'reorder_point' => 15,
-            'severity' => '  Vital  ',
-            'unit_of_measure' => '  unit  ',
-            'source_key' => 'client-controlled',
-            'is_active' => false,
-        ])->assertRedirect(route('inventory', ['tab' => 'master']));
+        $this->actingAs($pusat)
+            ->post(route('admin.spare-parts.store'), [
+                'asset_subsystem_id' => $subsystem->id,
+                'code' => '  SP   001  ',
+                'equipment' => '  Brake   Assembly  ',
+                'detail_equipment' => '  Main   cylinder  ',
+                'max_yearly_failure' => '12.50',
+                'average_yearly_failure' => '6.25',
+                'max_lead_time_months' => '4.50',
+                'average_lead_time_months' => '2.25',
+                'safety_stock' => 5,
+                'lead_time_demand' => 10,
+                'reorder_point' => 15,
+                'severity' => '  Vital  ',
+                'unit_of_measure' => '  unit  ',
+                'source_key' => 'client-controlled',
+                'is_active' => false,
+            ])
+            ->assertRedirect(route('inventory', ['tab' => 'master']));
 
         $part = SparePart::query()->sole();
         $this->assertSame('SP 001', $part->code);
@@ -65,15 +67,20 @@ class SparePartManagementTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $subsystem = AssetSubsystem::factory()->create();
 
-        $this->actingAs($pusat)->post(route('admin.spare-parts.store'), $this->payload($subsystem, [
-            'max_yearly_failure' => '12.50',
-            'average_yearly_failure' => '6.25',
-            'max_lead_time_months' => '4.50',
-            'average_lead_time_months' => '2.25',
-            'safety_stock' => 999,
-            'lead_time_demand' => 999,
-            'reorder_point' => 999,
-        ]))->assertRedirect(route('inventory', ['tab' => 'master']));
+        $this->actingAs($pusat)
+            ->post(
+                route('admin.spare-parts.store'),
+                $this->payload($subsystem, [
+                    'max_yearly_failure' => '12.50',
+                    'average_yearly_failure' => '6.25',
+                    'max_lead_time_months' => '4.50',
+                    'average_lead_time_months' => '2.25',
+                    'safety_stock' => 999,
+                    'lead_time_demand' => 999,
+                    'reorder_point' => 999,
+                ]),
+            )
+            ->assertRedirect(route('inventory', ['tab' => 'master']));
 
         $part = SparePart::query()->sole();
         $this->assertSame(43, $part->safety_stock);
@@ -87,12 +94,17 @@ class SparePartManagementTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $subsystem = AssetSubsystem::factory()->create();
 
-        $this->actingAs($pusat)->post(route('admin.spare-parts.store'), $this->payload($subsystem, [
-            'max_yearly_failure' => '12.50',
-            'average_yearly_failure' => '1.00',
-            'max_lead_time_months' => '4.50',
-            'average_lead_time_months' => '1.00',
-        ]))->assertRedirect(route('inventory', ['tab' => 'master']));
+        $this->actingAs($pusat)
+            ->post(
+                route('admin.spare-parts.store'),
+                $this->payload($subsystem, [
+                    'max_yearly_failure' => '12.50',
+                    'average_yearly_failure' => '1.00',
+                    'max_lead_time_months' => '4.50',
+                    'average_lead_time_months' => '1.00',
+                ]),
+            )
+            ->assertRedirect(route('inventory', ['tab' => 'master']));
 
         $part = SparePart::query()->sole();
         $this->assertSame('6.25', $part->average_yearly_failure);
@@ -107,26 +119,31 @@ class SparePartManagementTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $subsystem = AssetSubsystem::factory()->create();
 
-        $this->actingAs($pusat)->post(route('admin.spare-parts.store'), $this->payload($subsystem, [
-            'equipment' => '',
-            'max_yearly_failure' => '',
-            'average_yearly_failure' => '',
-            'max_lead_time_months' => '',
-            'average_lead_time_months' => '',
-            'severity' => '',
-        ]))->assertSessionHasErrors([
-            'equipment' => 'Equipment wajib diisi.',
-            'max_yearly_failure' => 'Maksimum kegagalan wajib diisi.',
-            'average_yearly_failure' => 'Rata-rata kegagalan wajib diisi.',
-            'max_lead_time_months' => 'Maksimum lead time wajib diisi.',
-            'average_lead_time_months' => 'Rata-rata lead time wajib diisi.',
-            'severity' => 'Criticality wajib dipilih.',
-        ]);
+        $this->actingAs($pusat)
+            ->post(
+                route('admin.spare-parts.store'),
+                $this->payload($subsystem, [
+                    'equipment' => '',
+                    'max_yearly_failure' => '',
+                    'average_yearly_failure' => '',
+                    'max_lead_time_months' => '',
+                    'average_lead_time_months' => '',
+                    'severity' => '',
+                ]),
+            )
+            ->assertSessionHasErrors([
+                'equipment' => 'Equipment wajib diisi.',
+                'max_yearly_failure' => 'Maksimum kegagalan wajib diisi.',
+                'average_yearly_failure' => 'Rata-rata kegagalan wajib diisi.',
+                'max_lead_time_months' => 'Maksimum lead time wajib diisi.',
+                'average_lead_time_months' => 'Rata-rata lead time wajib diisi.',
+                'severity' => 'Criticality wajib dipilih.',
+            ]);
 
         $this->assertSame(0, SparePart::query()->count());
     }
 
-    public function test_pusat_can_update_fields_without_changing_import_source_semantics_and_noop_does_not_write_or_audit(): void
+    public function test_pusat_updates_fields_without_changing_import_semantics(): void
     {
         $clock = Carbon::parse('2026-08-08 10:00:00');
         Carbon::setTestNow($clock);
@@ -153,7 +170,8 @@ class SparePartManagementTest extends TestCase
             }
         });
 
-        $this->actingAs($pusat)->put(route('admin.spare-parts.update', $part), $payload)
+        $this->actingAs($pusat)
+            ->put(route('admin.spare-parts.update', $part), $payload)
             ->assertRedirect(route('inventory', ['tab' => 'master']))
             ->assertSessionHas('success', 'Suku cadang berhasil diperbarui.');
 
@@ -183,7 +201,8 @@ class SparePartManagementTest extends TestCase
 
         Carbon::setTestNow($clock->addSecond());
 
-        $this->actingAs($pusat)->put(route('admin.spare-parts.update', $part), $payload)
+        $this->actingAs($pusat)
+            ->put(route('admin.spare-parts.update', $part), $payload)
             ->assertRedirect(route('inventory', ['tab' => 'master']))
             ->assertSessionHas('success', 'Data suku cadang tidak berubah.');
 
@@ -191,14 +210,15 @@ class SparePartManagementTest extends TestCase
         $this->assertSame(1, AuditLog::query()->where('action', 'spare_part.updated')->count());
     }
 
-    public function test_pusat_deactivates_spare_part_without_soft_deleting_stock_or_ledger_and_repeated_deactivate_is_noop(): void
+    public function test_pusat_deactivates_spare_part_without_deleting_history(): void
     {
         $pusat = User::factory()->pusat()->create();
         $part = SparePart::factory()->create();
         $stock = InventoryStock::factory()->for($part)->create();
         $movement = StockMovement::factory()->for($part)->for($stock->unitKerja)->create();
 
-        $this->actingAs($pusat)->delete(route('admin.spare-parts.destroy', $part))
+        $this->actingAs($pusat)
+            ->delete(route('admin.spare-parts.destroy', $part))
             ->assertRedirect(route('inventory', ['tab' => 'master']))
             ->assertSessionHas('success', 'Suku cadang berhasil dinonaktifkan.');
 
@@ -220,7 +240,8 @@ class SparePartManagementTest extends TestCase
             }
         });
 
-        $this->actingAs($pusat)->delete(route('admin.spare-parts.destroy', $part))
+        $this->actingAs($pusat)
+            ->delete(route('admin.spare-parts.destroy', $part))
             ->assertRedirect(route('inventory', ['tab' => 'master']))
             ->assertSessionHas('success', 'Suku cadang sudah nonaktif.');
 
@@ -244,7 +265,8 @@ class SparePartManagementTest extends TestCase
         $this->actingAs($regional)->delete(route('admin.spare-parts.destroy', $part))->assertForbidden();
 
         $inactive = User::factory()->pusat()->inactive()->create();
-        $this->actingAs($inactive)->post(route('admin.spare-parts.store'), $payload)
+        $this->actingAs($inactive)
+            ->post(route('admin.spare-parts.store'), $payload)
             ->assertRedirect(route('login'))
             ->assertSessionHasErrors(['username']);
 
@@ -259,31 +281,37 @@ class SparePartManagementTest extends TestCase
 
         $inactiveGroupSubsystem = AssetSubsystem::factory()->create();
         $inactiveGroupSubsystem->assetSystem->assetGroup->update(['is_active' => false]);
-        $this->actingAs($pusat)->post(
-            route('admin.spare-parts.store'),
-            $this->payload($inactiveGroupSubsystem, ['code' => 'INACTIVE-GROUP']),
-        )->assertSessionHasErrors([
-            'asset_subsystem_id' => 'Subsistem aset atau kategori induknya tidak aktif atau tidak ditemukan.',
-        ]);
+        $this->actingAs($pusat)
+            ->post(
+                route('admin.spare-parts.store'),
+                $this->payload($inactiveGroupSubsystem, ['code' => 'INACTIVE-GROUP']),
+            )
+            ->assertSessionHasErrors([
+                'asset_subsystem_id' => 'Subsistem aset atau kategori induknya tidak aktif atau tidak ditemukan.',
+            ]);
 
         $deletedSystem = AssetSystem::factory()->create();
         $deletedSystemSubsystem = AssetSubsystem::factory()->for($deletedSystem)->create();
         $deletedSystem->delete();
-        $this->actingAs($pusat)->post(
-            route('admin.spare-parts.store'),
-            $this->payload($deletedSystemSubsystem, ['code' => 'DELETED-SYSTEM']),
-        )->assertSessionHasErrors([
-            'asset_subsystem_id' => 'Subsistem aset atau kategori induknya tidak aktif atau tidak ditemukan.',
-        ]);
+        $this->actingAs($pusat)
+            ->post(
+                route('admin.spare-parts.store'),
+                $this->payload($deletedSystemSubsystem, ['code' => 'DELETED-SYSTEM']),
+            )
+            ->assertSessionHasErrors([
+                'asset_subsystem_id' => 'Subsistem aset atau kategori induknya tidak aktif atau tidak ditemukan.',
+            ]);
 
         $inactiveSubsystem = AssetSubsystem::factory()->create(['is_active' => false]);
         $part = SparePart::factory()->create(['code' => 'UNCHANGED-CODE']);
-        $this->actingAs($pusat)->put(
-            route('admin.spare-parts.update', $part),
-            $this->payload($inactiveSubsystem, ['code' => 'MUST-NOT-CHANGE']),
-        )->assertSessionHasErrors([
-            'asset_subsystem_id' => 'Subsistem aset tidak aktif, terhapus, atau tidak ditemukan.',
-        ]);
+        $this->actingAs($pusat)
+            ->put(
+                route('admin.spare-parts.update', $part),
+                $this->payload($inactiveSubsystem, ['code' => 'MUST-NOT-CHANGE']),
+            )
+            ->assertSessionHasErrors([
+                'asset_subsystem_id' => 'Subsistem aset tidak aktif, terhapus, atau tidak ditemukan.',
+            ]);
 
         $this->assertSame('UNCHANGED-CODE', $part->fresh()->code);
         $this->assertDatabaseMissing('spare_parts', ['code' => 'INACTIVE-GROUP']);
@@ -299,15 +327,13 @@ class SparePartManagementTest extends TestCase
         $archived = SparePart::factory()->create(['code' => 'ARCHIVED']);
         $archived->delete();
 
-        $this->actingAs($pusat)->post(
-            route('admin.spare-parts.store'),
-            $this->payload($subsystem, ['code' => '  DUPLICATE  ']),
-        )->assertSessionHasErrors(['code' => 'Kode suku cadang sudah digunakan.']);
+        $this->actingAs($pusat)
+            ->post(route('admin.spare-parts.store'), $this->payload($subsystem, ['code' => '  DUPLICATE  ']))
+            ->assertSessionHasErrors(['code' => 'Kode suku cadang sudah digunakan.']);
 
-        $this->actingAs($pusat)->post(
-            route('admin.spare-parts.store'),
-            $this->payload($subsystem, ['code' => 'ARCHIVED']),
-        )->assertSessionHasErrors(['code' => 'Kode suku cadang sudah digunakan.']);
+        $this->actingAs($pusat)
+            ->post(route('admin.spare-parts.store'), $this->payload($subsystem, ['code' => 'ARCHIVED']))
+            ->assertSessionHasErrors(['code' => 'Kode suku cadang sudah digunakan.']);
 
         $this->assertSame(2, SparePart::withTrashed()->count());
         $this->assertSame(0, AuditLog::query()->count());
@@ -318,30 +344,27 @@ class SparePartManagementTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $subsystem = AssetSubsystem::factory()->create();
 
-        $this->actingAs($pusat)->post(
-            route('admin.spare-parts.store'),
-            $this->payload($subsystem, ['code' => 'MANUAL-A']),
-        )->assertRedirect(route('inventory', ['tab' => 'master']));
+        $this->actingAs($pusat)
+            ->post(route('admin.spare-parts.store'), $this->payload($subsystem, ['code' => 'MANUAL-A']))
+            ->assertRedirect(route('inventory', ['tab' => 'master']));
 
         $part = SparePart::query()->where('code', 'MANUAL-A')->sole();
         $sourceKey = hash('sha256', 'manual|MANUAL-A');
         $this->assertSame($sourceKey, $part->source_key);
 
-        $this->actingAs($pusat)->put(
-            route('admin.spare-parts.update', $part),
-            $this->payload($subsystem, ['code' => 'MANUAL-B']),
-        )->assertRedirect(route('inventory', ['tab' => 'master']));
+        $this->actingAs($pusat)
+            ->put(route('admin.spare-parts.update', $part), $this->payload($subsystem, ['code' => 'MANUAL-B']))
+            ->assertRedirect(route('inventory', ['tab' => 'master']));
 
         $part->refresh();
         $this->assertSame('MANUAL-B', $part->code);
         $this->assertSame($sourceKey, $part->source_key);
 
-        $this->actingAs($pusat)->post(
-            route('admin.spare-parts.store'),
-            $this->payload($subsystem, ['code' => 'MANUAL-A']),
-        )->assertSessionHasErrors([
-            'code' => 'Kode suku cadang pernah digunakan sebagai identitas sumber dan tidak dapat dipakai ulang.',
-        ]);
+        $this->actingAs($pusat)
+            ->post(route('admin.spare-parts.store'), $this->payload($subsystem, ['code' => 'MANUAL-A']))
+            ->assertSessionHasErrors([
+                'code' => 'Kode suku cadang pernah digunakan sebagai identitas sumber dan tidak dapat dipakai ulang.',
+            ]);
 
         $this->assertSame(1, SparePart::withTrashed()->count());
         $this->assertSame(1, AuditLog::query()->where('action', 'spare_part.created')->count());
@@ -353,20 +376,23 @@ class SparePartManagementTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $subsystem = AssetSubsystem::factory()->create();
 
-        $response = $this->actingAs($pusat)->post(route('admin.spare-parts.store'), $this->payload($subsystem, [
-            'code' => str_repeat('C', 51),
-            'equipment' => str_repeat('E', 256),
-            'detail_equipment' => '',
-            'max_yearly_failure' => 100000000,
-            'average_yearly_failure' => -0.01,
-            'max_lead_time_months' => 'not-a-number',
-            'average_lead_time_months' => '1.234',
-            'safety_stock' => 4294967296,
-            'lead_time_demand' => -1,
-            'reorder_point' => 1.5,
-            'severity' => 'Major',
-            'unit_of_measure' => str_repeat('U', 31),
-        ]));
+        $response = $this->actingAs($pusat)->post(
+            route('admin.spare-parts.store'),
+            $this->payload($subsystem, [
+                'code' => str_repeat('C', 51),
+                'equipment' => str_repeat('E', 256),
+                'detail_equipment' => '',
+                'max_yearly_failure' => 100000000,
+                'average_yearly_failure' => -0.01,
+                'max_lead_time_months' => 'not-a-number',
+                'average_lead_time_months' => '1.234',
+                'safety_stock' => 4294967296,
+                'lead_time_demand' => -1,
+                'reorder_point' => 1.5,
+                'severity' => 'Major',
+                'unit_of_measure' => str_repeat('U', 31),
+            ]),
+        );
 
         $response->assertSessionHasErrors([
             'code',
@@ -399,19 +425,24 @@ class SparePartManagementTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $subsystem = AssetSubsystem::factory()->create();
 
-        $this->actingAs($pusat)->post(route('admin.spare-parts.store'), $this->payload($subsystem, [
-            'code' => ['SP-ARRAY'],
-            'equipment' => ['Equipment array'],
-            'detail_equipment' => ['Detail array'],
-            'severity' => ['Essential'],
-            'unit_of_measure' => ['unit'],
-        ]))->assertSessionHasErrors([
-            'code' => 'Kode suku cadang harus berupa teks.',
-            'equipment' => 'Equipment harus berupa teks.',
-            'detail_equipment' => 'Detail Equipment harus berupa teks.',
-            'severity' => 'Criticality harus Desirable, Essential, atau Vital.',
-            'unit_of_measure' => 'Satuan harus berupa teks.',
-        ]);
+        $this->actingAs($pusat)
+            ->post(
+                route('admin.spare-parts.store'),
+                $this->payload($subsystem, [
+                    'code' => ['SP-ARRAY'],
+                    'equipment' => ['Equipment array'],
+                    'detail_equipment' => ['Detail array'],
+                    'severity' => ['Essential'],
+                    'unit_of_measure' => ['unit'],
+                ]),
+            )
+            ->assertSessionHasErrors([
+                'code' => 'Kode suku cadang harus berupa teks.',
+                'equipment' => 'Equipment harus berupa teks.',
+                'detail_equipment' => 'Detail Equipment harus berupa teks.',
+                'severity' => 'Criticality harus Desirable, Essential, atau Vital.',
+                'unit_of_measure' => 'Satuan harus berupa teks.',
+            ]);
 
         $this->assertSame(0, SparePart::query()->count());
         $this->assertSame(0, AuditLog::query()->count());
@@ -420,20 +451,23 @@ class SparePartManagementTest extends TestCase
     /** @param array<string, mixed> $overrides */
     private function payload(AssetSubsystem $subsystem, array $overrides = []): array
     {
-        return array_merge([
-            'asset_subsystem_id' => $subsystem->id,
-            'code' => 'SP-VALID',
-            'equipment' => 'Equipment',
-            'detail_equipment' => 'Detail equipment',
-            'max_yearly_failure' => '10.00',
-            'average_yearly_failure' => '5.00',
-            'max_lead_time_months' => '4.00',
-            'average_lead_time_months' => '2.00',
-            'safety_stock' => 5,
-            'lead_time_demand' => 10,
-            'reorder_point' => 15,
-            'severity' => 'Essential',
-            'unit_of_measure' => 'unit',
-        ], $overrides);
+        return array_merge(
+            [
+                'asset_subsystem_id' => $subsystem->id,
+                'code' => 'SP-VALID',
+                'equipment' => 'Equipment',
+                'detail_equipment' => 'Detail equipment',
+                'max_yearly_failure' => '10.00',
+                'average_yearly_failure' => '5.00',
+                'max_lead_time_months' => '4.00',
+                'average_lead_time_months' => '2.00',
+                'safety_stock' => 5,
+                'lead_time_demand' => 10,
+                'reorder_point' => 15,
+                'severity' => 'Essential',
+                'unit_of_measure' => 'unit',
+            ],
+            $overrides,
+        );
     }
 }

@@ -54,7 +54,7 @@ const reorderCalculation = computed(() => {
   const averageFailure = numberInput('average_yearly_failure')
   const maxLead = numberInput('max_lead_time_months')
   const averageLead = numberInput('average_lead_time_months')
-  if ([maxFailure, averageFailure, maxLead, averageLead].some((value) => value === null)) return null
+  if ([maxFailure, averageFailure, maxLead, averageLead].includes(null)) return null
   const rawSafetyStock = Math.max(0, (maxFailure * maxLead) - (averageFailure * averageLead))
   const rawLeadTimeDemand = averageFailure * averageLead
   const safetyStock = Math.ceil(rawSafetyStock)
@@ -166,7 +166,7 @@ const focusFirstError = () => Object.keys(fieldIds).find((field) => {
 <template>
   <Teleport to="body">
     <div v-if="open" data-dialog-backdrop class="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/55 backdrop-blur-[1px] sm:items-center sm:p-4" @click.self="close">
-      <section ref="dialogPanel" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="part-dialog-title" class="max-h-[96vh] w-full overscroll-contain overflow-y-auto rounded-t-2xl bg-white outline-none shadow-2xl sm:max-w-5xl sm:rounded-2xl">
+      <dialog open ref="dialogPanel" tabindex="-1" aria-labelledby="part-dialog-title" class="static m-0 max-h-[96vh] w-full overscroll-contain overflow-y-auto rounded-t-2xl border-0 bg-white p-0 text-slate-900 outline-none shadow-2xl sm:max-w-5xl sm:rounded-2xl">
         <header class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
           <div><p class="font-mono text-sm font-semibold uppercase tracking-[0.16em] text-[#2d2a70]">Master / suku cadang</p><h2 id="part-dialog-title" class="mt-1 text-lg font-semibold text-slate-950">{{ part ? 'Ubah suku cadang' : 'Tambah suku cadang' }}</h2><p class="mt-1 text-sm text-slate-500">Data manual mengikuti Reorder Stock. Nilai reorder dihitung otomatis.</p></div>
           <button data-close-dialog type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 outline-none hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[#2d2a70]" aria-label="Tutup dialog suku cadang" @click="close"><X :size="20" aria-hidden="true" /></button>
@@ -198,7 +198,7 @@ const focusFirstError = () => Object.keys(fieldIds).find((field) => {
             <div class="flex flex-col-reverse gap-3 sm:flex-row"><button type="button" class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700" @click="close">Batal</button><button type="submit" :disabled="form.processing" class="min-h-11 rounded-lg bg-[#f26522] px-5 text-sm font-semibold text-white outline-none hover:bg-[#d95418] focus:ring-2 focus:ring-[#f26522] focus:ring-offset-2 disabled:opacity-50">{{ form.processing ? 'Menyimpan…' : 'Simpan suku cadang' }}</button></div>
           </div>
         </form>
-      </section>
+      </dialog>
 
       <div v-if="confirmingDeactivate" data-deactivate-confirmation class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4">
         <section ref="confirmationPanel" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="deactivate-title" class="w-full max-w-md rounded-2xl bg-white p-6 outline-none shadow-2xl"><span class="flex h-11 w-11 items-center justify-center rounded-full bg-red-50 text-red-700"><Archive :size="21" aria-hidden="true" /></span><h3 id="deactivate-title" class="mt-4 text-lg font-semibold text-slate-950">Nonaktifkan suku cadang?</h3><p class="mt-2 text-sm leading-6 text-slate-600">{{ part.detail_equipment }} tidak dapat dipilih pada transaksi baru. Riwayat dan stok yang sudah tercatat tetap utuh.</p><div class="mt-5 flex justify-end gap-3"><button type="button" :disabled="deactivateForm.processing" class="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 disabled:opacity-50" @click="dismissDeactivateConfirmation">Batal</button><button data-confirm-deactivate type="button" :disabled="deactivateForm.processing" class="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" @click="deactivate">{{ deactivateForm.processing ? 'Menonaktifkan…' : 'Ya, nonaktifkan' }}</button></div></section>

@@ -37,7 +37,20 @@ class SparePartImportTest extends TestCase
     {
         $subsystem = $this->categoryPath('PERALATAN LUAR SINYAL ELEKTRIK', 'PERAGA SINYAL ELEKTRIK', 'Track Circuit');
         $path = $this->workbook([
-            ['PERALATAN LUAR SINYAL ELEKTRIK', 'PERAGA SINYAL ELEKTRIK', 'Track Circuit', 'Relay Track', 4, 2.5, 3, 2, 8, 5, 13, 'Critical'],
+            [
+                'PERALATAN LUAR SINYAL ELEKTRIK',
+                'PERAGA SINYAL ELEKTRIK',
+                'Track Circuit',
+                'Relay Track',
+                4,
+                2.5,
+                3,
+                2,
+                8,
+                5,
+                13,
+                'Critical',
+            ],
         ]);
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
@@ -87,7 +100,10 @@ class SparePartImportTest extends TestCase
 
         $this->assertDatabaseCount('spare_parts', 2);
         $this->assertSame([$subsystem->id], SparePart::query()->distinct()->pluck('asset_subsystem_id')->all());
-        $this->assertEqualsCanonicalizing(['Detail A', 'Detail B'], SparePart::query()->pluck('detail_equipment')->all());
+        $this->assertEqualsCanonicalizing(
+            ['Detail A', 'Detail B'],
+            SparePart::query()->pluck('detail_equipment')->all(),
+        );
         $this->assertDatabaseHas('spare_parts', [
             'detail_equipment' => 'Detail B',
             'equipment' => 'Subsystem Excel',
@@ -100,9 +116,7 @@ class SparePartImportTest extends TestCase
     public function test_typo_under_a_system_with_one_child_is_not_silently_remapped(): void
     {
         $this->categoryPath('Kelompok', 'System', 'Equipment');
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Subsystem Typo', 'Detail', 5, 5, 3, 1, 10, 5, 15, null],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Subsystem Typo', 'Detail', 5, 5, 3, 1, 10, 5, 15, null]]);
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
             ->expectsOutputToContain('row 2, header Equipment')
@@ -114,7 +128,20 @@ class SparePartImportTest extends TestCase
     public function test_explicit_bootstrap_mode_creates_missing_reorder_hierarchy_and_aliases(): void
     {
         $path = $this->workbook([
-            ['Peralatan Luar Sinyal Elektrik', 'Pengaman Perlintasan Sebidang', 'Palang Pintu', 'Motor Palang', 1, 1, 1, 1, 2, 3, 5, 'High'],
+            [
+                'Peralatan Luar Sinyal Elektrik',
+                'Pengaman Perlintasan Sebidang',
+                'Palang Pintu',
+                'Motor Palang',
+                1,
+                1,
+                1,
+                1,
+                2,
+                3,
+                5,
+                'High',
+            ],
         ]);
 
         $this->artisan('rams:import-spare-parts', [
@@ -132,7 +159,20 @@ class SparePartImportTest extends TestCase
     public function test_default_mode_rejects_the_missing_reorder_hierarchy(): void
     {
         $path = $this->workbook([
-            ['Peralatan Luar Sinyal Elektrik', 'Pengaman Perlintasan Sebidang', 'Palang Pintu', 'Motor Palang', 1, 1, 1, 1, 2, 3, 5, 'High'],
+            [
+                'Peralatan Luar Sinyal Elektrik',
+                'Pengaman Perlintasan Sebidang',
+                'Palang Pintu',
+                'Motor Palang',
+                1,
+                1,
+                1,
+                1,
+                2,
+                3,
+                5,
+                'High',
+            ],
         ]);
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
@@ -203,9 +243,7 @@ class SparePartImportTest extends TestCase
     {
         $subsystem = $this->categoryPath('Kelompok', 'System', 'Equipment');
         $subsystem->update(['is_active' => false]);
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High'],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High']]);
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
             ->expectsOutputToContain('row 2, header Equipment')
@@ -261,9 +299,7 @@ class SparePartImportTest extends TestCase
     public function test_formula_in_text_column_is_rejected_with_context(): void
     {
         $this->categoryPath('Kelompok', 'System', 'Equipment');
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High'],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High']]);
         $this->rewriteCell($path, 'D2', '="Formula Detail"');
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
@@ -276,9 +312,7 @@ class SparePartImportTest extends TestCase
     public function test_formula_error_in_numeric_column_is_rejected_with_context(): void
     {
         $this->categoryPath('Kelompok', 'System', 'Equipment');
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Equipment', 'Detail', null, 1, 1, 1, 2, 3, 5, 'High'],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Equipment', 'Detail', null, 1, 1, 1, 2, 3, 5, 'High']]);
         $this->rewriteCell($path, 'E2', '=1/0');
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
@@ -307,9 +341,7 @@ class SparePartImportTest extends TestCase
     public function test_excel_output_columns_do_not_override_the_authoritative_formula(): void
     {
         $this->categoryPath('Kelompok', 'System', 'Equipment');
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 4294967296, 3, 5, 'High'],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 4294967296, 3, 5, 'High']]);
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])->assertSuccessful();
 
@@ -322,9 +354,7 @@ class SparePartImportTest extends TestCase
     public function test_text_field_lengths_are_validated_before_database_write(): void
     {
         $this->categoryPath('Kelompok', 'System', 'Equipment');
-        $path = $this->workbook([
-            ['Kelompok', 'System', str_repeat('E', 256), 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High'],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', str_repeat('E', 256), 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High']]);
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
             ->expectsOutputToContain('row 2, header Equipment: maksimal 255 karakter')
@@ -345,7 +375,20 @@ class SparePartImportTest extends TestCase
 
         foreach ($cases as [$column, $header]) {
             $this->categoryPath('Kelompok '.$column, 'System '.$column, 'Equipment '.$column);
-            $row = ['Kelompok '.$column, 'System '.$column, 'Equipment '.$column, 'Detail', 1, 1, 1, 1, 2, 3, 5, 'High'];
+            $row = [
+                'Kelompok '.$column,
+                'System '.$column,
+                'Equipment '.$column,
+                'Detail',
+                1,
+                1,
+                1,
+                1,
+                2,
+                3,
+                5,
+                'High',
+            ];
             $row[$column - 1] = str_repeat('X', 256);
             $path = $this->workbook([$row]);
 
@@ -360,11 +403,19 @@ class SparePartImportTest extends TestCase
     public function test_actual_thirteen_reorder_paths_bootstrap_once_then_import_strictly(): void
     {
         $inside = AssetGroup::factory()->create(['name' => '1. PERALATAN DALAM SINYAL ELEKTRIK']);
-        $insideSystem = AssetSystem::factory()->for($inside)->create(['name' => 'INTERLOCKING ELEKTRIK']);
-        AssetSubsystem::factory()->for($insideSystem)->create(['name' => 'INTERLOCKING ELEKTRIK']);
+        $insideSystem = AssetSystem::factory()
+            ->for($inside)
+            ->create(['name' => 'INTERLOCKING ELEKTRIK']);
+        AssetSubsystem::factory()
+            ->for($insideSystem)
+            ->create(['name' => 'INTERLOCKING ELEKTRIK']);
         $outside = AssetGroup::factory()->create(['name' => '2. PERALATAN LUAR SINYAL ELEKTRIK']);
-        $outsideSystem = AssetSystem::factory()->for($outside)->create(['name' => 'PERAGA SINYAL ELEKTRIK']);
-        AssetSubsystem::factory()->for($outsideSystem)->create(['name' => 'PERAGA SINYAL ELEKTRIK UTAMA']);
+        $outsideSystem = AssetSystem::factory()
+            ->for($outside)
+            ->create(['name' => 'PERAGA SINYAL ELEKTRIK']);
+        AssetSubsystem::factory()
+            ->for($outsideSystem)
+            ->create(['name' => 'PERAGA SINYAL ELEKTRIK UTAMA']);
 
         $paths = [
             ['Peralatan Dalam Sinyal Elektrik', 'Interlocking Electric', 'Interlocking Electric'],
@@ -391,7 +442,9 @@ class SparePartImportTest extends TestCase
         $this->artisan('rams:import-spare-parts', [
             'workbook' => $path,
             '--bootstrap-categories' => true,
-        ])->expectsOutputToContain('Dibuat: 13')->assertSuccessful();
+        ])
+            ->expectsOutputToContain('Dibuat: 13')
+            ->assertSuccessful();
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
             ->expectsOutputToContain('Tidak berubah: 13')
             ->assertSuccessful();
@@ -402,9 +455,7 @@ class SparePartImportTest extends TestCase
     public function test_import_updates_source_fields_but_preserves_admin_managed_fields(): void
     {
         $this->categoryPath('Kelompok', 'System', 'Equipment');
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'Medium'],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'Medium']]);
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])->assertSuccessful();
 
         $part = SparePart::query()->sole();
@@ -425,9 +476,7 @@ class SparePartImportTest extends TestCase
     public function test_soft_deleted_sparepart_is_skipped_without_being_restored(): void
     {
         $this->categoryPath('Kelompok', 'System', 'Equipment');
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'Medium'],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'Medium']]);
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])->assertSuccessful();
         SparePart::query()->sole()->delete();
 
@@ -442,9 +491,7 @@ class SparePartImportTest extends TestCase
     public function test_malformed_header_reports_workbook_sheet_row_and_header_and_rolls_back(): void
     {
         $this->categoryPath('Kelompok', 'System', 'Subsystem');
-        $path = $this->workbook([
-            ['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'Medium'],
-        ]);
+        $path = $this->workbook([['Kelompok', 'System', 'Equipment', 'Detail', 1, 1, 1, 1, 2, 3, 5, 'Medium']]);
         $this->rewriteCell($path, 'K1', 'Wrong Reorder Header');
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
@@ -465,9 +512,7 @@ class SparePartImportTest extends TestCase
         ]);
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
-            ->expectsOutputToContain(
-                'Workbook '.basename($path).', sheet Reorder Stock, row 3, header Equipment',
-            )
+            ->expectsOutputToContain('Workbook '.basename($path).', sheet Reorder Stock, row 3, header Equipment')
             ->assertFailed();
 
         $this->assertDatabaseCount('spare_parts', 0);
@@ -481,8 +526,10 @@ class SparePartImportTest extends TestCase
 
         $this->artisan('rams:import-spare-parts', ['workbook' => $path])
             ->expectsOutputToContain(
-                'Workbook '.basename($path).', sheet Reorder Stock, row 3, header Detail Equipment: '
-                    .'duplikat source key dengan row 2 dan row 3.',
+                'Workbook '.
+                    basename($path).
+                    ', sheet Reorder Stock, row 3, header Detail Equipment: '.
+                    'duplikat source key dengan row 2 dan row 3.',
             )
             ->assertFailed();
 
@@ -492,9 +539,13 @@ class SparePartImportTest extends TestCase
     private function categoryPath(string $groupName, string $systemName, string $subsystemName): AssetSubsystem
     {
         $group = AssetGroup::factory()->create(['name' => $groupName]);
-        $system = AssetSystem::factory()->for($group)->create(['name' => $systemName]);
+        $system = AssetSystem::factory()
+            ->for($group)
+            ->create(['name' => $systemName]);
 
-        return AssetSubsystem::factory()->for($system)->create(['name' => $subsystemName]);
+        return AssetSubsystem::factory()
+            ->for($system)
+            ->create(['name' => $subsystemName]);
     }
 
     private function sourceAliases(
@@ -532,20 +583,24 @@ class SparePartImportTest extends TestCase
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Reorder Stock');
-        $sheet->fromArray([
-            'System',
-            'Sub-System',
-            'Equipment',
-            'Detail Equipment',
-            'Max yearly Failure',
-            'Average Yearly Failure',
-            'Max Lead Time (Month)',
-            'Average Lead Time (Month)',
-            'Safety Stock',
-            'Lead Time Demand',
-            'Reorder Point',
-            'Severity Equipment',
-        ], null, 'A1');
+        $sheet->fromArray(
+            [
+                'System',
+                'Sub-System',
+                'Equipment',
+                'Detail Equipment',
+                'Max yearly Failure',
+                'Average Yearly Failure',
+                'Max Lead Time (Month)',
+                'Average Lead Time (Month)',
+                'Safety Stock',
+                'Lead Time Demand',
+                'Reorder Point',
+                'Severity Equipment',
+            ],
+            null,
+            'A1',
+        );
 
         foreach ($rows as $offset => $row) {
             $sheet->fromArray($row, null, 'A'.($offset + 2));

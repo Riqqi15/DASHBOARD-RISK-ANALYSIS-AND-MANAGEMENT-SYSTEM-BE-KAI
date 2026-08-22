@@ -59,11 +59,14 @@ try {
             (int) $worker,
         );
 
-        echo json_encode([
-            'group' => $resolved['group']->id,
-            'system' => $resolved['system']->id,
-            'subsystem' => $resolved['subsystem']->id,
-        ], JSON_THROW_ON_ERROR);
+        echo json_encode(
+            [
+                'group' => $resolved['group']->id,
+                'system' => $resolved['system']->id,
+                'subsystem' => $resolved['subsystem']->id,
+            ],
+            JSON_THROW_ON_ERROR,
+        );
 
         exit(0);
     }
@@ -120,12 +123,15 @@ try {
         };
         $result = (new AssetCategoryBackfill($resolver))->run();
 
-        echo json_encode([
-            'attempts' => $resolver->attempts,
-            'linked' => $result['linked'],
-            'skipped' => $result['skipped'],
-            'asset_subsystem_id' => $asset->fresh()->asset_subsystem_id,
-        ], JSON_THROW_ON_ERROR);
+        echo json_encode(
+            [
+                'attempts' => $resolver->attempts,
+                'linked' => $result['linked'],
+                'skipped' => $result['skipped'],
+                'asset_subsystem_id' => $asset->fresh()->asset_subsystem_id,
+            ],
+            JSON_THROW_ON_ERROR,
+        );
 
         exit(0);
     }
@@ -138,29 +144,39 @@ try {
         $sourceKey = hash('sha256', 'retry-'.$groupName);
         $unitCode = 'RTY-'.substr($sourceKey, 0, 12);
 
-        DB::transaction(function () use ($groupName, $systemName, $subsystemName, $resolver, $groupPath, $systemPath, $subsystemPath, $sourceKey, $unitCode): void {
-            Asset::withTrashed()
-                ->where('source_key', $sourceKey)
-                ->get()
-                ->each->forceDelete();
+        DB::transaction(function () use (
+            $groupName,
+            $systemName,
+            $subsystemName,
+            $resolver,
+            $groupPath,
+            $systemPath,
+            $subsystemPath,
+            $sourceKey,
+            $unitCode,
+        ): void {
+            Asset::withTrashed()->where('source_key', $sourceKey)->get()->each->forceDelete();
 
-            UnitKerja::withTrashed()
-                ->where('code', $unitCode)
-                ->get()
-                ->each->forceDelete();
+            UnitKerja::withTrashed()->where('code', $unitCode)->get()->each->forceDelete();
 
             AssetCategorySourceAlias::query()
                 ->where(function ($aliases) use ($groupPath, $systemPath, $subsystemPath): void {
                     $aliases
-                        ->where(fn ($alias) => $alias
-                            ->where('category_type', 'group')
-                            ->where('normalized_source_path', $groupPath))
-                        ->orWhere(fn ($alias) => $alias
-                            ->where('category_type', 'system')
-                            ->where('normalized_source_path', $systemPath))
-                        ->orWhere(fn ($alias) => $alias
-                            ->where('category_type', 'subsystem')
-                            ->where('normalized_source_path', $subsystemPath));
+                        ->where(
+                            fn ($alias) => $alias
+                                ->where('category_type', 'group')
+                                ->where('normalized_source_path', $groupPath),
+                        )
+                        ->orWhere(
+                            fn ($alias) => $alias
+                                ->where('category_type', 'system')
+                                ->where('normalized_source_path', $systemPath),
+                        )
+                        ->orWhere(
+                            fn ($alias) => $alias
+                                ->where('category_type', 'subsystem')
+                                ->where('normalized_source_path', $subsystemPath),
+                        );
                 })
                 ->delete();
 

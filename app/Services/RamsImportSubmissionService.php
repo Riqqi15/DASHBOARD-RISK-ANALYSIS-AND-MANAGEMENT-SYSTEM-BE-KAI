@@ -27,17 +27,12 @@ final class RamsImportSubmissionService
             throw new RuntimeException('Fingerprint workbook gagal dibuat.');
         }
 
-        $fingerprint = hash('sha256', implode('|', [
-            $workbookHash,
-            (string) $unit->id,
-            FailureLogImportService::IMPORT_VERSION,
-        ]));
-        $extension = strtolower($workbook->getClientOriginalExtension()) ?: 'xlsx';
-        $storedPath = $workbook->storeAs(
-            'rams-imports',
-            $fingerprint.'-'.Str::uuid().'.'.$extension,
-            'local',
+        $fingerprint = hash(
+            'sha256',
+            implode('|', [$workbookHash, (string) $unit->id, FailureLogImportService::IMPORT_VERSION]),
         );
+        $extension = strtolower($workbook->getClientOriginalExtension()) ?: 'xlsx';
+        $storedPath = $workbook->storeAs('rams-imports', $fingerprint.'-'.Str::uuid().'.'.$extension, 'local');
         if (! is_string($storedPath) || $storedPath === '') {
             throw new RuntimeException('Workbook gagal disimpan ke penyimpanan private.');
         }

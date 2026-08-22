@@ -25,13 +25,16 @@ final class RamsImportQueueTest extends TestCase
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-4', 'is_active' => true]);
         $user = User::factory()->pusat()->create();
 
-        $this->actingAs($user)->post('/trouble-report/import', [
-            'workbook' => UploadedFile::fake()->create(
-                'Risk Analysis And Management System RAMS Daop 4.xlsx',
-                100,
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            ),
-        ])->assertRedirect('/trouble-report/import')->assertSessionHasNoErrors();
+        $this->actingAs($user)
+            ->post('/trouble-report/import', [
+                'workbook' => UploadedFile::fake()->create(
+                    'Risk Analysis And Management System RAMS Daop 4.xlsx',
+                    100,
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ),
+            ])
+            ->assertRedirect('/trouble-report/import')
+            ->assertSessionHasNoErrors();
 
         $batch = RamsImportBatch::query()->sole();
         $this->assertSame($unit->id, $batch->unit_kerja_id);
@@ -39,7 +42,10 @@ final class RamsImportQueueTest extends TestCase
         $this->assertSame('queued', $batch->status);
         $this->assertSame(0, $batch->progress_percent);
         Storage::disk('local')->assertExists($batch->stored_path);
-        Queue::assertPushed(ProcessRamsWorkbookImport::class, fn (ProcessRamsWorkbookImport $job): bool => $job->batchId === $batch->id);
+        Queue::assertPushed(
+            ProcessRamsWorkbookImport::class,
+            fn (ProcessRamsWorkbookImport $job): bool => $job->batchId === $batch->id,
+        );
     }
 
     public function test_recognized_filename_cannot_be_sent_to_a_different_unit(): void
@@ -50,10 +56,12 @@ final class RamsImportQueueTest extends TestCase
         $wrong = UnitKerja::factory()->create(['code' => 'DAOP-4', 'is_active' => true]);
         $user = User::factory()->pusat()->create();
 
-        $this->actingAs($user)->post('/trouble-report/import', [
-            'unit_kerja_id' => $wrong->id,
-            'workbook' => UploadedFile::fake()->create('RAMS Daop 1.xlsx', 10),
-        ])->assertSessionHasErrors('unit_kerja_id');
+        $this->actingAs($user)
+            ->post('/trouble-report/import', [
+                'unit_kerja_id' => $wrong->id,
+                'workbook' => UploadedFile::fake()->create('RAMS Daop 1.xlsx', 10),
+            ])
+            ->assertSessionHasErrors('unit_kerja_id');
 
         $this->assertDatabaseCount('rams_import_batches', 0);
         Queue::assertNothingPushed();
@@ -67,12 +75,15 @@ final class RamsImportQueueTest extends TestCase
         $user = User::factory()->pusat()->create();
 
         foreach ([1, 2] as $attempt) {
-            $this->actingAs($user)->post('/trouble-report/import', [
-                'workbook' => UploadedFile::fake()->createWithContent(
-                    'Risk Analysis And Management System RAMS Daop 1.xlsx',
-                    'identical workbook bytes',
-                ),
-            ])->assertRedirect('/trouble-report/import')->assertSessionHasNoErrors();
+            $this->actingAs($user)
+                ->post('/trouble-report/import', [
+                    'workbook' => UploadedFile::fake()->createWithContent(
+                        'Risk Analysis And Management System RAMS Daop 1.xlsx',
+                        'identical workbook bytes',
+                    ),
+                ])
+                ->assertRedirect('/trouble-report/import')
+                ->assertSessionHasNoErrors();
         }
 
         $batches = RamsImportBatch::query()->orderBy('id')->get();
@@ -90,9 +101,11 @@ final class RamsImportQueueTest extends TestCase
         UnitKerja::factory()->create(['code' => 'DAOP-4', 'is_active' => true]);
         $user = User::factory()->unit($unit)->create();
 
-        $this->actingAs($user)->post('/trouble-report/import', [
-            'workbook' => UploadedFile::fake()->create('RAMS Daop 4.xlsx', 10),
-        ])->assertSessionHasErrors('workbook');
+        $this->actingAs($user)
+            ->post('/trouble-report/import', [
+                'workbook' => UploadedFile::fake()->create('RAMS Daop 4.xlsx', 10),
+            ])
+            ->assertSessionHasErrors('workbook');
 
         $this->assertDatabaseCount('rams_import_batches', 0);
         Queue::assertNothingPushed();

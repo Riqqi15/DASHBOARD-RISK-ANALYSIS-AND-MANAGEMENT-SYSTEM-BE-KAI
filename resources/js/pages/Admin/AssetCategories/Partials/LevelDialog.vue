@@ -3,7 +3,8 @@ import { X } from 'lucide-vue-next'
 import AccessibleDialog from './AccessibleDialog.vue'
 
 defineProps({ form: { type: Object, required: true } })
-defineEmits(['close', 'submit'])
+const emit = defineEmits(['close', 'submit', 'update-field'])
+const updateField = (field, value) => emit('update-field', { field, value })
 </script>
 
 <template>
@@ -18,7 +19,7 @@ defineEmits(['close', 'submit'])
     <form class="space-y-5 p-6" @submit.prevent="$emit('submit')">
       <div>
         <label for="level-name" class="mb-2 block text-sm font-medium text-slate-800">Nama level</label>
-        <input id="level-name" v-model="form.name" data-dialog-initial-focus required maxlength="100" class="h-11 w-full rounded-lg border border-slate-300 px-3.5 text-sm outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10" placeholder="Contoh: Jenis perangkat" />
+        <input id="level-name" :value="form.name" data-dialog-initial-focus required maxlength="100" class="h-11 w-full rounded-lg border border-slate-300 px-3.5 text-sm outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10" placeholder="Contoh: Jenis perangkat" @input="updateField('name', $event.target.value)" />
         <p v-if="form.errors.name || form.errors.normalized_name" role="alert" class="mt-2 text-sm text-red-600">{{ form.errors.name || form.errors.normalized_name }}</p>
       </div>
       <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">

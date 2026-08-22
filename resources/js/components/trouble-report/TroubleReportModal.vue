@@ -201,7 +201,7 @@ const getTodayDate = () => {
   return d.toISOString().split('T')[0]
 }
 
-const form = ref({
+const emptyForm = () => ({
   lokasi: '',
   resor: '',
   qc: '',
@@ -216,6 +216,27 @@ const form = ref({
   selesai: '00:00',
   spare_part_id: null,
   jumlah_sparepart: 1
+})
+const form = ref(emptyForm())
+
+const isYes = (value) => value === 'Y' || value === 'Ya'
+const datePart = (date, dateTime) => date || dateTime?.split(' ')[0] || getTodayDate()
+const timePart = (time, dateTime) => time || dateTime?.split(' ')[1]?.substring(0, 5) || '00:00'
+const formFromLog = (log) => ({
+  lokasi: log.lokasi || '',
+  resor: log.resor || '',
+  qc: log.qc || '',
+  failure_event: log.failure_event || '',
+  penyebab: log.penyebab || '',
+  tindakan: log.tindakan || '',
+  penggantian_sparepart: isYes(log.penggantian_sparepart) ? 'Ya' : 'Tidak',
+  tindak_vandalisme: isYes(log.tindak_vandalisme) ? 'Ya' : 'Tidak',
+  tanggal_kejadian: datePart(log.tanggal_kejadian, log.tanggal_jam_kejadian),
+  tanggal_penanganan: datePart(log.tanggal_penanganan, log.tanggal_jam_penanganan),
+  mulai: timePart(log.mulai, log.tanggal_jam_kejadian),
+  selesai: timePart(log.selesai, log.tanggal_jam_penanganan),
+  spare_part_id: log.spare_part_id || null,
+  jumlah_sparepart: log.jumlah_sparepart || log.spare_part_quantity || 1
 })
 
 const currentSparepartStock = computed(() => {
@@ -248,46 +269,8 @@ watch(() => form.value.spare_part_id, () => {
 
 // Reset form when opened
 watch(() => props.isOpen, (newVal) => {
-  if (newVal) {
-    if (props.log) {
-      const isReplaced = props.log.penggantian_sparepart === 'Y' || props.log.penggantian_sparepart === 'Ya'
-      const isVandal = props.log.tindak_vandalisme === 'Y' || props.log.tindak_vandalisme === 'Ya'
-      
-      form.value = {
-        lokasi: props.log.lokasi || '',
-        resor: props.log.resor || '',
-        qc: props.log.qc || '',
-        failure_event: props.log.failure_event || '',
-        penyebab: props.log.penyebab || '',
-        tindakan: props.log.tindakan || '',
-        penggantian_sparepart: isReplaced ? 'Ya' : 'Tidak',
-        tindak_vandalisme: isVandal ? 'Ya' : 'Tidak',
-        tanggal_kejadian: props.log.tanggal_kejadian || (props.log.tanggal_jam_kejadian ? props.log.tanggal_jam_kejadian.split(' ')[0] : getTodayDate()),
-        tanggal_penanganan: props.log.tanggal_penanganan || (props.log.tanggal_jam_penanganan ? props.log.tanggal_jam_penanganan.split(' ')[0] : getTodayDate()),
-        mulai: props.log.mulai || (props.log.tanggal_jam_kejadian ? props.log.tanggal_jam_kejadian.split(' ')[1].substring(0,5) : '00:00'),
-        selesai: props.log.selesai || (props.log.tanggal_jam_penanganan ? props.log.tanggal_jam_penanganan.split(' ')[1].substring(0,5) : '00:00'),
-        spare_part_id: props.log.spare_part_id || null,
-        jumlah_sparepart: props.log.jumlah_sparepart || props.log.spare_part_quantity || 1
-      }
-    } else {
-      form.value = {
-        lokasi: '',
-        resor: '',
-        qc: '',
-        failure_event: '',
-        penyebab: '',
-        tindakan: '',
-        penggantian_sparepart: 'Tidak',
-        tindak_vandalisme: 'Tidak',
-        tanggal_kejadian: getTodayDate(),
-        tanggal_penanganan: getTodayDate(),
-        mulai: '00:00',
-        selesai: '00:00',
-        spare_part_id: null,
-        jumlah_sparepart: 1
-      }
-    }
-  }
+  if (!newVal) return
+  form.value = props.log ? formFromLog(props.log) : emptyForm()
 })
 
 const computedTahun = computed(() => {

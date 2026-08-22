@@ -10,7 +10,15 @@ final class ReorderStockCalculator
 {
     public const FORMULA_VERSION = 'kai-reorder-v1.0.0';
 
-    /** @return array{safety_stock: int, lead_time_demand: int, reorder_point: int, calculation_status: string, formula_version: string} */
+    /**
+     * @return array{
+     *     safety_stock: int,
+     *     lead_time_demand: int,
+     *     reorder_point: int,
+     *     calculation_status: string,
+     *     formula_version: string
+     * }
+     */
     public function calculate(
         float $maxYearlyFailure,
         float $averageYearlyFailure,
@@ -25,8 +33,7 @@ final class ReorderStockCalculator
 
         $rawSafetyStock = max(
             0.0,
-            ($maxYearlyFailure * $maxLeadTimeMonths)
-                - ($averageYearlyFailure * $averageLeadTimeMonths),
+            $maxYearlyFailure * $maxLeadTimeMonths - $averageYearlyFailure * $averageLeadTimeMonths,
         );
         $rawLeadTimeDemand = $averageYearlyFailure * $averageLeadTimeMonths;
 

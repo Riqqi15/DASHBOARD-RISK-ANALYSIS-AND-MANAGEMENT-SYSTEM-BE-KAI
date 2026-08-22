@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\DB;
 class ClearOperationalData extends Command
 {
     protected $signature = 'rams:clear-operational-data {--force : Skip confirmation}';
-    protected $description = 'Hapus semua data operasional (failure logs, reliability, risk, dll) tapi pertahankan master data';
+
+    protected $description = 'Hapus semua data operasional (failure logs, reliability, risk, dll) '
+        .'tapi pertahankan master data';
 
     private const TABLES = [
         'failure_logs',
@@ -24,8 +26,12 @@ class ClearOperationalData extends Command
 
     public function handle(): int
     {
-        if (! $this->option('force') && ! $this->confirm('Yakin ingin menghapus semua data operasional? Tindakan ini tidak dapat dibatalkan.')) {
+        if (
+            ! $this->option('force') &&
+            ! $this->confirm('Yakin ingin menghapus semua data operasional? Tindakan ini tidak dapat dibatalkan.')
+        ) {
             $this->info('Dibatalkan.');
+
             return self::SUCCESS;
         }
 

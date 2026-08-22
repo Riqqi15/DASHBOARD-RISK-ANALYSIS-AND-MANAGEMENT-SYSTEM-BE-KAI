@@ -33,10 +33,7 @@ class StockMovementDatabaseImmutabilityTest extends TestCase
     {
         $movement = StockMovement::factory()->create(['notes' => 'Asli']);
 
-        foreach ([
-            fn () => $movement->update(['notes' => 'Instance']),
-            fn () => $movement->delete(),
-        ] as $operation) {
+        foreach ([fn () => $movement->update(['notes' => 'Instance']), fn () => $movement->delete()] as $operation) {
             try {
                 $operation();
                 $this->fail('Expected model immutability rejection.');
@@ -46,14 +43,22 @@ class StockMovementDatabaseImmutabilityTest extends TestCase
             }
         }
 
-        foreach ([
-            fn () => StockMovement::query()->findOrFail($movement->id)->updateQuietly(['notes' => 'Quiet']),
-            fn () => StockMovement::query()->findOrFail($movement->id)->deleteQuietly(),
-            fn () => StockMovement::query()->whereKey($movement->id)->update(['notes' => 'Bulk']),
-            fn () => StockMovement::query()->whereKey($movement->id)->delete(),
-            fn () => DB::table('stock_movements')->where('id', $movement->id)->update(['notes' => 'Table']),
-            fn () => DB::table('stock_movements')->where('id', $movement->id)->delete(),
-        ] as $operation) {
+        foreach (
+            [
+                fn () => StockMovement::query()
+                    ->findOrFail($movement->id)
+                    ->updateQuietly(['notes' => 'Quiet']),
+                fn () => StockMovement::query()->findOrFail($movement->id)->deleteQuietly(),
+                fn () => StockMovement::query()
+                    ->whereKey($movement->id)
+                    ->update(['notes' => 'Bulk']),
+                fn () => StockMovement::query()->whereKey($movement->id)->delete(),
+                fn () => DB::table('stock_movements')
+                    ->where('id', $movement->id)
+                    ->update(['notes' => 'Table']),
+                fn () => DB::table('stock_movements')->where('id', $movement->id)->delete(),
+            ] as $operation
+        ) {
             $this->assertTriggerRejects($operation);
             $this->assertDatabaseHas('stock_movements', ['id' => $movement->id, 'notes' => 'Asli']);
         }
@@ -68,7 +73,12 @@ class StockMovementDatabaseImmutabilityTest extends TestCase
         $migration->down();
 
         $this->assertSame(0, $this->immutableTriggerCount());
-        $this->assertSame(1, DB::table('stock_movements')->where('id', $movement->id)->update(['notes' => 'Diizinkan saat down']));
+        $this->assertSame(
+            1,
+            DB::table('stock_movements')
+                ->where('id', $movement->id)
+                ->update(['notes' => 'Diizinkan saat down']),
+        );
 
         $migration->up();
 
@@ -88,12 +98,15 @@ class StockMovementDatabaseImmutabilityTest extends TestCase
 
     private function immutableTriggerCount(): int
     {
-        return (int) DB::scalar(<<<'SQL'
+        return (int) DB::scalar(
+            <<<'SQL'
             SELECT COUNT(*)
             FROM information_schema.TRIGGERS
             WHERE TRIGGER_SCHEMA = DATABASE()
               AND TRIGGER_NAME IN ('stock_movements_prevent_update', 'stock_movements_prevent_delete')
-            SQL);
+            SQL
+            ,
+        );
     }
 
     private function assertTriggerRejects(Closure $operation): void

@@ -15,8 +15,8 @@ class StoreStockMovementRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Gate::forUser($this->user())->allows('viewAny', InventoryStock::class)
-            && Gate::forUser($this->user())->allows('viewAny', SparePart::class);
+        return Gate::forUser($this->user())->allows('viewAny', InventoryStock::class) &&
+            Gate::forUser($this->user())->allows('viewAny', SparePart::class);
     }
 
     /** @return array<string, mixed> */
@@ -27,19 +27,23 @@ class StoreStockMovementRequest extends FormRequest
                 ? [
                     'required',
                     'integer',
-                    Rule::exists('unit_kerjas', 'id')->where(fn ($query) => $query
-                        ->where('is_active', true)
-                        ->whereNull('deleted_at')),
+                    Rule::exists('unit_kerjas', 'id')->where(
+                        fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'),
+                    ),
                 ]
                 : ['prohibited'],
             'spare_part_id' => [
                 'required',
                 'integer',
-                Rule::exists('spare_parts', 'id')->where(fn ($query) => $query
-                    ->where('is_active', true)
-                    ->whereNull('deleted_at')),
+                Rule::exists('spare_parts', 'id')->where(
+                    fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'),
+                ),
             ],
-            'type' => ['required', Rule::enum(StockMovementType::class), Rule::notIn([StockMovementType::Correction->value])],
+            'type' => [
+                'required',
+                Rule::enum(StockMovementType::class),
+                Rule::notIn([StockMovementType::Correction->value]),
+            ],
             'direction' => ['required', Rule::enum(StockDirection::class)],
             'quantity' => ['required', 'integer', 'min:1'],
             'movement_date' => ['required', 'date', 'before_or_equal:today'],
@@ -52,18 +56,20 @@ class StoreStockMovementRequest extends FormRequest
     /** @return array<int, callable> */
     public function after(): array
     {
-        return [function (Validator $validator): void {
-            $type = StockMovementType::tryFrom($this->string('type')->toString());
-            $direction = StockDirection::tryFrom($this->string('direction')->toString());
-            if (! $type || ! $direction || $type === StockMovementType::Correction) {
-                return;
-            }
+        return [
+            function (Validator $validator): void {
+                $type = StockMovementType::tryFrom($this->string('type')->toString());
+                $direction = StockDirection::tryFrom($this->string('direction')->toString());
+                if (! $type || ! $direction || $type === StockMovementType::Correction) {
+                    return;
+                }
 
-            $expected = $type === StockMovementType::Out ? StockDirection::Out : StockDirection::In;
-            if ($direction !== $expected) {
-                $validator->errors()->add('direction', 'Arah transaksi tidak sesuai dengan jenis transaksi.');
-            }
-        }];
+                $expected = $type === StockMovementType::Out ? StockDirection::Out : StockDirection::In;
+                if ($direction !== $expected) {
+                    $validator->errors()->add('direction', 'Arah transaksi tidak sesuai dengan jenis transaksi.');
+                }
+            },
+        ];
     }
 
     /** @return array<string, string> */
@@ -105,7 +111,7 @@ class StoreStockMovementRequest extends FormRequest
                 continue;
             }
 
-            $value = preg_replace('/\s+/u', ' ', trim($this->string($field)->toString()));
+            $value = preg_replace("/\s+/u", ' ', trim($this->string($field)->toString()));
             $normalized[$field] = $value === '' ? null : $value;
         }
 

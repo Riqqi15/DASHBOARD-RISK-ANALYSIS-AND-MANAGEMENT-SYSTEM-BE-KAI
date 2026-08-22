@@ -8,28 +8,35 @@ return new class extends Migration
     public function up(): void
     {
         // Query the table directly so soft-deleted assets are included in the preflight.
-        $uncategorizedAssetCount = DB::table('assets')
-            ->whereNull('asset_subsystem_id')
-            ->count();
+        $uncategorizedAssetCount = DB::table('assets')->whereNull('asset_subsystem_id')->count();
 
         if ($uncategorizedAssetCount > 0) {
-            throw new RuntimeException(sprintf(
-                'Cannot make assets.asset_subsystem_id required: %d asset(s), including soft-deleted assets, still have NULL category linkage.',
-                $uncategorizedAssetCount,
-            ));
+            throw new RuntimeException(
+                sprintf(
+                    'Cannot make assets.asset_subsystem_id required: %d asset(s), '
+                        .'including soft-deleted assets, still have NULL category linkage.',
+                    $uncategorizedAssetCount,
+                ),
+            );
         }
 
-        DB::statement(<<<'SQL'
+        DB::statement(
+            <<<'SQL'
             ALTER TABLE assets
             MODIFY asset_subsystem_id BIGINT UNSIGNED NOT NULL
-            SQL);
+            SQL
+            ,
+        );
     }
 
     public function down(): void
     {
-        DB::statement(<<<'SQL'
+        DB::statement(
+            <<<'SQL'
             ALTER TABLE assets
             MODIFY asset_subsystem_id BIGINT UNSIGNED NULL
-            SQL);
+            SQL
+            ,
+        );
     }
 };

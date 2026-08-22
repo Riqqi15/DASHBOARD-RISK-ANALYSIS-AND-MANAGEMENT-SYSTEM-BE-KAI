@@ -39,19 +39,37 @@ final class RamsWorkbookImportCoordinatorTest extends TestCase
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         $path = $this->workbookPath('Risk Analysis And Management System RAMS Daop 1.xlsm');
         $master = Mockery::mock(MasterAssetWorkbookImporter::class);
-        $master->shouldReceive('import')->once()->with($path, Mockery::on(fn (UnitKerja $value): bool => $value->is($unit)))
+        $master
+            ->shouldReceive('import')
+            ->once()
+            ->with($path, Mockery::on(fn (UnitKerja $value): bool => $value->is($unit)))
             ->andReturn(['created' => 1]);
         $spare = Mockery::mock(SparePartWorkbookImporter::class);
-        $spare->shouldReceive('import')->once()->with($path, false, Mockery::on(fn (UnitKerja $value): bool => $value->is($unit)))
+        $spare
+            ->shouldReceive('import')
+            ->once()
+            ->with($path, false, Mockery::on(fn (UnitKerja $value): bool => $value->is($unit)))
             ->andReturn(['created' => 2]);
         $failures = Mockery::mock(FailureLogWorkbookImporter::class);
-        $failures->shouldReceive('import')->once()->andReturn(['created' => 3]);
+        $failures
+            ->shouldReceive('import')
+            ->once()
+            ->andReturn(['created' => 3]);
         $risks = Mockery::mock(RiskRegisterWorkbookImporter::class);
-        $risks->shouldReceive('import')->once()->andReturn(['created' => 4]);
+        $risks
+            ->shouldReceive('import')
+            ->once()
+            ->andReturn(['created' => 4]);
         $matrices = Mockery::mock(RiskMatrixWorkbookImporter::class);
-        $matrices->shouldReceive('import')->once()->andReturn(['created' => 1, 'issues' => []]);
+        $matrices
+            ->shouldReceive('import')
+            ->once()
+            ->andReturn(['created' => 1, 'issues' => []]);
 
-        $result = (new RamsWorkbookImportCoordinator($master, $spare, $failures, $risks, $matrices))->importWorkbook($path, true);
+        $result = (new RamsWorkbookImportCoordinator($master, $spare, $failures, $risks, $matrices))->importWorkbook(
+            $path,
+            true,
+        );
 
         $this->assertSame('validated', $result['status']);
         $this->assertDatabaseCount('rams_import_batches', 0);
@@ -62,15 +80,30 @@ final class RamsWorkbookImportCoordinatorTest extends TestCase
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         $path = $this->workbookPath('Risk Analysis And Management System RAMS Daop 1.xlsm');
         $master = Mockery::mock(MasterAssetWorkbookImporter::class);
-        $master->shouldReceive('import')->once()->andReturn(['created' => 1]);
+        $master
+            ->shouldReceive('import')
+            ->once()
+            ->andReturn(['created' => 1]);
         $spare = Mockery::mock(SparePartWorkbookImporter::class);
-        $spare->shouldReceive('import')->once()->andReturn(['created' => 2]);
+        $spare
+            ->shouldReceive('import')
+            ->once()
+            ->andReturn(['created' => 2]);
         $failures = Mockery::mock(FailureLogWorkbookImporter::class);
-        $failures->shouldReceive('import')->once()->andReturn(['created' => 3]);
+        $failures
+            ->shouldReceive('import')
+            ->once()
+            ->andReturn(['created' => 3]);
         $risks = Mockery::mock(RiskRegisterWorkbookImporter::class);
-        $risks->shouldReceive('import')->once()->andReturn(['created' => 4]);
+        $risks
+            ->shouldReceive('import')
+            ->once()
+            ->andReturn(['created' => 4]);
         $matrices = Mockery::mock(RiskMatrixWorkbookImporter::class);
-        $matrices->shouldReceive('import')->once()->andReturn(['created' => 1, 'issues' => []]);
+        $matrices
+            ->shouldReceive('import')
+            ->once()
+            ->andReturn(['created' => 1, 'issues' => []]);
         $coordinator = new RamsWorkbookImportCoordinator($master, $spare, $failures, $risks, $matrices);
 
         $first = $coordinator->importWorkbook($path);
@@ -92,7 +125,9 @@ final class RamsWorkbookImportCoordinatorTest extends TestCase
         $risks = Mockery::mock(RiskRegisterWorkbookImporter::class);
         $matrices = Mockery::mock(RiskMatrixWorkbookImporter::class);
 
-        $result = (new RamsWorkbookImportCoordinator($master, $spare, $failures, $risks, $matrices))->importWorkbook($path);
+        $result = (new RamsWorkbookImportCoordinator($master, $spare, $failures, $risks, $matrices))->importWorkbook(
+            $path,
+        );
 
         $this->assertSame('failed', $result['status']);
         $this->assertSame('failed', RamsImportBatch::query()->sole()->status);

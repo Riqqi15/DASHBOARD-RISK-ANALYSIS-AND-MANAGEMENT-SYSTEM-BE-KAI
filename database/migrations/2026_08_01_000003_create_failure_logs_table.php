@@ -33,8 +33,13 @@ return new class extends Migration
             $table->index(['asset_id', 'started_at']);
         });
 
-        DB::statement('ALTER TABLE failure_logs ADD CONSTRAINT chk_failure_logs_time CHECK (resolved_at >= started_at)');
-        DB::statement('ALTER TABLE failure_logs ADD CONSTRAINT chk_failure_logs_part_quantity CHECK (spare_part_quantity IS NULL OR spare_part_quantity > 0)');
+        DB::statement(
+            'ALTER TABLE failure_logs ADD CONSTRAINT chk_failure_logs_time CHECK (resolved_at >= started_at)',
+        );
+        DB::statement(
+            'ALTER TABLE failure_logs ADD CONSTRAINT '
+                .'chk_failure_logs_part_quantity CHECK (spare_part_quantity IS NULL OR spare_part_quantity > 0)',
+        );
     }
 
     public function down(): void

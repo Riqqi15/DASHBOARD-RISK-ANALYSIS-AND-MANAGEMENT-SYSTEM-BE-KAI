@@ -10,7 +10,7 @@ class ImportSpareParts extends Command
 {
     protected $signature = 'rams:import-spare-parts
                             {workbook : Lokasi file Excel sumber}
-                            {--bootstrap-categories : Buat hierarchy kategori Reorder Stock yang belum tersedia (khusus bootstrap awal)}';
+        {--bootstrap-categories : Buat hierarchy kategori Reorder Stock yang belum ada}';
 
     protected $description = 'Mengimpor master suku cadang global dari sheet Reorder Stock';
 

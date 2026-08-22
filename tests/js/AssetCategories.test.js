@@ -121,7 +121,7 @@ describe('AssetCategories unlimited hierarchy', () => {
     expect(wrapper.get('section[aria-label="Jenis Perangkat"]').exists()).toBe(true)
     await wrapper.get('[aria-label="Tambah Jenis Perangkat"]').trigger('click')
     await wrapper.get('#category-name').setValue('Indoor')
-    await wrapper.get('[role="dialog"] form').trigger('submit')
+    await wrapper.get('dialog form').trigger('submit')
 
     expect(inertia.post).toHaveBeenCalledWith('/admin/asset-category-nodes', expect.objectContaining({
       asset_category_level_id: 4,
@@ -161,7 +161,7 @@ describe('AssetCategories unlimited hierarchy', () => {
     const wrapper = mountPage()
     await wrapper.get('[aria-label="Tambah level kategori"]').trigger('click')
     await wrapper.get('#level-name').setValue('Lokasi Teknis')
-    await wrapper.get('[role="dialog"] form').trigger('submit')
+    await wrapper.get('dialog form').trigger('submit')
     expect(inertia.post).toHaveBeenCalledWith('/admin/asset-category-levels', { name: 'Lokasi Teknis' }, expect.objectContaining({ preserveScroll: true }))
   })
 
@@ -169,10 +169,10 @@ describe('AssetCategories unlimited hierarchy', () => {
     const wrapper = mountPage()
     expect(wrapper.find('[aria-label="Hapus level Jenis Perangkat"]').exists()).toBe(false)
     await wrapper.get('[aria-label="Hapus level Model"]').trigger('click')
-    expect(wrapper.get('[role="dialog"]').text()).toContain('Hapus level?')
+    expect(wrapper.get('dialog').text()).toContain('Hapus level?')
     await wrapper.get('[aria-label="Konfirmasi hapus level"]').trigger('click')
     expect(inertia.delete).toHaveBeenCalledWith('/admin/asset-category-levels/5', {}, expect.objectContaining({ preserveScroll: true }))
-    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(wrapper.find('dialog').exists()).toBe(false)
   })
 
   it('creates an asset for the selected region and selected depth', async () => {
@@ -182,7 +182,7 @@ describe('AssetCategories unlimited hierarchy', () => {
     expect(wrapper.find('#taxonomy-asset-status').exists()).toBe(false)
     await wrapper.get('#taxonomy-asset-units').setValue(5)
     await wrapper.get('#taxonomy-asset-date').setValue('2020-02-01')
-    await wrapper.get('[role="dialog"] form').trigger('submit')
+    await wrapper.get('dialog form').trigger('submit')
     expect(inertia.post).toHaveBeenCalledWith('/admin/asset-category-assets', expect.objectContaining({
       unit_kerja_id: 10, asset_category_node_id: 11111, nama_aset: 'TC-900',
       status: 'aktif', jumlah_unit: 5, tanggal_pemasangan: '2020-02-01',
@@ -194,8 +194,8 @@ describe('AssetCategories unlimited hierarchy', () => {
     await wrapper.findAll('button').find((button) => button.text().includes('Hapus aset wilayah')).trigger('click')
     await Promise.resolve()
     expect(fetch).toHaveBeenCalledWith('/admin/asset-category-nodes/11111/archive-preview?unit_kerja_id=10', expect.any(Object))
-    expect(wrapper.get('[role="dialog"]').text()).toContain('Riwayat dipertahankan')
-    await wrapper.get('[role="dialog"]').findAll('button').find((button) => button.text().includes('Hapus 2 aset wilayah')).trigger('click')
+    expect(wrapper.get('dialog').text()).toContain('Riwayat dipertahankan')
+    await wrapper.get('dialog').findAll('button').find((button) => button.text().includes('Hapus 2 aset wilayah')).trigger('click')
     expect(inertia.delete).toHaveBeenCalledWith('/admin/asset-category-nodes/11111/assets', {
       unit_kerja_id: 10, confirmation: 'HAPUS ASET WILAYAH',
     }, expect.objectContaining({ preserveScroll: true }))

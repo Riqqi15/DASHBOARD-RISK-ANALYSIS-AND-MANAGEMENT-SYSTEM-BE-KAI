@@ -9,11 +9,29 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable([
-    'unit_kerja_id', 'uploaded_by_user_id', 'fingerprint', 'import_version', 'workbook_name', 'file_size', 'stored_path',
-    'status', 'progress_stage', 'progress_percent', 'dry_run', 'summary', 'error_message', 'queued_at', 'started_at',
-    'finished_at', 'rolled_back_by_user_id', 'rolled_back_at', 'rollback_error',
-])]
+#[
+    Fillable([
+        'unit_kerja_id',
+        'uploaded_by_user_id',
+        'fingerprint',
+        'import_version',
+        'workbook_name',
+        'file_size',
+        'stored_path',
+        'status',
+        'progress_stage',
+        'progress_percent',
+        'dry_run',
+        'summary',
+        'error_message',
+        'queued_at',
+        'started_at',
+        'finished_at',
+        'rolled_back_by_user_id',
+        'rolled_back_at',
+        'rollback_error',
+    ]),
+]
 final class RamsImportBatch extends Model
 {
     public function unitKerja(): BelongsTo

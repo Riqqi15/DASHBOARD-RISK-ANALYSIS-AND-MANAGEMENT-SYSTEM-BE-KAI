@@ -21,10 +21,7 @@ class AssetCategoryLevelController extends Controller
     {
         DB::transaction(function () use ($request): void {
             $position = (int) AssetCategoryLevel::query()->lockForUpdate()->max('position') + 1;
-            $level = AssetCategoryLevel::withTrashed()
-                ->where('position', $position)
-                ->lockForUpdate()
-                ->first();
+            $level = AssetCategoryLevel::withTrashed()->where('position', $position)->lockForUpdate()->first();
 
             if ($level) {
                 $level->restore();
@@ -36,7 +33,12 @@ class AssetCategoryLevelController extends Controller
                     'is_active' => true,
                 ]);
             }
-            $this->auditLogger->record('asset_category_level.created', $level, [], $level->only(['id', 'name', 'position']));
+            $this->auditLogger->record(
+                'asset_category_level.created',
+                $level,
+                [],
+                $level->only(['id', 'name', 'position']),
+            );
         });
 
         return back()->with('success', 'Level kategori berhasil ditambahkan.');
@@ -45,7 +47,7 @@ class AssetCategoryLevelController extends Controller
     public function update(Request $request, AssetCategoryLevel $assetCategoryLevel): RedirectResponse
     {
         Gate::authorize('update', $assetCategoryLevel);
-        $name = preg_replace('/\s+/u', ' ', trim($request->string('name')->toString())) ?? '';
+        $name = preg_replace("/\s+/u", ' ', trim($request->string('name')->toString())) ?? '';
         $validated = validator(
             ['name' => $name, 'normalized_name' => mb_strtolower($name)],
             [
@@ -58,7 +60,12 @@ class AssetCategoryLevelController extends Controller
             $level = AssetCategoryLevel::query()->lockForUpdate()->findOrFail($assetCategoryLevel->id);
             $before = $level->only(['id', 'name', 'position']);
             $level->update(['name' => $validated['name']]);
-            $this->auditLogger->record('asset_category_level.updated', $level, $before, $level->only(['id', 'name', 'position']));
+            $this->auditLogger->record(
+                'asset_category_level.updated',
+                $level,
+                $before,
+                $level->only(['id', 'name', 'position']),
+            );
         });
 
         return back()->with('success', 'Nama level berhasil diperbarui.');

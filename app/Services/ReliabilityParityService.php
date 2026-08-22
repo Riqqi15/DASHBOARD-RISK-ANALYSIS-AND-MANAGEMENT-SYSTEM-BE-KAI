@@ -61,19 +61,30 @@ final class ReliabilityParityService
                     foreach ($summary->parity_differences as $key => $diff) {
                         $mismatches[] = "{$key} (Sistem: {$diff['backend']}, Excel: {$diff['excel']})";
                         if (in_array($key, ['failure_count', 'spare_part_replacement_count', 'vandalism_count'])) {
-                            $causes['log_missing'] = 'Ada log kerusakan di Excel yang dilewati sistem (format salah/kosong), atau salah hitung manual.';
+                            $causes['log_missing'] =
+                'Ada log kerusakan di Excel yang dilewati sistem (format salah/kosong), '
+                .'atau salah hitung manual.';
                         } elseif (in_array($key, ['downtime_value', 'uptime_hours', 'operating_hours'])) {
-                            $causes['duration_error'] = 'Kesalahan penjumlahan durasi jam/menit (downtime/uptime) pada Excel.';
-                        } elseif (in_array($key, ['mttf_hours', 'mtbf_hours', 'failure_rate', 'reliability', 'availability'])) {
-                            $causes['formula_error'] = 'Kemungkinan besar rumus formula keandalan (pembagian/eksponensial) di Excel keliru atau salah ketik.';
+                            $causes['duration_error'] =
+                                'Kesalahan penjumlahan durasi jam/menit (downtime/uptime) pada Excel.';
+                        } elseif (
+                            in_array($key, ['mttf_hours', 'mtbf_hours', 'failure_rate', 'reliability', 'availability'])
+                        ) {
+                            $causes['formula_error'] =
+                'Kemungkinan besar rumus formula keandalan (pembagian/eksponensial) '
+                .'di Excel keliru atau salah ketik.';
                         }
                     }
-                    $causeText = empty($causes) ? 'Periksa kembali data pada Excel.' : implode(' ', array_values($causes));
+                    $causeText = empty($causes)
+                        ? 'Periksa kembali data pada Excel.'
+                        : implode(' ', array_values($causes));
                     $issues[] = [
                         'sheet_name' => 'Ringkasan Keandalan',
                         'source_row' => null,
                         'source_column' => null,
-                        'message' => "Selisih parity pada aset {$asset->nama_aset}. Detail: ".implode(', ', $mismatches).". Penyebab: {$causeText}",
+                        'message' => "Selisih parity pada aset {$asset->nama_aset}. Detail: ".
+                            implode(', ', $mismatches).
+                            ". Penyebab: {$causeText}",
                         'severity' => 'warning',
                     ];
                 }
@@ -82,8 +93,10 @@ final class ReliabilityParityService
         return ['counts' => $counts, 'issues' => $issues];
     }
 
-    public function recalculateAsset(Asset $asset, ?CarbonImmutable $fallbackCalculationDate = null): ?ReliabilitySummary
-    {
+    public function recalculateAsset(
+        Asset $asset,
+        ?CarbonImmutable $fallbackCalculationDate = null,
+    ): ?ReliabilitySummary {
         $asset->loadMissing('unitKerja');
         $snapshot = ReliabilityExcelSnapshot::query()
             ->where('asset_id', $asset->id)
@@ -93,7 +106,9 @@ final class ReliabilityParityService
 
         $baselineDate = $asset->unitKerja?->operating_start_date
             ? CarbonImmutable::instance($asset->unitKerja->operating_start_date)->startOfDay()
-            : ($snapshot?->baseline_date ? CarbonImmutable::instance($snapshot->baseline_date)->startOfDay() : null);
+            : ($snapshot?->baseline_date
+                ? CarbonImmutable::instance($snapshot->baseline_date)->startOfDay()
+                : null);
         if (! $baselineDate) {
             return null;
         }
@@ -118,16 +133,18 @@ final class ReliabilityParityService
             ->orderBy('started_at')
             ->orderBy('id')
             ->get()
-            ->map(fn (FailureLog $failure): array => [
-                'source_row' => $failure->source_row,
-                'started_at' => CarbonImmutable::instance($failure->started_at),
-                'resolved_at' => CarbonImmutable::instance($failure->resolved_at),
-                'downtime_minutes' => $failure->downtime_minutes,
-                'spare_part_marker' => $failure->spare_part_marker,
-                'vandalism_marker' => $failure->vandalism_marker,
-                'spare_part_replaced' => $failure->spare_part_replaced,
-                'vandalism' => $failure->vandalism,
-            ]);
+            ->map(
+                fn (FailureLog $failure): array => [
+                    'source_row' => $failure->source_row,
+                    'started_at' => CarbonImmutable::instance($failure->started_at),
+                    'resolved_at' => CarbonImmutable::instance($failure->resolved_at),
+                    'downtime_minutes' => $failure->downtime_minutes,
+                    'spare_part_marker' => $failure->spare_part_marker,
+                    'vandalism_marker' => $failure->vandalism_marker,
+                    'spare_part_replaced' => $failure->spare_part_replaced,
+                    'vandalism' => $failure->vandalism,
+                ],
+            );
 
         $metrics = $this->calculator->calculate(
             unitCount: (int) $asset->jumlah_unit,
@@ -168,7 +185,12 @@ final class ReliabilityParityService
         $missingExcel = false;
 
         foreach (self::TOLERANCES as $key => $tolerance) {
-            if (array_key_exists($key, $errors) || ! array_key_exists($key, $values) || $values[$key] === null || $values[$key] === '') {
+            if (
+                array_key_exists($key, $errors) ||
+                ! array_key_exists($key, $values) ||
+                $values[$key] === null ||
+                $values[$key] === ''
+            ) {
                 $missingExcel = true;
 
                 continue;

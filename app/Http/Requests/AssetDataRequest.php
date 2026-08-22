@@ -15,9 +15,7 @@ abstract class AssetDataRequest extends FormRequest
     public function authorize(): bool
     {
         if ($this->route('asset')) {
-            $asset = Asset::query()
-                ->visibleTo($this->user())
-                ->find($this->route('asset'));
+            $asset = Asset::query()->visibleTo($this->user())->find($this->route('asset'));
 
             abort_unless($asset, 404);
 
@@ -35,7 +33,12 @@ abstract class AssetDataRequest extends FormRequest
 
         return [
             'unit_kerja_id' => $this->user()->isPusat()
-                ? ['required', Rule::exists('unit_kerjas', 'id')->where(fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'))]
+                ? [
+                    'required',
+                    Rule::exists('unit_kerjas', 'id')->where(
+                        fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'),
+                    ),
+                ]
                 : ['prohibited'],
             'asset_subsystem_id' => [
                 'required',
@@ -49,9 +52,15 @@ abstract class AssetDataRequest extends FormRequest
                     $isActive = AssetSubsystem::query()
                         ->whereKey($value)
                         ->where('is_active', true)
-                        ->whereHas('assetSystem', fn (Builder $system): Builder => $system
-                            ->where('is_active', true)
-                            ->whereHas('assetGroup', fn (Builder $group): Builder => $group->where('is_active', true)))
+                        ->whereHas(
+                            'assetSystem',
+                            fn (Builder $system): Builder => $system
+                                ->where('is_active', true)
+                                ->whereHas(
+                                    'assetGroup',
+                                    fn (Builder $group): Builder => $group->where('is_active', true),
+                                ),
+                        )
                         ->exists();
 
                     if (! $isActive) {
@@ -71,13 +80,7 @@ abstract class AssetDataRequest extends FormRequest
 
     public function assetData(AssetSubsystem $subsystem): array
     {
-        $data = $this->safe()->only([
-            'asset_subsystem_id',
-            'nama_aset',
-            'jumlah_unit',
-            'tanggal_pemasangan',
-            'status',
-        ]);
+        $data = $this->safe()->only(['asset_subsystem_id', 'nama_aset', 'jumlah_unit', 'tanggal_pemasangan', 'status']);
         $data['unit_kerja_id'] = $this->user()->isPusat()
             ? $this->validated('unit_kerja_id')
             : $this->user()->unit_kerja_id;
@@ -98,7 +101,7 @@ abstract class AssetDataRequest extends FormRequest
                 continue;
             }
 
-            $value = preg_replace('/\s+/u', ' ', trim($this->string($field)->toString()));
+            $value = preg_replace("/\s+/u", ' ', trim($this->string($field)->toString()));
             $normalized[$field] = $value;
         }
 

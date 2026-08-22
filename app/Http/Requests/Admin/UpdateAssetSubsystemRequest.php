@@ -37,13 +37,14 @@ class UpdateAssetSubsystemRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $name = $this->normalizedDisplayName();
+        $color = mb_strtoupper(trim((string) $this->input('dashboard_color')));
         /** @var AssetSubsystem $subsystem */
         $subsystem = $this->route('asset_subsystem');
         $this->merge([
             'name' => $name,
             'normalized_name' => mb_strtolower($name),
             'sort_order' => $this->input('sort_order') ?? $subsystem->sort_order,
-            'dashboard_color' => ($color = mb_strtoupper(trim((string) $this->input('dashboard_color')))) !== '' ? $color : null,
+            'dashboard_color' => $color !== '' ? $color : null,
         ]);
     }
 
@@ -52,6 +53,6 @@ class UpdateAssetSubsystemRequest extends FormRequest
         $value = is_string($this->input('name')) ? $this->input('name') : '';
         $trimmed = preg_replace('/^\s+|\s+$/u', '', $value) ?? trim($value);
 
-        return preg_replace('/\s+/u', ' ', $trimmed) ?? $trimmed;
+        return preg_replace("/\s+/u", ' ', $trimmed) ?? $trimmed;
     }
 }

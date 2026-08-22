@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { Head, router, useForm } from '@inertiajs/vue3'
-import { AlertTriangle, Pencil, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-vue-next'
+import { Pencil, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-vue-next'
 import MainLayout from '@/layouts/MainLayout.vue'
 import AreaSelectorBanner from '@/components/dashboard/AreaSelectorBanner.vue'
 
@@ -89,13 +89,12 @@ const remove = (item) => {
   }
 }
 
-const ratingTone = (rating) => rating >= 12
-  ? 'bg-red-50 text-red-700 border-red-100'
-  : rating >= 8
-    ? 'bg-orange-50 text-orange-700 border-orange-100'
-    : rating >= 4
-      ? 'bg-amber-50 text-amber-700 border-amber-100'
-      : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+const ratingTone = (rating) => {
+  if (rating >= 12) return 'bg-red-50 text-red-700 border-red-100'
+  if (rating >= 8) return 'bg-orange-50 text-orange-700 border-orange-100'
+  if (rating >= 4) return 'bg-amber-50 text-amber-700 border-amber-100'
+  return 'bg-emerald-50 text-emerald-700 border-emerald-100'
+}
 
 const statusLabel = value => ({ open: 'Open', in_progress: 'In Progress', closed: 'Closed' }[value] || value)
 </script>

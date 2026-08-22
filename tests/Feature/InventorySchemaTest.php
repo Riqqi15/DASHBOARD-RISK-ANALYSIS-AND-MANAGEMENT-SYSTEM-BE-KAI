@@ -22,53 +22,59 @@ class InventorySchemaTest extends TestCase
 
     public function test_inventory_schema_contains_the_required_columns(): void
     {
-        $this->assertTrue(Schema::hasColumns('spare_parts', [
-            'id',
-            'asset_subsystem_id',
-            'code',
-            'source_key',
-            'equipment',
-            'detail_equipment',
-            'max_yearly_failure',
-            'average_yearly_failure',
-            'max_lead_time_months',
-            'average_lead_time_months',
-            'safety_stock',
-            'lead_time_demand',
-            'reorder_point',
-            'severity',
-            'unit_of_measure',
-            'is_active',
-            'created_at',
-            'updated_at',
-            'deleted_at',
-        ]));
-        $this->assertTrue(Schema::hasColumns('inventory_stocks', [
-            'id',
-            'unit_kerja_id',
-            'spare_part_id',
-            'quantity',
-            'created_at',
-            'updated_at',
-        ]));
-        $this->assertTrue(Schema::hasColumns('stock_movements', [
-            'id',
-            'unit_kerja_id',
-            'spare_part_id',
-            'actor_id',
-            'type',
-            'direction',
-            'quantity',
-            'stock_before',
-            'stock_after',
-            'movement_date',
-            'reference_number',
-            'notes',
-            'reverses_movement_id',
-            'idempotency_key',
-            'created_at',
-            'updated_at',
-        ]));
+        $this->assertTrue(
+            Schema::hasColumns('spare_parts', [
+                'id',
+                'asset_subsystem_id',
+                'code',
+                'source_key',
+                'equipment',
+                'detail_equipment',
+                'max_yearly_failure',
+                'average_yearly_failure',
+                'max_lead_time_months',
+                'average_lead_time_months',
+                'safety_stock',
+                'lead_time_demand',
+                'reorder_point',
+                'severity',
+                'unit_of_measure',
+                'is_active',
+                'created_at',
+                'updated_at',
+                'deleted_at',
+            ]),
+        );
+        $this->assertTrue(
+            Schema::hasColumns('inventory_stocks', [
+                'id',
+                'unit_kerja_id',
+                'spare_part_id',
+                'quantity',
+                'created_at',
+                'updated_at',
+            ]),
+        );
+        $this->assertTrue(
+            Schema::hasColumns('stock_movements', [
+                'id',
+                'unit_kerja_id',
+                'spare_part_id',
+                'actor_id',
+                'type',
+                'direction',
+                'quantity',
+                'stock_before',
+                'stock_after',
+                'movement_date',
+                'reference_number',
+                'notes',
+                'reverses_movement_id',
+                'idempotency_key',
+                'created_at',
+                'updated_at',
+            ]),
+        );
     }
 
     public function test_inventory_relations_and_movement_casts_are_available(): void
@@ -76,14 +82,21 @@ class InventorySchemaTest extends TestCase
         $unit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
         $actor = User::factory()->for($unit)->unit()->create();
-        $stock = InventoryStock::factory()->for($unit)->for($part)->create(['quantity' => 10]);
-        $movement = StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
-            'type' => StockMovementType::In,
-            'direction' => StockDirection::In,
-            'quantity' => 10,
-            'stock_before' => 0,
-            'stock_after' => 10,
-        ]);
+        $stock = InventoryStock::factory()
+            ->for($unit)
+            ->for($part)
+            ->create(['quantity' => 10]);
+        $movement = StockMovement::factory()
+            ->for($unit)
+            ->for($part)
+            ->for($actor, 'actor')
+            ->create([
+                'type' => StockMovementType::In,
+                'direction' => StockDirection::In,
+                'quantity' => 10,
+                'stock_before' => 0,
+                'stock_after' => 10,
+            ]);
 
         $this->assertTrue($stock->unitKerja->is($unit));
         $this->assertTrue($stock->sparePart->is($part));
@@ -150,15 +163,30 @@ class InventorySchemaTest extends TestCase
         $this->assertMysqlError(1062, fn () => InventoryStock::factory()->for($unit)->for($part)->create());
 
         $actor = User::factory()->unit($unit)->create();
-        $movement = StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
-            'idempotency_key' => '98d4bb31-49f7-4e04-af74-e1b884de0b63',
-        ]);
-        $this->assertMysqlError(1062, fn () => StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
-            'idempotency_key' => '98d4bb31-49f7-4e04-af74-e1b884de0b63',
-        ]));
-        StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
-            'reverses_movement_id' => $movement->id,
-        ]);
+        $movement = StockMovement::factory()
+            ->for($unit)
+            ->for($part)
+            ->for($actor, 'actor')
+            ->create([
+                'idempotency_key' => '98d4bb31-49f7-4e04-af74-e1b884de0b63',
+            ]);
+        $this->assertMysqlError(
+            1062,
+            fn () => StockMovement::factory()
+                ->for($unit)
+                ->for($part)
+                ->for($actor, 'actor')
+                ->create([
+                    'idempotency_key' => '98d4bb31-49f7-4e04-af74-e1b884de0b63',
+                ]),
+        );
+        StockMovement::factory()
+            ->for($unit)
+            ->for($part)
+            ->for($actor, 'actor')
+            ->create([
+                'reverses_movement_id' => $movement->id,
+            ]);
 
         $this->assertMysqlError(1451, fn () => $unit->forceDelete());
         $this->assertMysqlError(1451, fn () => $part->forceDelete());
@@ -170,16 +198,18 @@ class InventorySchemaTest extends TestCase
     public function test_sparepart_values_are_cast_and_soft_deleted(): void
     {
         $subsystem = AssetSubsystem::factory()->create();
-        $part = SparePart::factory()->for($subsystem)->create([
-            'max_yearly_failure' => '4.25',
-            'average_yearly_failure' => '2.50',
-            'max_lead_time_months' => '3.00',
-            'average_lead_time_months' => '2.25',
-            'safety_stock' => 8,
-            'lead_time_demand' => 5,
-            'reorder_point' => 13,
-            'is_active' => 1,
-        ]);
+        $part = SparePart::factory()
+            ->for($subsystem)
+            ->create([
+                'max_yearly_failure' => '4.25',
+                'average_yearly_failure' => '2.50',
+                'max_lead_time_months' => '3.00',
+                'average_lead_time_months' => '2.25',
+                'safety_stock' => 8,
+                'lead_time_demand' => 5,
+                'reorder_point' => 13,
+                'is_active' => 1,
+            ]);
 
         $this->assertSame('4.25', $part->max_yearly_failure);
         $this->assertSame('2.50', $part->average_yearly_failure);

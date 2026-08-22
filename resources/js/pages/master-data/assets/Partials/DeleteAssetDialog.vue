@@ -12,7 +12,7 @@ defineEmits(['close', 'confirm'])
 <template>
   <Teleport to="body">
     <div v-if="asset" class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[1px]" @click.self="$emit('close')">
-      <section role="dialog" aria-modal="true" aria-labelledby="delete-asset-title" class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-950/20">
+      <dialog open aria-labelledby="delete-asset-title" class="static m-0 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl shadow-slate-950/20">
         <div class="flex items-start justify-between gap-4">
           <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
             <AlertTriangle :size="22" aria-hidden="true" />
@@ -33,7 +33,7 @@ defineEmits(['close', 'confirm'])
             {{ processing ? 'Menghapus...' : 'Hapus aset' }}
           </button>
         </div>
-      </section>
+      </dialog>
     </div>
   </Teleport>
 </template>

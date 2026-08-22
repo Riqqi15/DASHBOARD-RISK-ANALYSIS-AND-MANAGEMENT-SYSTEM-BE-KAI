@@ -24,9 +24,9 @@ class StoreSparePartRequest extends FormRequest
             'asset_subsystem_id' => [
                 'required',
                 'integer',
-                Rule::exists('asset_subsystems', 'id')->where(fn ($query) => $query
-                    ->where('is_active', true)
-                    ->whereNull('deleted_at')),
+                Rule::exists('asset_subsystems', 'id')->where(
+                    fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'),
+                ),
             ],
             'code' => ['required', 'string', 'max:50', Rule::unique('spare_parts', 'code')],
             'equipment' => ['required', 'string', 'max:255'],
@@ -57,13 +57,21 @@ class StoreSparePartRequest extends FormRequest
                 $pathIsActive = AssetSubsystem::query()
                     ->whereKey($this->integer('asset_subsystem_id'))
                     ->where('is_active', true)
-                    ->whereHas('assetSystem', fn ($query) => $query
-                        ->where('is_active', true)
-                        ->whereHas('assetGroup', fn ($group) => $group->where('is_active', true)))
+                    ->whereHas(
+                        'assetSystem',
+                        fn ($query) => $query
+                            ->where('is_active', true)
+                            ->whereHas('assetGroup', fn ($group) => $group->where('is_active', true)),
+                    )
                     ->exists();
 
                 if (! $pathIsActive) {
-                    $validator->errors()->add('asset_subsystem_id', 'Subsistem aset atau kategori induknya tidak aktif atau tidak ditemukan.');
+                    $validator
+                        ->errors()
+                        ->add(
+                            'asset_subsystem_id',
+                            'Subsistem aset atau kategori induknya tidak aktif atau tidak ditemukan.',
+                        );
                 }
             },
             function (Validator $validator): void {
@@ -76,18 +84,19 @@ class StoreSparePartRequest extends FormRequest
                     return;
                 }
 
-                $query = SparePart::withTrashed()
-                    ->where('source_key', hash('sha256', 'manual|'.$code));
+                $query = SparePart::withTrashed()->where('source_key', hash('sha256', 'manual|'.$code));
                 $current = $this->route('spare_part');
                 if ($current instanceof SparePart) {
                     $query->where('id', '!=', $current->id);
                 }
 
                 if ($query->exists()) {
-                    $validator->errors()->add(
-                        'code',
-                        'Kode suku cadang pernah digunakan sebagai identitas sumber dan tidak dapat dipakai ulang.',
-                    );
+                    $validator
+                        ->errors()
+                        ->add(
+                            'code',
+                            'Kode suku cadang pernah digunakan sebagai identitas sumber dan tidak dapat dipakai ulang.',
+                        );
                 }
             },
         ];
@@ -145,14 +154,16 @@ class StoreSparePartRequest extends FormRequest
                 continue;
             }
 
-            $value = preg_replace('/\s+/u', ' ', trim($input));
+            $value = preg_replace("/\s+/u", ' ', trim($input));
             $normalized[$field] = in_array($field, ['equipment', 'severity'], true) && $value === '' ? null : $value;
         }
 
-        foreach ([
-            'max_yearly_failure' => 'average_yearly_failure',
-            'max_lead_time_months' => 'average_lead_time_months',
-        ] as $maximumField => $averageField) {
+        foreach (
+            [
+                'max_yearly_failure' => 'average_yearly_failure',
+                'max_lead_time_months' => 'average_lead_time_months',
+            ] as $maximumField => $averageField
+        ) {
             $average = $this->averageFromMaximum($this->input($maximumField));
             if ($average !== null) {
                 $normalized[$averageField] = $average;

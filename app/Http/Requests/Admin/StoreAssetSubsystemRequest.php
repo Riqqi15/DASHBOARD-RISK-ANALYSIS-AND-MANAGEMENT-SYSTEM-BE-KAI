@@ -20,14 +20,18 @@ class StoreAssetSubsystemRequest extends FormRequest
             'asset_system_id' => [
                 'required',
                 'integer',
-                Rule::exists('asset_systems', 'id')->where(fn ($query) => $query->where('is_active', true)->whereNull('deleted_at')),
+                Rule::exists('asset_systems', 'id')->where(
+                    fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'),
+                ),
             ],
             'name' => ['required', 'string', 'max:255'],
             'normalized_name' => [
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('asset_subsystems', 'normalized_name')->where(fn ($query) => $query->where('asset_system_id', $this->input('asset_system_id'))),
+                Rule::unique('asset_subsystems', 'normalized_name')->where(
+                    fn ($query) => $query->where('asset_system_id', $this->input('asset_system_id')),
+                ),
             ],
             'sort_order' => ['required', 'integer', 'min:0', 'max:65535'],
             'dashboard_color' => ['nullable', 'regex:/^#[0-9A-F]{6}$/i'],
@@ -37,11 +41,12 @@ class StoreAssetSubsystemRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $name = $this->normalizedDisplayName();
+        $color = mb_strtoupper(trim((string) $this->input('dashboard_color')));
         $this->merge([
             'name' => $name,
             'normalized_name' => mb_strtolower($name),
             'sort_order' => $this->input('sort_order') ?? 0,
-            'dashboard_color' => ($color = mb_strtoupper(trim((string) $this->input('dashboard_color')))) !== '' ? $color : null,
+            'dashboard_color' => $color !== '' ? $color : null,
         ]);
     }
 
@@ -50,6 +55,6 @@ class StoreAssetSubsystemRequest extends FormRequest
         $value = is_string($this->input('name')) ? $this->input('name') : '';
         $trimmed = preg_replace('/^\s+|\s+$/u', '', $value) ?? trim($value);
 
-        return preg_replace('/\s+/u', ' ', $trimmed) ?? $trimmed;
+        return preg_replace("/\s+/u", ' ', $trimmed) ?? $trimmed;
     }
 }

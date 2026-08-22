@@ -55,9 +55,16 @@ const tabs = computed(() => [
 ])
 const selectedUnit = computed(() => props.units.find((unit) => String(unit.id) === String(filterState.unit_kerja_id)))
 const scopedUnit = computed(() => props.stocks.data[0]?.unit ?? props.movements.data[0]?.unit)
-const unitContext = computed(() => props.can.choose_unit
-  ? selectedUnit.value ? `${selectedUnit.value.code} — ${selectedUnit.value.name}` : 'Belum ada unit kerja aktif'
-  : scopedUnit.value ? `${scopedUnit.value.code} — ${scopedUnit.value.name}` : 'Unit kerja akun Anda')
+const unitContext = computed(() => {
+  if (props.can.choose_unit) {
+    return selectedUnit.value
+      ? `${selectedUnit.value.code} — ${selectedUnit.value.name}`
+      : 'Belum ada unit kerja aktif'
+  }
+  return scopedUnit.value
+    ? `${scopedUnit.value.code} — ${scopedUnit.value.name}`
+    : 'Unit kerja akun Anda'
+})
 const hasActiveFilters = computed(() => Boolean(
   filterState.search || filterState.asset_group_id || filterState.asset_subsystem_id
   || (activeTab.value === 'stock' && filterState.stock_status !== 'all')

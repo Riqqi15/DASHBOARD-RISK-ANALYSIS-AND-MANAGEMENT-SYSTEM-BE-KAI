@@ -130,47 +130,74 @@ final class ReliabilityWorkbookExportService
         $sheet->getStyle('A1:M1')->applyFromArray($this->titleStyle());
         $sheet->getStyle('A4:M4')->applyFromArray($this->headerStyle('4F81BD'));
         $sheet->getStyle("A5:M{$lastRow}")->applyFromArray($this->bodyBorderStyle());
-        $sheet->getStyle("C5:D{$lastRow}")->getNumberFormat()->setFormatCode('General');
-        $sheet->getStyle("E5:F{$lastRow}")->getNumberFormat()->setFormatCode('0.00');
-        $sheet->getStyle("G5:H{$lastRow}")->getNumberFormat()->setFormatCode('General');
-        $sheet->getStyle("I5:I{$lastRow}")->getNumberFormat()->setFormatCode('0.0000000000');
-        $sheet->getStyle("J5:K{$lastRow}")->getNumberFormat()->setFormatCode('0.0000%');
-        $sheet->getStyle("L5:M{$lastRow}")->getNumberFormat()->setFormatCode('General');
+        $sheet
+            ->getStyle("C5:D{$lastRow}")
+            ->getNumberFormat()
+            ->setFormatCode('General');
+        $sheet
+            ->getStyle("E5:F{$lastRow}")
+            ->getNumberFormat()
+            ->setFormatCode('0.00');
+        $sheet
+            ->getStyle("G5:H{$lastRow}")
+            ->getNumberFormat()
+            ->setFormatCode('General');
+        $sheet
+            ->getStyle("I5:I{$lastRow}")
+            ->getNumberFormat()
+            ->setFormatCode('0.0000000000');
+        $sheet
+            ->getStyle("J5:K{$lastRow}")
+            ->getNumberFormat()
+            ->setFormatCode('0.0000%');
+        $sheet
+            ->getStyle("L5:M{$lastRow}")
+            ->getNumberFormat()
+            ->setFormatCode('General');
         $sheet->getStyle('A1:M4')->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
         $sheet->getRowDimension(1)->setRowHeight(28);
         $sheet->getRowDimension(4)->setRowHeight(42);
         $this->setWidths($sheet, [
-            'A' => 42, 'B' => 12, 'C' => 20, 'D' => 18, 'E' => 18, 'F' => 15,
-            'G' => 16, 'H' => 16, 'I' => 18, 'J' => 16, 'K' => 16, 'L' => 23, 'M' => 22,
+            'A' => 42,
+            'B' => 12,
+            'C' => 20,
+            'D' => 18,
+            'E' => 18,
+            'F' => 15,
+            'G' => 16,
+            'H' => 16,
+            'I' => 18,
+            'J' => 16,
+            'K' => 16,
+            'L' => 23,
+            'M' => 22,
         ]);
     }
 
     /** @param Collection<int, Asset> $assets */
-    private function writeSubsystemSheet(
-        Worksheet $sheet,
-        string $subsystemName,
-        Collection $assets,
-    ): void {
+    private function writeSubsystemSheet(Worksheet $sheet, string $subsystemName, Collection $assets): void
+    {
         $summary = $this->latestSummary($assets);
-        $fallbackBaseline = $summary?->baseline_date?->toDateString()
-            ?? $assets->pluck('tanggal_pemasangan')->filter()->sort()->first()?->toDateString()
-            ?? '2017-01-01';
+        $fallbackBaseline =
+            $summary?->baseline_date?->toDateString() ??
+            ($assets->pluck('tanggal_pemasangan')->filter()->sort()->first()?->toDateString() ?? '2017-01-01');
         $rawProfile = array_merge(
             $summary?->excelSnapshot?->formula_profile ?? [],
             $summary?->calculation_profile ?? [],
         );
         $profile = $this->profiles->resolve($rawProfile, $fallbackBaseline);
         $baseline = CarbonImmutable::parse((string) $profile['interval_baseline_date'])->startOfDay();
-        $operationBaseline = $summary?->baseline_date?->startOfDay()
-            ?? CarbonImmutable::parse('2020-01-01');
+        $operationBaseline = $summary?->baseline_date?->startOfDay() ?? CarbonImmutable::parse('2020-01-01');
         $failures = $assets
             ->flatMap(fn (Asset $asset): Collection => $asset->failureLogs)
-            ->sortBy(fn (FailureLog $log): array => [
-                $log->source_row === null ? 1 : 0,
-                $log->source_row ?? PHP_INT_MAX,
-                $log->started_at?->getTimestamp() ?? 0,
-                $log->id,
-            ])
+            ->sortBy(
+                fn (FailureLog $log): array => [
+                    $log->source_row === null ? 1 : 0,
+                    $log->source_row ?? PHP_INT_MAX,
+                    $log->started_at?->getTimestamp() ?? 0,
+                    $log->id,
+                ],
+            )
             ->values();
         $firstRow = 10;
         $intervalRows = max(0, (int) ($profile['failure_interval_row_count'] ?? 0));
@@ -191,8 +218,14 @@ final class ReliabilityWorkbookExportService
         $sheet->setCellValue('J4', '=IFERROR(1/I4,0)');
         $sheet->setCellValue('K4', '=EXP(-J4)');
         $sheet->setCellValue('L4', '=IFERROR(E4/D4,"Data belum cukup")');
-        $sheet->setCellValue('M4', $this->markerFormula((string) $profile['spare_part_count_mode'], 'H', $firstRow, $lastRow));
-        $sheet->setCellValue('N4', $this->markerFormula((string) $profile['vandalism_count_mode'], 'I', $firstRow, $lastRow));
+        $sheet->setCellValue(
+            'M4',
+            $this->markerFormula((string) $profile['spare_part_count_mode'], 'H', $firstRow, $lastRow),
+        );
+        $sheet->setCellValue(
+            'N4',
+            $this->markerFormula((string) $profile['vandalism_count_mode'], 'I', $firstRow, $lastRow),
+        );
 
         $sheet->setCellValue('P7', 'Tanggal baseline interval');
         $sheet->setCellValue('P8', Date::PHPToExcel($baseline));
@@ -203,7 +236,12 @@ final class ReliabilityWorkbookExportService
         $sheet->setCellValue('S7', 'Profile');
         $sheet->setCellValue('T7', 'Tanggal baseline operasi');
         $sheet->setCellValue('T8', Date::PHPToExcel($operationBaseline));
-        $sheet->setCellValue('S8', (bool) $profile['is_fallback'] ? 'Profile standar — snapshot Excel belum tersedia' : 'Profile snapshot Excel');
+        $sheet->setCellValue(
+            'S8',
+            (bool) $profile['is_fallback']
+                ? 'Profile standar — snapshot Excel belum tersedia'
+                : 'Profile snapshot Excel',
+        );
         $sheet->fromArray(self::FAILURE_HEADERS, null, 'B9');
 
         foreach ($failures as $index => $failure) {
@@ -219,13 +257,8 @@ final class ReliabilityWorkbookExportService
         $this->formatSubsystemSheet($sheet, $lastRow);
     }
 
-    private function writeFailureRow(
-        Worksheet $sheet,
-        int $row,
-        FailureLog $failure,
-        ?Asset $asset,
-        bool $first,
-    ): void {
+    private function writeFailureRow(Worksheet $sheet, int $row, FailureLog $failure, ?Asset $asset, bool $first): void
+    {
         $sheet->setCellValue("B{$row}", $failure->location);
         $sheet->setCellValue("C{$row}", $failure->resort);
         $sheet->setCellValue("D{$row}", $failure->qc);
@@ -252,7 +285,10 @@ final class ReliabilityWorkbookExportService
         $sheet->setCellValue("J{$row}", "=IF(K{$row}=\"\",\"\",YEAR(K{$row}))");
         $sheet->setCellValue("O{$row}", "=IF(OR(K{$row}=\"\",M{$row}=\"\"),\"\",K{$row}+M{$row})");
         $sheet->setCellValue("P{$row}", "=IF(OR(L{$row}=\"\",N{$row}=\"\"),\"\",L{$row}+N{$row})");
-        $sheet->setCellValue("Q{$row}", "=IF(OR(M{$row}=\"\",N{$row}=\"\"),\"\",N{$row}-M{$row}+IF(N{$row}<M{$row},1,0))");
+        $sheet->setCellValue(
+            "Q{$row}",
+            "=IF(OR(M{$row}=\"\",N{$row}=\"\"),\"\",N{$row}-M{$row}+IF(N{$row}<M{$row},1,0))",
+        );
         $sheet->setCellValue("R{$row}", "=IF(Q{$row}=\"\",\"\",Q{$row}*1440)");
         $previous = $first ? '$P$8' : 'O'.($row - 1);
         $sheet->setCellValue("S{$row}", "=IFERROR(IF(O{$row}=\"\",0,(O{$row}-{$previous})*24),\"\")");
@@ -264,21 +300,38 @@ final class ReliabilityWorkbookExportService
         $sheet->setAutoFilter("B9:S{$lastRow}");
         $sheet->getStyle('B1:N1')->applyFromArray($this->titleStyle());
         $sheet->getStyle('B3:N3')->applyFromArray($this->headerStyle('4F81BD'));
-        $sheet->getStyle('B4:N4')->applyFromArray([
-            ...$this->bodyBorderStyle(),
-            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'DCE6F1']],
-        ]);
+        $sheet
+            ->getStyle('B4:N4')
+            ->applyFromArray([
+                ...$this->bodyBorderStyle(),
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'DCE6F1']],
+            ]);
         $sheet->getStyle('B9:S9')->applyFromArray($this->headerStyle('8064A2'));
         $sheet->getStyle("B10:S{$lastRow}")->applyFromArray($this->bodyBorderStyle());
         $sheet->getStyle('P7:T7')->applyFromArray($this->headerStyle('9BBB59'));
         $sheet->getStyle('P8:T8')->applyFromArray($this->bodyBorderStyle());
         $sheet->getStyle('P8:Q8')->getNumberFormat()->setFormatCode('dd/mm/yyyy');
         $sheet->getStyle('T8')->getNumberFormat()->setFormatCode('dd/mm/yyyy');
-        $sheet->getStyle("K10:L{$lastRow}")->getNumberFormat()->setFormatCode('dd/mm/yyyy');
-        $sheet->getStyle("M10:N{$lastRow}")->getNumberFormat()->setFormatCode('hh:mm');
-        $sheet->getStyle("O10:P{$lastRow}")->getNumberFormat()->setFormatCode('dd/mm/yyyy hh:mm');
-        $sheet->getStyle("Q10:Q{$lastRow}")->getNumberFormat()->setFormatCode('[h]:mm');
-        $sheet->getStyle("R10:S{$lastRow}")->getNumberFormat()->setFormatCode('0.00');
+        $sheet
+            ->getStyle("K10:L{$lastRow}")
+            ->getNumberFormat()
+            ->setFormatCode('dd/mm/yyyy');
+        $sheet
+            ->getStyle("M10:N{$lastRow}")
+            ->getNumberFormat()
+            ->setFormatCode('hh:mm');
+        $sheet
+            ->getStyle("O10:P{$lastRow}")
+            ->getNumberFormat()
+            ->setFormatCode('dd/mm/yyyy hh:mm');
+        $sheet
+            ->getStyle("Q10:Q{$lastRow}")
+            ->getNumberFormat()
+            ->setFormatCode('[h]:mm');
+        $sheet
+            ->getStyle("R10:S{$lastRow}")
+            ->getNumberFormat()
+            ->setFormatCode('0.00');
         $sheet->getStyle('K4:L4')->getNumberFormat()->setFormatCode('0.0000%');
         $sheet->getStyle('C4:D4')->getNumberFormat()->setFormatCode('General');
         $sheet->getStyle('E4:F4')->getNumberFormat()->setFormatCode('0.00');
@@ -291,9 +344,25 @@ final class ReliabilityWorkbookExportService
         $sheet->getRowDimension(3)->setRowHeight(48);
         $sheet->getRowDimension(9)->setRowHeight(54);
         $this->setWidths($sheet, [
-            'B' => 36, 'C' => 18, 'D' => 14, 'E' => 28, 'F' => 30, 'G' => 30,
-            'H' => 19, 'I' => 18, 'J' => 14, 'K' => 17, 'L' => 17, 'M' => 12,
-            'N' => 12, 'O' => 21, 'P' => 21, 'Q' => 17, 'R' => 18, 'S' => 20, 'T' => 18,
+            'B' => 36,
+            'C' => 18,
+            'D' => 14,
+            'E' => 28,
+            'F' => 30,
+            'G' => 30,
+            'H' => 19,
+            'I' => 18,
+            'J' => 14,
+            'K' => 17,
+            'L' => 17,
+            'M' => 12,
+            'N' => 12,
+            'O' => 21,
+            'P' => 21,
+            'Q' => 17,
+            'R' => 18,
+            'S' => 20,
+            'T' => 18,
         ]);
     }
 
@@ -302,19 +371,19 @@ final class ReliabilityWorkbookExportService
     {
         return $assets
             ->flatMap(fn (Asset $asset): Collection => $asset->reliabilitySummaries)
-            ->sortByDesc(fn (ReliabilitySummary $summary): string => sprintf(
-                '%010d-%010d',
-                $summary->period?->getTimestamp() ?? 0,
-                $summary->id,
-            ))
+            ->sortByDesc(
+                fn (ReliabilitySummary $summary): string => sprintf(
+                    '%010d-%010d',
+                    $summary->period?->getTimestamp() ?? 0,
+                    $summary->id,
+                ),
+            )
             ->first();
     }
 
     private function subsystemName(Asset $asset): string
     {
-        return $asset->assetSubsystem?->name
-            ?? $asset->subsystem
-            ?? $asset->nama_aset;
+        return $asset->assetSubsystem?->name ?? ($asset->subsystem ?? $asset->nama_aset);
     }
 
     private function downtimeFormula(string $mode, int $firstRow, int $lastRow): string
@@ -335,7 +404,7 @@ final class ReliabilityWorkbookExportService
 
     private function timeFraction(mixed $date): float
     {
-        return (($date->hour * 3600) + ($date->minute * 60) + $date->second) / 86400;
+        return ($date->hour * 3600 + $date->minute * 60 + $date->second) / 86400;
     }
 
     private function columnLetter(int $column): string

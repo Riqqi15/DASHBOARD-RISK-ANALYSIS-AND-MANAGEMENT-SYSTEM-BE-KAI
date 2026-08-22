@@ -39,7 +39,18 @@ class RiskMatrixWorkbookImporter
         return in_array(self::SHEET, $reader->listWorksheetNames($workbookPath), true);
     }
 
-    /** @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int, colors_updated: int, issues: array<int, array<string, mixed>>} */
+    /**
+     * @return array{
+     *     created: int,
+     *     updated: int,
+     *     unchanged: int,
+     *     duplicates_skipped: int,
+     *     duplicate_locations: list<string>,
+     *     skipped: int,
+     *     colors_updated: int,
+     *     issues: array<int, array<string, mixed>>
+     * }
+     */
     public function import(string $workbookPath, UnitKerja $unit): array
     {
         $reader = IOFactory::createReaderForFile($workbookPath);
@@ -56,9 +67,13 @@ class RiskMatrixWorkbookImporter
                 fn (int $column): string => mb_strtolower(trim((string) $sheet->getCell([$column, 1])->getValue())),
                 range(1, 8),
             );
-            if ($headers[0] !== 'aset prasarana sintel' || $headers[1] !== 'system'
-                || $headers[2] !== 'subsystem' || $headers[3] !== 'likelihood'
-                || $headers[4] !== 'consequences') {
+            if (
+                $headers[0] !== 'aset prasarana sintel' ||
+                $headers[1] !== 'system' ||
+                $headers[2] !== 'subsystem' ||
+                $headers[3] !== 'likelihood' ||
+                $headers[4] !== 'consequences'
+            ) {
                 throw new RuntimeException('Header sheet Risk Matrix tidak sesuai format KAI.');
             }
 
@@ -74,7 +89,18 @@ class RiskMatrixWorkbookImporter
         }
     }
 
-    /** @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int, colors_updated: int, issues: array<int, array<string, mixed>>} */
+    /**
+     * @return array{
+     *     created: int,
+     *     updated: int,
+     *     unchanged: int,
+     *     duplicates_skipped: int,
+     *     duplicate_locations: list<string>,
+     *     skipped: int,
+     *     colors_updated: int,
+     *     issues: array<int, array<string, mixed>>
+     * }
+     */
     private function importRows(Worksheet $sheet, UnitKerja $unit, string $workbookName, string $hash): array
     {
         $result = [
@@ -103,8 +129,9 @@ class RiskMatrixWorkbookImporter
                     'source_row' => $row,
                     'source_column' => 'Baris Utuh',
                     'severity' => 'error',
-                    'message' => 'Konflik: '.implode(' dan ', $locations)
-                        .' memiliki identitas Risk Matrix yang sama; seluruh baris konflik dilewati.',
+                    'message' => 'Konflik: '.
+                        implode(' dan ', $locations).
+                        ' memiliki identitas Risk Matrix yang sama; seluruh baris konflik dilewati.',
                 ];
             }
         }
@@ -136,19 +163,31 @@ class RiskMatrixWorkbookImporter
                     $unit,
                 );
                 if ($groupValue !== '') {
-                    $result['colors_updated'] += $this->applyExcelColor($categories['group'], $this->cellColor($sheet, 1, $row));
+                    $result['colors_updated'] += $this->applyExcelColor(
+                        $categories['group'],
+                        $this->cellColor($sheet, 1, $row),
+                    );
                 }
                 if ($systemValue !== '') {
-                    $result['colors_updated'] += $this->applyExcelColor($categories['system'], $this->cellColor($sheet, 2, $row));
+                    $result['colors_updated'] += $this->applyExcelColor(
+                        $categories['system'],
+                        $this->cellColor($sheet, 2, $row),
+                    );
                 }
-                $result['colors_updated'] += $this->applyExcelColor($categories['subsystem'], $this->cellColor($sheet, 3, $row));
+                $result['colors_updated'] += $this->applyExcelColor(
+                    $categories['subsystem'],
+                    $this->cellColor($sheet, 3, $row),
+                );
 
                 $assets = Asset::query()
                     ->where('unit_kerja_id', $unit->id)
                     ->where('asset_subsystem_id', $categories['subsystem']->id)
                     ->get();
                 if ($assets->isEmpty()) {
-                    $result['issues'][] = $this->issue($row, "Aset {$subsystemValue} belum tersedia untuk {$unit->code}.");
+                    $result['issues'][] = $this->issue(
+                        $row,
+                        "Aset {$subsystemValue} belum tersedia untuk {$unit->code}.",
+                    );
                     $result['skipped']++;
 
                     continue;
@@ -175,13 +214,16 @@ class RiskMatrixWorkbookImporter
                 foreach ($assets as $asset) {
                     $matrix = RiskMatrix::query()->firstOrNew(['asset_id' => $asset->id]);
                     $values = [
-                        'source_key' => hash('sha256', implode('|', [
-                            self::IMPORT_VERSION,
-                            (string) $unit->id,
-                            mb_strtolower(self::SHEET),
-                            (string) $row,
-                            (string) $asset->id,
-                        ])),
+                        'source_key' => hash(
+                            'sha256',
+                            implode('|', [
+                                self::IMPORT_VERSION,
+                                (string) $unit->id,
+                                mb_strtolower(self::SHEET),
+                                (string) $row,
+                                (string) $asset->id,
+                            ]),
+                        ),
                         'sheet_name' => self::SHEET,
                         'source_row' => $row,
                         'likelihood' => $likelihood,
@@ -196,18 +238,22 @@ class RiskMatrixWorkbookImporter
                     $matrix->fill($values);
 
                     if (! $matrix->exists) {
-                        $matrix->fill([
-                            'workbook_hash' => $hash,
-                            'workbook_name' => $workbookName,
-                            'assessed_at' => now(),
-                        ])->save();
+                        $matrix
+                            ->fill([
+                                'workbook_hash' => $hash,
+                                'workbook_name' => $workbookName,
+                                'assessed_at' => now(),
+                            ])
+                            ->save();
                         $result['created']++;
                     } elseif ($operationallyChanged) {
-                        $matrix->fill([
-                            'workbook_hash' => $hash,
-                            'workbook_name' => $workbookName,
-                            'assessed_at' => now(),
-                        ])->save();
+                        $matrix
+                            ->fill([
+                                'workbook_hash' => $hash,
+                                'workbook_name' => $workbookName,
+                                'assessed_at' => now(),
+                            ])
+                            ->save();
                         $result['updated']++;
                     } else {
                         $result['unchanged']++;
@@ -251,18 +297,18 @@ class RiskMatrixWorkbookImporter
                 continue;
             }
 
-            $identity = hash('sha256', implode('|', [
-                $this->canonical($currentGroup),
-                $this->canonical($currentSystem),
-                $this->canonical($subsystem),
-            ]));
+            $identity = hash(
+                'sha256',
+                implode('|', [
+                    $this->canonical($currentGroup),
+                    $this->canonical($currentSystem),
+                    $this->canonical($subsystem),
+                ]),
+            );
             $rowsByIdentity[$identity][] = $row;
         }
 
-        return array_values(array_filter(
-            $rowsByIdentity,
-            fn (array $rows): bool => count($rows) > 1,
-        ));
+        return array_values(array_filter($rowsByIdentity, fn (array $rows): bool => count($rows) > 1));
     }
 
     /** @param array<string, mixed> $values */
@@ -313,12 +359,15 @@ class RiskMatrixWorkbookImporter
             ->where('unit_kerja_id', $unit->id)
             ->with('systems.subsystems')
             ->get()
-            ->first(fn (AssetGroup $candidate): bool => $this->canonical($candidate->name) === $this->canonical($groupName));
+            ->first(
+                fn (AssetGroup $candidate): bool => $this->canonical($candidate->name) === $this->canonical($groupName),
+            );
         $system = $group?->systems->first(
             fn (AssetSystem $candidate): bool => $this->canonical($candidate->name) === $this->canonical($systemName),
         );
         $subsystem = $system?->subsystems->first(
-            fn (AssetSubsystem $candidate): bool => $this->canonical($candidate->name) === $this->canonical($subsystemName),
+            fn (AssetSubsystem $candidate): bool => $this->canonical($candidate->name) ===
+                $this->canonical($subsystemName),
         );
         if ($group && $system && $subsystem) {
             return compact('group', 'system', 'subsystem');
@@ -337,7 +386,7 @@ class RiskMatrixWorkbookImporter
 
     private function canonical(string $value): string
     {
-        $withoutNumber = preg_replace('/^\s*\d+\.\s*/u', '', $value) ?? $value;
+        $withoutNumber = preg_replace("/^\s*\d+\.\s*/u", '', $value) ?? $value;
 
         return mb_strtolower($this->text($withoutNumber));
     }
@@ -388,7 +437,7 @@ class RiskMatrixWorkbookImporter
 
     private function text(mixed $value): string
     {
-        return preg_replace('/\s+/u', ' ', trim((string) ($value ?? ''))) ?? trim((string) ($value ?? ''));
+        return preg_replace("/\s+/u", ' ', trim((string) ($value ?? ''))) ?? trim((string) ($value ?? ''));
     }
 
     /** @return array<string, mixed> */

@@ -47,7 +47,10 @@ class RegionalAccountController extends Controller
     {
         $this->ensureRegional($account);
 
-        return Inertia::render('Admin/Accounts/Edit', ['account' => $this->accountPayload($account), 'units' => $this->activeUnits($account->unit_kerja_id)]);
+        return Inertia::render('Admin/Accounts/Edit', [
+            'account' => $this->accountPayload($account),
+            'units' => $this->activeUnits($account->unit_kerja_id),
+        ]);
     }
 
     public function update(UpdateRegionalAccountRequest $request, User $account): RedirectResponse
@@ -69,7 +72,9 @@ class RegionalAccountController extends Controller
         DB::transaction(function () use ($validated, $account): void {
             $before = ['is_active' => $account->is_active];
             $account->update($validated);
-            $this->auditLogger->record('account.status_changed', $account, $before, ['is_active' => $account->fresh()->is_active]);
+            $this->auditLogger->record('account.status_changed', $account, $before, [
+                'is_active' => $account->fresh()->is_active,
+            ]);
         });
 
         return redirect()->route('admin.units.index')->with('success', 'Status akun unit kerja berhasil diperbarui.');
@@ -100,7 +105,14 @@ class RegionalAccountController extends Controller
 
     private function activeUnits(?int $includeId = null)
     {
-        return UnitKerja::query()->where(fn ($query) => $query->where('is_active', true)->when($includeId, fn ($nested) => $nested->orWhere('id', $includeId)))->orderBy('code')->get(['id', 'code', 'name']);
+        return UnitKerja::query()
+            ->where(
+                fn ($query) => $query
+                    ->where('is_active', true)
+                    ->when($includeId, fn ($nested) => $nested->orWhere('id', $includeId)),
+            )
+            ->orderBy('code')
+            ->get(['id', 'code', 'name']);
     }
 
     private function accountPayload(User $account): array

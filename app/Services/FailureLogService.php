@@ -145,6 +145,7 @@ class FailureLogService
             $this->parityService->recalculateAsset($asset, now()->toImmutable());
         }
     }
+
     public function update(FailureLog $failure, array $data, User $actor): FailureLog
     {
         return DB::transaction(function () use ($failure, $data, $actor): FailureLog {
@@ -190,7 +191,7 @@ class FailureLogService
             ]);
 
             $this->recalculateReliability($asset, $oldResolvedAt);
-            if (!$oldResolvedAt->isSameDay($resolvedAt)) {
+            if (! $oldResolvedAt->isSameDay($resolvedAt)) {
                 $this->recalculateReliability($asset, $resolvedAt);
             }
 

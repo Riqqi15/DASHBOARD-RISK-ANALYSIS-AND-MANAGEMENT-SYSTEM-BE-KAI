@@ -14,19 +14,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable([
-    'unit_kerja_id',
-    'asset_subsystem_id',
-    'asset_category_node_id',
-    'nama_aset',
-    'aset_prasarana_sintel',
-    'system',
-    'subsystem',
-    'jumlah_unit',
-    'tanggal_pemasangan',
-    'status',
-    'source_key',
-])]
+#[
+    Fillable([
+        'unit_kerja_id',
+        'asset_subsystem_id',
+        'asset_category_node_id',
+        'nama_aset',
+        'aset_prasarana_sintel',
+        'system',
+        'subsystem',
+        'jumlah_unit',
+        'tanggal_pemasangan',
+        'status',
+        'source_key',
+    ]),
+]
 class Asset extends Model
 {
     /** @use HasFactory<AssetFactory> */
@@ -45,13 +47,13 @@ class Asset extends Model
                 ->value('id');
 
             if (! $nodeId) {
-                $subsystem = AssetSubsystem::query()
-                    ->with('assetSystem.assetGroup')
-                    ->find($asset->asset_subsystem_id);
+                $subsystem = AssetSubsystem::query()->with('assetSystem.assetGroup')->find($asset->asset_subsystem_id);
                 if ($subsystem?->assetSystem?->assetGroup) {
-                    $nodeId = app(AssetTaxonomyService::class)
-                        ->syncLegacyPath($subsystem->assetSystem->assetGroup, $subsystem->assetSystem, $subsystem)
-                        ->id;
+                    $nodeId = app(AssetTaxonomyService::class)->syncLegacyPath(
+                        $subsystem->assetSystem->assetGroup,
+                        $subsystem->assetSystem,
+                        $subsystem,
+                    )->id;
                 }
             }
 
@@ -119,15 +121,26 @@ class Asset extends Model
             fn (Builder $assets, string $term): Builder => $assets->where(
                 fn (Builder $fields): Builder => $fields
                     ->where('nama_aset', 'like', "%{$term}%")
-                    ->orWhereHas('assetSubsystem', fn (Builder $subsystem): Builder => $subsystem->where('name', 'like', "%{$term}%"))
-                    ->orWhereHas('assetSubsystem.assetSystem', fn (Builder $system): Builder => $system->where('name', 'like', "%{$term}%"))
-                    ->orWhereHas('assetSubsystem.assetSystem.assetGroup', fn (Builder $group): Builder => $group->where('name', 'like', "%{$term}%"))
-                    ->orWhere(fn (Builder $legacy): Builder => $legacy
-                        ->whereNull('asset_subsystem_id')
-                        ->where(fn (Builder $snapshots): Builder => $snapshots
-                            ->where('aset_prasarana_sintel', 'like', "%{$term}%")
-                            ->orWhere('system', 'like', "%{$term}%")
-                            ->orWhere('subsystem', 'like', "%{$term}%"))),
+                    ->orWhereHas(
+                        'assetSubsystem',
+                        fn (Builder $subsystem): Builder => $subsystem->where('name', 'like', "%{$term}%"),
+                    )
+                    ->orWhereHas(
+                        'assetSubsystem.assetSystem',
+                        fn (Builder $system): Builder => $system->where('name', 'like', "%{$term}%"),
+                    )
+                    ->orWhereHas(
+                        'assetSubsystem.assetSystem.assetGroup',
+                        fn (Builder $group): Builder => $group->where('name', 'like', "%{$term}%"),
+                    )
+                    ->orWhere(
+                        fn (Builder $legacy): Builder => $legacy->whereNull('asset_subsystem_id')->where(
+                            fn (Builder $snapshots): Builder => $snapshots
+                                ->where('aset_prasarana_sintel', 'like', "%{$term}%")
+                                ->orWhere('system', 'like', "%{$term}%")
+                                ->orWhere('subsystem', 'like', "%{$term}%"),
+                        ),
+                    ),
             ),
         );
     }

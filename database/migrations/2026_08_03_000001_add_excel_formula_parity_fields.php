@@ -40,7 +40,12 @@ return new class extends Migration
         });
 
         Schema::table('reliability_summaries', function (Blueprint $table): void {
-            $table->foreignId('excel_snapshot_id')->nullable()->after('asset_id')->constrained('reliability_excel_snapshots')->nullOnDelete();
+            $table
+                ->foreignId('excel_snapshot_id')
+                ->nullable()
+                ->after('asset_id')
+                ->constrained('reliability_excel_snapshots')
+                ->nullOnDelete();
             $table->date('baseline_date')->nullable()->after('period');
             $table->date('calculation_date')->nullable()->after('baseline_date');
             $table->unsignedInteger('unit_count')->default(0)->after('calculation_date');

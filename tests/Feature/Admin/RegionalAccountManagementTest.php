@@ -18,14 +18,16 @@ class RegionalAccountManagementTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $unit = UnitKerja::factory()->create();
 
-        $this->actingAs($pusat)->post('/admin/accounts', [
-            'name' => 'Operator Daop 1',
-            'username' => 'DAOP1.Operator',
-            'email' => null,
-            'unit_kerja_id' => $unit->id,
-            'password' => 'long-secret-password',
-            'password_confirmation' => 'long-secret-password',
-        ])->assertRedirect('/admin/units');
+        $this->actingAs($pusat)
+            ->post('/admin/accounts', [
+                'name' => 'Operator Daop 1',
+                'username' => 'DAOP1.Operator',
+                'email' => null,
+                'unit_kerja_id' => $unit->id,
+                'password' => 'long-secret-password',
+                'password_confirmation' => 'long-secret-password',
+            ])
+            ->assertRedirect('/admin/units');
 
         $this->assertDatabaseHas('users', [
             'username' => 'daop1.operator',
@@ -41,20 +43,27 @@ class RegionalAccountManagementTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $account = User::factory()->unit()->create();
 
-        $this->actingAs($pusat)->patch("/admin/accounts/{$account->id}/status", [
-            'is_active' => false,
-        ])->assertRedirect('/admin/units');
+        $this->actingAs($pusat)
+            ->patch("/admin/accounts/{$account->id}/status", [
+                'is_active' => false,
+            ])
+            ->assertRedirect('/admin/units');
 
-        $this->actingAs($pusat)->put("/admin/accounts/{$account->id}/password", [
-            'password' => 'replacement-password',
-            'password_confirmation' => 'replacement-password',
-        ])->assertRedirect('/admin/units');
+        $this->actingAs($pusat)
+            ->put("/admin/accounts/{$account->id}/password", [
+                'password' => 'replacement-password',
+                'password_confirmation' => 'replacement-password',
+            ])
+            ->assertRedirect('/admin/units');
 
         $this->assertFalse($account->fresh()->is_active);
         $this->assertTrue(Hash::check('replacement-password', $account->fresh()->password));
         $this->assertDatabaseHas('audit_logs', ['action' => 'account.status_changed']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'account.password_reset']);
-        $this->assertStringNotContainsString('replacement-password', $this->app['db']->table('audit_logs')->pluck('new_values')->implode(' '));
+        $this->assertStringNotContainsString(
+            'replacement-password',
+            $this->app['db']->table('audit_logs')->pluck('new_values')->implode(' '),
+        );
     }
 
     public function test_pusat_can_open_the_regional_account_edit_page(): void
@@ -65,10 +74,12 @@ class RegionalAccountManagementTest extends TestCase
         $this->actingAs($pusat)
             ->get("/admin/accounts/{$account->id}/edit")
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('Admin/Accounts/Edit')
-                ->where('account.id', $account->id)
-                ->where('account.unit_kerja_id', $account->unit_kerja_id));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->component('Admin/Accounts/Edit')
+                    ->where('account.id', $account->id)
+                    ->where('account.unit_kerja_id', $account->unit_kerja_id),
+            );
     }
 
     public function test_inactive_unit_duplicate_username_and_missing_unit_fail_validation(): void
@@ -86,13 +97,13 @@ class RegionalAccountManagementTest extends TestCase
             'password_confirmation' => 'long-secret-password',
         ];
 
-        $this->actingAs($pusat)->post('/admin/accounts', $payload)
+        $this->actingAs($pusat)
+            ->post('/admin/accounts', $payload)
             ->assertSessionHasErrors(['username', 'unit_kerja_id']);
 
         $payload['username'] = 'unique.operator';
         $payload['unit_kerja_id'] = 999999;
-        $this->actingAs($pusat)->post('/admin/accounts', $payload)
-            ->assertSessionHasErrors('unit_kerja_id');
+        $this->actingAs($pusat)->post('/admin/accounts', $payload)->assertSessionHasErrors('unit_kerja_id');
     }
 
     public function test_regional_user_cannot_access_account_management(): void
@@ -108,8 +119,12 @@ class RegionalAccountManagementTest extends TestCase
         $actor = User::factory()->pusat()->create();
         $target = User::factory()->pusat()->create();
 
-        $this->actingAs($actor)->get("/admin/accounts/{$target->id}/edit")->assertNotFound();
-        $this->actingAs($actor)->patch("/admin/accounts/{$target->id}/status", ['is_active' => false])->assertNotFound();
+        $this->actingAs($actor)
+            ->get("/admin/accounts/{$target->id}/edit")
+            ->assertNotFound();
+        $this->actingAs($actor)
+            ->patch("/admin/accounts/{$target->id}/status", ['is_active' => false])
+            ->assertNotFound();
         $this->assertTrue($target->fresh()->is_active);
     }
 
@@ -119,12 +134,14 @@ class RegionalAccountManagementTest extends TestCase
         $unit = UnitKerja::factory()->create(['is_active' => false]);
         $account = User::factory()->unit($unit)->create();
 
-        $this->actingAs($pusat)->put("/admin/accounts/{$account->id}", [
-            'name' => 'Nama Diperbarui',
-            'username' => 'operator.updated',
-            'email' => 'updated@example.test',
-            'unit_kerja_id' => $unit->id,
-        ])->assertRedirect('/admin/units');
+        $this->actingAs($pusat)
+            ->put("/admin/accounts/{$account->id}", [
+                'name' => 'Nama Diperbarui',
+                'username' => 'operator.updated',
+                'email' => 'updated@example.test',
+                'unit_kerja_id' => $unit->id,
+            ])
+            ->assertRedirect('/admin/units');
 
         $this->assertDatabaseHas('users', [
             'id' => $account->id,

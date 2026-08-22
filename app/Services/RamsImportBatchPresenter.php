@@ -48,14 +48,21 @@ final class RamsImportBatchPresenter
         ];
 
         if ($includeIssues) {
-            $payload['issues'] = $batch->issues()->orderBy('id')->get()->map(fn ($issue): array => [
-                'id' => $issue->id,
-                'sheet_name' => $issue->sheet_name,
-                'source_row' => $issue->source_row,
-                'source_column' => $issue->source_column,
-                'severity' => $issue->severity,
-                'message' => $issue->message,
-            ])->values();
+            $payload['issues'] = $batch
+                ->issues()
+                ->orderBy('id')
+                ->get()
+                ->map(
+                    fn ($issue): array => [
+                        'id' => $issue->id,
+                        'sheet_name' => $issue->sheet_name,
+                        'source_row' => $issue->source_row,
+                        'source_column' => $issue->source_column,
+                        'severity' => $issue->severity,
+                        'message' => $issue->message,
+                    ],
+                )
+                ->values();
         }
 
         return $payload;

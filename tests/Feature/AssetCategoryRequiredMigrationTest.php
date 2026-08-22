@@ -38,7 +38,8 @@ class AssetCategoryRequiredMigrationTest extends TestCase
             $this->fail('Expected the migration to reject an asset without a category.');
         } catch (RuntimeException $exception) {
             $this->assertSame(
-                'Cannot make assets.asset_subsystem_id required: 1 asset(s), including soft-deleted assets, still have NULL category linkage.',
+                'Cannot make assets.asset_subsystem_id required: 1 asset(s), '
+                    .'including soft-deleted assets, still have NULL category linkage.',
                 $exception->getMessage(),
             );
             $this->assertSame('YES', $this->assetSubsystemColumn()->is_nullable);
@@ -60,7 +61,8 @@ class AssetCategoryRequiredMigrationTest extends TestCase
             $this->fail('Expected the migration to include soft-deleted assets in its preflight.');
         } catch (RuntimeException $exception) {
             $this->assertSame(
-                'Cannot make assets.asset_subsystem_id required: 1 asset(s), including soft-deleted assets, still have NULL category linkage.',
+                'Cannot make assets.asset_subsystem_id required: 1 asset(s), '
+                    .'including soft-deleted assets, still have NULL category linkage.',
                 $exception->getMessage(),
             );
             $this->assertSame(1, Asset::withTrashed()->whereNull('asset_subsystem_id')->count());
@@ -104,25 +106,31 @@ class AssetCategoryRequiredMigrationTest extends TestCase
 
     private function assetSubsystemColumn(): object
     {
-        return DB::selectOne(<<<'SQL'
+        return DB::selectOne(
+            <<<'SQL'
             SELECT IS_NULLABLE AS is_nullable, COLUMN_TYPE AS column_type
             FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = DATABASE()
               AND TABLE_NAME = 'assets'
               AND COLUMN_NAME = 'asset_subsystem_id'
-            SQL);
+            SQL
+            ,
+        );
     }
 
     private function assertCategoryForeignKeyAndIndexesExist(): void
     {
-        $foreignKeyCount = DB::scalar(<<<'SQL'
+        $foreignKeyCount = DB::scalar(
+            <<<'SQL'
             SELECT COUNT(*)
             FROM information_schema.KEY_COLUMN_USAGE
             WHERE TABLE_SCHEMA = DATABASE()
               AND TABLE_NAME = 'assets'
               AND COLUMN_NAME = 'asset_subsystem_id'
               AND REFERENCED_TABLE_NAME = 'asset_subsystems'
-            SQL);
+            SQL
+            ,
+        );
         $indexedColumnSets = DB::table('information_schema.STATISTICS')
             ->whereRaw('TABLE_SCHEMA = DATABASE()')
             ->where('TABLE_NAME', 'assets')

@@ -17,7 +17,11 @@ class StoreAssetCategoryNodeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'asset_category_level_id' => ['required', 'integer', Rule::exists('asset_category_levels', 'id')->whereNull('deleted_at')],
+            'asset_category_level_id' => [
+                'required',
+                'integer',
+                Rule::exists('asset_category_levels', 'id')->whereNull('deleted_at'),
+            ],
             'unit_kerja_id' => [
                 'nullable',
                 'integer',
@@ -32,7 +36,7 @@ class StoreAssetCategoryNodeRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $name = preg_replace('/\s+/u', ' ', trim($this->string('name')->toString())) ?? '';
+        $name = preg_replace("/\s+/u", ' ', trim($this->string('name')->toString())) ?? '';
         $color = mb_strtoupper(trim($this->string('dashboard_color')->toString()));
         $this->merge([
             'name' => $name,

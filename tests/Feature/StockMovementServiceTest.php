@@ -66,8 +66,24 @@ class StockMovementServiceTest extends TestCase
         $part = SparePart::factory()->create();
         $actor = User::factory()->pusat()->create();
 
-        $opening = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 10, '35c064df-d9cf-40df-805f-0f79d61ae2c6');
-        $out = $this->record($unit, $part, $actor, StockMovementType::Out, StockDirection::Out, 4, 'e02c9957-ac2d-46a1-84d4-10ca824741a6');
+        $opening = $this->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Opening,
+            StockDirection::In,
+            10,
+            '35c064df-d9cf-40df-805f-0f79d61ae2c6',
+        );
+        $out = $this->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Out,
+            StockDirection::Out,
+            4,
+            'e02c9957-ac2d-46a1-84d4-10ca824741a6',
+        );
 
         $this->assertSame(0, $opening->stock_before);
         $this->assertSame(10, $opening->stock_after);
@@ -82,11 +98,27 @@ class StockMovementServiceTest extends TestCase
         $part = SparePart::factory()->create();
         $actor = User::factory()->pusat()->create();
 
-        $first = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 4, (string) Str::uuid());
+        $first = $this->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Opening,
+            StockDirection::In,
+            4,
+            (string) Str::uuid(),
+        );
         $this->assertSame(4, $first->stock_after);
 
         try {
-            $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 2, (string) Str::uuid());
+            $this->record(
+                $unit,
+                $part,
+                $actor,
+                StockMovementType::Opening,
+                StockDirection::In,
+                2,
+                (string) Str::uuid(),
+            );
             $this->fail('Expected a second opening to be rejected.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('type', $exception->errors());
@@ -101,10 +133,26 @@ class StockMovementServiceTest extends TestCase
         $unit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
         $actor = User::factory()->pusat()->create();
-        $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 3, '3e949554-5d79-4e15-8f1b-c5d3383a2f13');
+        $this->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Opening,
+            StockDirection::In,
+            3,
+            '3e949554-5d79-4e15-8f1b-c5d3383a2f13',
+        );
 
         try {
-            $this->record($unit, $part, $actor, StockMovementType::Out, StockDirection::Out, 4, '6a887dcf-7ff6-4f70-a9a5-34c641322159');
+            $this->record(
+                $unit,
+                $part,
+                $actor,
+                StockMovementType::Out,
+                StockDirection::Out,
+                4,
+                '6a887dcf-7ff6-4f70-a9a5-34c641322159',
+            );
             $this->fail('Expected ValidationException.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('quantity', $exception->errors());
@@ -158,7 +206,15 @@ class StockMovementServiceTest extends TestCase
         $unit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
         $actor = User::factory()->pusat()->create();
-        $original = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 10, '779a22b4-9050-4de7-be9f-240a9489fbf9');
+        $original = $this->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Opening,
+            StockDirection::In,
+            10,
+            '779a22b4-9050-4de7-be9f-240a9489fbf9',
+        );
         $originalAttributes = (array) DB::table('stock_movements')->where('id', $original->id)->first();
 
         $correction = $this->service()->record(
@@ -178,7 +234,10 @@ class StockMovementServiceTest extends TestCase
         $this->assertSame($original->id, $correction->reverses_movement_id);
         $this->assertSame(StockMovementType::Correction, $correction->type);
         $this->assertSame(8, $correction->stock_after);
-        $this->assertSame($originalAttributes, (array) DB::table('stock_movements')->where('id', $original->id)->first());
+        $this->assertSame(
+            $originalAttributes,
+            (array) DB::table('stock_movements')->where('id', $original->id)->first(),
+        );
         $this->assertLedgerMatchesStock($unit, $part);
     }
 
@@ -189,16 +248,38 @@ class StockMovementServiceTest extends TestCase
         $part = SparePart::factory()->create();
         $otherPart = SparePart::factory()->create();
         $actor = User::factory()->pusat()->create();
-        $original = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 5, 'b206a4f3-cb20-493e-909b-aa859ce5ca65');
+        $original = $this->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Opening,
+            StockDirection::In,
+            5,
+            'b206a4f3-cb20-493e-909b-aa859ce5ca65',
+        );
 
-        foreach ([
-            [StockMovementType::In, StockDirection::Out, null],
-            [StockMovementType::Opening, StockDirection::Out, null],
-            [StockMovementType::Correction, StockDirection::In, null],
-            [StockMovementType::In, StockDirection::In, $original],
-        ] as $index => [$type, $direction, $reverses]) {
+        foreach (
+            [
+                [StockMovementType::In, StockDirection::Out, null],
+                [StockMovementType::Opening, StockDirection::Out, null],
+                [StockMovementType::Correction, StockDirection::In, null],
+                [StockMovementType::In, StockDirection::In, $original],
+            ] as $index => [$type, $direction, $reverses]
+        ) {
             try {
-                $this->service()->record($unit, $part, $actor, $type, $direction, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $reverses);
+                $this->service()->record(
+                    $unit,
+                    $part,
+                    $actor,
+                    $type,
+                    $direction,
+                    1,
+                    Carbon::parse('2026-07-28'),
+                    null,
+                    null,
+                    (string) Str::uuid(),
+                    $reverses,
+                );
                 $this->fail("Expected validation failure for invalid case {$index}.");
             } catch (ValidationException $exception) {
                 $this->assertNotEmpty($exception->errors());
@@ -206,14 +287,38 @@ class StockMovementServiceTest extends TestCase
         }
 
         try {
-            $this->service()->record($otherUnit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $original);
+            $this->service()->record(
+                $otherUnit,
+                $part,
+                $actor,
+                StockMovementType::Correction,
+                StockDirection::In,
+                1,
+                Carbon::parse('2026-07-28'),
+                null,
+                null,
+                (string) Str::uuid(),
+                $original,
+            );
             $this->fail('Expected correction scope validation failure.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('reverses_movement_id', $exception->errors());
         }
 
         try {
-            $this->service()->record($unit, $otherPart, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $original);
+            $this->service()->record(
+                $unit,
+                $otherPart,
+                $actor,
+                StockMovementType::Correction,
+                StockDirection::In,
+                1,
+                Carbon::parse('2026-07-28'),
+                null,
+                null,
+                (string) Str::uuid(),
+                $original,
+            );
             $this->fail('Expected correction part validation failure.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('reverses_movement_id', $exception->errors());
@@ -274,7 +379,15 @@ class StockMovementServiceTest extends TestCase
         $this->expectException(AuthorizationException::class);
 
         try {
-            $this->record($otherUnit, $part, $actor, StockMovementType::In, StockDirection::In, 1, (string) Str::uuid());
+            $this->record(
+                $otherUnit,
+                $part,
+                $actor,
+                StockMovementType::In,
+                StockDirection::In,
+                1,
+                (string) Str::uuid(),
+            );
         } finally {
             $this->assertDatabaseCount('stock_movements', 0);
             $this->assertDatabaseCount('inventory_stocks', 0);
@@ -286,7 +399,9 @@ class StockMovementServiceTest extends TestCase
         $unit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
         $staleActor = User::factory()->pusat()->create();
-        User::query()->whereKey($staleActor->id)->update(['is_active' => false]);
+        User::query()
+            ->whereKey($staleActor->id)
+            ->update(['is_active' => false]);
 
         foreach ([$staleActor, User::factory()->pusat()->make()] as $actor) {
             try {
@@ -306,15 +421,29 @@ class StockMovementServiceTest extends TestCase
         $actor = User::factory()->pusat()->create();
         $unit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
-        UnitKerja::query()->whereKey($unit->id)->update(['is_active' => false]);
-        SparePart::query()->whereKey($part->id)->update(['is_active' => false]);
+        UnitKerja::query()
+            ->whereKey($unit->id)
+            ->update(['is_active' => false]);
+        SparePart::query()
+            ->whereKey($part->id)
+            ->update(['is_active' => false]);
 
-        foreach ([
-            [$unit, SparePart::factory()->create(), 'unit_kerja_id'],
-            [UnitKerja::factory()->create(), $part, 'spare_part_id'],
-        ] as [$candidateUnit, $candidatePart, $field]) {
+        foreach (
+            [
+                [$unit, SparePart::factory()->create(), 'unit_kerja_id'],
+                [UnitKerja::factory()->create(), $part, 'spare_part_id'],
+            ] as [$candidateUnit, $candidatePart, $field]
+        ) {
             try {
-                $this->record($candidateUnit, $candidatePart, $actor, StockMovementType::In, StockDirection::In, 1, (string) Str::uuid());
+                $this->record(
+                    $candidateUnit,
+                    $candidatePart,
+                    $actor,
+                    StockMovementType::In,
+                    StockDirection::In,
+                    1,
+                    (string) Str::uuid(),
+                );
                 $this->fail("Expected {$field} validation failure.");
             } catch (ValidationException $exception) {
                 $this->assertArrayHasKey($field, $exception->errors());
@@ -331,10 +460,12 @@ class StockMovementServiceTest extends TestCase
         $persistedUnit = UnitKerja::factory()->create();
         $persistedPart = SparePart::factory()->create();
 
-        foreach ([
-            [UnitKerja::factory()->make(), $persistedPart, 'unit_kerja_id'],
-            [$persistedUnit, SparePart::factory()->make(), 'spare_part_id'],
-        ] as [$unit, $part, $field]) {
+        foreach (
+            [
+                [UnitKerja::factory()->make(), $persistedPart, 'unit_kerja_id'],
+                [$persistedUnit, SparePart::factory()->make(), 'spare_part_id'],
+            ] as [$unit, $part, $field]
+        ) {
             try {
                 $this->record($unit, $part, $actor, StockMovementType::In, StockDirection::In, 1, (string) Str::uuid());
                 $this->fail("Expected unsaved {$field} validation failure.");
@@ -354,7 +485,9 @@ class StockMovementServiceTest extends TestCase
         $actor = User::factory()->pusat()->create();
         $key = (string) Str::uuid();
         $original = $this->record($unit, $part, $actor, StockMovementType::In, StockDirection::In, 2, $key);
-        SparePart::query()->whereKey($part->id)->update(['is_active' => false]);
+        SparePart::query()
+            ->whereKey($part->id)
+            ->update(['is_active' => false]);
 
         try {
             $this->record($unit, $part, $actor, StockMovementType::In, StockDirection::In, 2, $key);
@@ -373,17 +506,46 @@ class StockMovementServiceTest extends TestCase
         $unit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
         $actor = User::factory()->pusat()->create();
-        $original = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 10, (string) Str::uuid());
-        $first = $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::Out, 2, Carbon::parse('2026-07-28'), null, 'Koreksi pertama', (string) Str::uuid(), $original);
+        $original = $this->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Opening,
+            StockDirection::In,
+            10,
+            (string) Str::uuid(),
+        );
+        $first = $this->service()->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Correction,
+            StockDirection::Out,
+            2,
+            Carbon::parse('2026-07-28'),
+            null,
+            'Koreksi pertama',
+            (string) Str::uuid(),
+            $original,
+        );
 
         try {
-            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, 'Koreksi kedua', (string) Str::uuid(), $original);
+            $this->service()->record(
+                $unit,
+                $part,
+                $actor,
+                StockMovementType::Correction,
+                StockDirection::In,
+                1,
+                Carbon::parse('2026-07-28'),
+                null,
+                'Koreksi kedua',
+                (string) Str::uuid(),
+                $original,
+            );
             $this->fail('Expected a repeated correction validation failure.');
         } catch (ValidationException $exception) {
-            $this->assertSame(
-                'Transaksi sumber sudah pernah dikoreksi.',
-                $exception->errors()['movement'][0] ?? null,
-            );
+            $this->assertSame('Transaksi sumber sudah pernah dikoreksi.', $exception->errors()['movement'][0] ?? null);
         }
 
         $this->assertSame($original->id, $first->reverses_movement_id);
@@ -397,11 +559,33 @@ class StockMovementServiceTest extends TestCase
         $unit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
         $actor = User::factory()->pusat()->create();
-        $original = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 10, (string) Str::uuid());
-        SparePart::query()->whereKey($part->id)->update(['is_active' => false]);
+        $original = $this->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Opening,
+            StockDirection::In,
+            10,
+            (string) Str::uuid(),
+        );
+        SparePart::query()
+            ->whereKey($part->id)
+            ->update(['is_active' => false]);
 
         try {
-            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::Out, 2, Carbon::parse('2026-07-28'), null, 'Koreksi', (string) Str::uuid(), $original);
+            $this->service()->record(
+                $unit,
+                $part,
+                $actor,
+                StockMovementType::Correction,
+                StockDirection::Out,
+                2,
+                Carbon::parse('2026-07-28'),
+                null,
+                'Koreksi',
+                (string) Str::uuid(),
+                $original,
+            );
             $this->fail('Expected inactive historical part validation failure.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('spare_part_id', $exception->errors());
@@ -416,14 +600,34 @@ class StockMovementServiceTest extends TestCase
         $unit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
         $actor = User::factory()->pusat()->create();
-        $original = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 5, (string) Str::uuid());
+        $original = $this->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Opening,
+            StockDirection::In,
+            5,
+            (string) Str::uuid(),
+        );
 
         $dirty = $original->replicate();
         $dirty->exists = true;
         $dirty->id = $original->id;
         $dirty->unit_kerja_id = UnitKerja::factory()->create()->id;
         try {
-            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $dirty);
+            $this->service()->record(
+                $unit,
+                $part,
+                $actor,
+                StockMovementType::Correction,
+                StockDirection::In,
+                1,
+                Carbon::parse('2026-07-28'),
+                null,
+                null,
+                (string) Str::uuid(),
+                $dirty,
+            );
             $this->fail('Expected dirty source validation failure.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('reverses_movement_id', $exception->errors());
@@ -435,7 +639,19 @@ class StockMovementServiceTest extends TestCase
             'type' => StockMovementType::Opening,
         ]);
         try {
-            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $unsaved);
+            $this->service()->record(
+                $unit,
+                $part,
+                $actor,
+                StockMovementType::Correction,
+                StockDirection::In,
+                1,
+                Carbon::parse('2026-07-28'),
+                null,
+                null,
+                (string) Str::uuid(),
+                $unsaved,
+            );
             $this->fail('Expected unsaved source validation failure.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('reverses_movement_id', $exception->errors());
@@ -446,7 +662,19 @@ class StockMovementServiceTest extends TestCase
         $missing->exists = true;
         $missing->syncOriginal();
         try {
-            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $missing);
+            $this->service()->record(
+                $unit,
+                $part,
+                $actor,
+                StockMovementType::Correction,
+                StockDirection::In,
+                1,
+                Carbon::parse('2026-07-28'),
+                null,
+                null,
+                (string) Str::uuid(),
+                $missing,
+            );
             $this->fail('Expected missing source validation failure.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('reverses_movement_id', $exception->errors());
@@ -455,7 +683,19 @@ class StockMovementServiceTest extends TestCase
         $replacement = StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create();
         $part->delete();
         try {
-            $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $replacement);
+            $this->service()->record(
+                $unit,
+                $part,
+                $actor,
+                StockMovementType::Correction,
+                StockDirection::In,
+                1,
+                Carbon::parse('2026-07-28'),
+                null,
+                null,
+                (string) Str::uuid(),
+                $replacement,
+            );
             $this->fail('Expected trashed part validation failure.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('spare_part_id', $exception->errors());
@@ -467,12 +707,44 @@ class StockMovementServiceTest extends TestCase
         $unit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
         $actor = User::factory()->pusat()->create();
-        $original = $this->record($unit, $part, $actor, StockMovementType::Opening, StockDirection::In, 5, (string) Str::uuid());
-        $correction = $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::Out, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $original);
+        $original = $this->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Opening,
+            StockDirection::In,
+            5,
+            (string) Str::uuid(),
+        );
+        $correction = $this->service()->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Correction,
+            StockDirection::Out,
+            1,
+            Carbon::parse('2026-07-28'),
+            null,
+            null,
+            (string) Str::uuid(),
+            $original,
+        );
 
         $this->expectException(ValidationException::class);
 
-        $this->service()->record($unit, $part, $actor, StockMovementType::Correction, StockDirection::In, 1, Carbon::parse('2026-07-28'), null, null, (string) Str::uuid(), $correction);
+        $this->service()->record(
+            $unit,
+            $part,
+            $actor,
+            StockMovementType::Correction,
+            StockDirection::In,
+            1,
+            Carbon::parse('2026-07-28'),
+            null,
+            null,
+            (string) Str::uuid(),
+            $correction,
+        );
     }
 
     public function test_stock_movement_model_rejects_update_delete_and_force_delete(): void
@@ -505,8 +777,16 @@ class StockMovementServiceTest extends TestCase
             $setup = $this->setupConcurrencyFixture('setup-out', $scope);
             foreach ([1, 2] as $worker) {
                 $process = $this->movementProcess([
-                    'record', (string) $setup['unit_id'], (string) $setup['part_id'], (string) $setup['actor_id'],
-                    'out', 'out', '4', (string) Str::uuid(), $barrier, (string) $worker,
+                    'record',
+                    (string) $setup['unit_id'],
+                    (string) $setup['part_id'],
+                    (string) $setup['actor_id'],
+                    'out',
+                    'out',
+                    '4',
+                    (string) Str::uuid(),
+                    $barrier,
+                    (string) $worker,
                 ]);
                 $process->start();
                 $processes[(string) $worker] = $process;
@@ -517,8 +797,20 @@ class StockMovementServiceTest extends TestCase
 
             $this->assertSame(1, collect($results)->where('success', true)->count());
             $this->assertSame(1, collect($results)->where('validation', true)->count());
-            $this->assertSame(1, InventoryStock::query()->where('unit_kerja_id', $setup['unit_id'])->where('spare_part_id', $setup['part_id'])->value('quantity'));
-            $this->assertSame(2, StockMovement::query()->where('unit_kerja_id', $setup['unit_id'])->where('spare_part_id', $setup['part_id'])->count());
+            $this->assertSame(
+                1,
+                InventoryStock::query()
+                    ->where('unit_kerja_id', $setup['unit_id'])
+                    ->where('spare_part_id', $setup['part_id'])
+                    ->value('quantity'),
+            );
+            $this->assertSame(
+                2,
+                StockMovement::query()
+                    ->where('unit_kerja_id', $setup['unit_id'])
+                    ->where('spare_part_id', $setup['part_id'])
+                    ->count(),
+            );
             $this->assertLedgerMatchesStockIds($setup['unit_id'], $setup['part_id']);
         } finally {
             $this->cleanupConcurrencyFixture($scope, $barrier, $processes);
@@ -536,8 +828,16 @@ class StockMovementServiceTest extends TestCase
             $setup = $this->setupConcurrencyFixture('setup-empty', $scope);
             foreach ([1, 2] as $worker) {
                 $process = $this->movementProcess([
-                    'record', (string) $setup['unit_id'], (string) $setup['part_id'], (string) $setup['actor_id'],
-                    'in', 'in', '5', $key, $barrier, (string) $worker,
+                    'record',
+                    (string) $setup['unit_id'],
+                    (string) $setup['part_id'],
+                    (string) $setup['actor_id'],
+                    'in',
+                    'in',
+                    '5',
+                    $key,
+                    $barrier,
+                    (string) $worker,
                 ]);
                 $process->start();
                 $processes[(string) $worker] = $process;
@@ -548,10 +848,28 @@ class StockMovementServiceTest extends TestCase
 
             $this->assertSame(2, collect($results)->where('success', true)->count());
             $this->assertCount(1, collect($results)->pluck('movement_id')->unique());
-            $this->assertSame(1, InventoryStock::query()->where('unit_kerja_id', $setup['unit_id'])->where('spare_part_id', $setup['part_id'])->count());
-            $this->assertSame(5, InventoryStock::query()->where('unit_kerja_id', $setup['unit_id'])->where('spare_part_id', $setup['part_id'])->value('quantity'));
+            $this->assertSame(
+                1,
+                InventoryStock::query()
+                    ->where('unit_kerja_id', $setup['unit_id'])
+                    ->where('spare_part_id', $setup['part_id'])
+                    ->count(),
+            );
+            $this->assertSame(
+                5,
+                InventoryStock::query()
+                    ->where('unit_kerja_id', $setup['unit_id'])
+                    ->where('spare_part_id', $setup['part_id'])
+                    ->value('quantity'),
+            );
             $this->assertSame(1, StockMovement::query()->where('idempotency_key', $key)->count());
-            $this->assertSame(1, AuditLog::query()->where('action', 'stock.movement_created')->where('unit_kerja_id', $setup['unit_id'])->count());
+            $this->assertSame(
+                1,
+                AuditLog::query()
+                    ->where('action', 'stock.movement_created')
+                    ->where('unit_kerja_id', $setup['unit_id'])
+                    ->count(),
+            );
             $this->assertLedgerMatchesStockIds($setup['unit_id'], $setup['part_id']);
         } finally {
             $this->cleanupConcurrencyFixture($scope, $barrier, $processes);
@@ -568,8 +886,17 @@ class StockMovementServiceTest extends TestCase
             $setup = $this->setupConcurrencyFixture('setup-out', $scope);
             foreach ([1, 2] as $worker) {
                 $process = $this->movementProcess([
-                    'record', (string) $setup['unit_id'], (string) $setup['part_id'], (string) $setup['actor_id'],
-                    'correction', 'out', '1', (string) Str::uuid(), $barrier, (string) $worker, (string) $setup['source_id'],
+                    'record',
+                    (string) $setup['unit_id'],
+                    (string) $setup['part_id'],
+                    (string) $setup['actor_id'],
+                    'correction',
+                    'out',
+                    '1',
+                    (string) Str::uuid(),
+                    $barrier,
+                    (string) $worker,
+                    (string) $setup['source_id'],
                 ]);
                 $process->start();
                 $processes[(string) $worker] = $process;
@@ -580,11 +907,14 @@ class StockMovementServiceTest extends TestCase
 
             $this->assertSame(1, collect($results)->where('success', true)->count());
             $rejected = collect($results)->firstWhere('validation', true);
+            $this->assertSame('Transaksi sumber sudah pernah dikoreksi.', $rejected['errors']['movement'][0] ?? null);
             $this->assertSame(
-                'Transaksi sumber sudah pernah dikoreksi.',
-                $rejected['errors']['movement'][0] ?? null,
+                4,
+                InventoryStock::query()
+                    ->where('unit_kerja_id', $setup['unit_id'])
+                    ->where('spare_part_id', $setup['part_id'])
+                    ->value('quantity'),
             );
-            $this->assertSame(4, InventoryStock::query()->where('unit_kerja_id', $setup['unit_id'])->where('spare_part_id', $setup['part_id'])->value('quantity'));
             $this->assertSame(1, StockMovement::query()->where('reverses_movement_id', $setup['source_id'])->count());
             $this->assertLedgerMatchesStockIds($setup['unit_id'], $setup['part_id']);
         } finally {
@@ -597,9 +927,27 @@ class StockMovementServiceTest extends TestCase
         return app(StockMovementService::class);
     }
 
-    private function record(UnitKerja $unit, SparePart $part, User $actor, StockMovementType $type, StockDirection $direction, int $quantity, string $key): StockMovement
-    {
-        return $this->service()->record($unit, $part, $actor, $type, $direction, $quantity, Carbon::parse('2026-07-28'), null, null, $key);
+    private function record(
+        UnitKerja $unit,
+        SparePart $part,
+        User $actor,
+        StockMovementType $type,
+        StockDirection $direction,
+        int $quantity,
+        string $key,
+    ): StockMovement {
+        return $this->service()->record(
+            $unit,
+            $part,
+            $actor,
+            $type,
+            $direction,
+            $quantity,
+            Carbon::parse('2026-07-28'),
+            null,
+            null,
+            $key,
+        );
     }
 
     private function assertLedgerMatchesStock(UnitKerja $unit, SparePart $part): void
@@ -609,9 +957,19 @@ class StockMovementServiceTest extends TestCase
 
     private function assertLedgerMatchesStockIds(int $unitId, int $partId): void
     {
-        $ledger = StockMovement::query()->where('unit_kerja_id', $unitId)->where('spare_part_id', $partId)->get()
-            ->sum(fn (StockMovement $movement): int => $movement->direction === StockDirection::In ? $movement->quantity : -$movement->quantity);
-        $stock = (int) InventoryStock::query()->where('unit_kerja_id', $unitId)->where('spare_part_id', $partId)->value('quantity');
+        $ledger = StockMovement::query()
+            ->where('unit_kerja_id', $unitId)
+            ->where('spare_part_id', $partId)
+            ->get()
+            ->sum(
+                fn (StockMovement $movement): int => $movement->direction === StockDirection::In
+                    ? $movement->quantity
+                    : -$movement->quantity,
+            );
+        $stock = (int) InventoryStock::query()
+            ->where('unit_kerja_id', $unitId)
+            ->where('spare_part_id', $partId)
+            ->value('quantity');
 
         $this->assertSame($ledger, $stock);
     }
@@ -652,7 +1010,10 @@ class StockMovementServiceTest extends TestCase
         foreach (array_keys($processes) as $worker) {
             while (! File::exists("{$barrier}.{$worker}.ready")) {
                 if ($processes[$worker]->isTerminated()) {
-                    $this->fail("Stock movement worker {$worker} exited before the barrier: ".$processes[$worker]->getErrorOutput());
+                    $this->fail(
+                        "Stock movement worker {$worker} exited before the barrier: ".
+                            $processes[$worker]->getErrorOutput(),
+                    );
                 }
                 if (microtime(true) >= $deadline) {
                     $this->fail('Timed out waiting for stock movement workers.');
@@ -664,7 +1025,12 @@ class StockMovementServiceTest extends TestCase
     }
 
     /** @param array<string, Process> $processes
-     * @return array<string, array{success: bool, validation?: bool, movement_id?: int, errors?: array<string, list<string>>}>
+     * @return array<string, array{
+     *     success: bool,
+     *     validation?: bool,
+     *     movement_id?: int,
+     *     errors?: array<string, list<string>>
+     * }>
      */
     private function waitForProcesses(array $processes): array
     {
@@ -689,9 +1055,13 @@ class StockMovementServiceTest extends TestCase
         }
         $cleanup = $this->movementProcess(['cleanup', $scope]);
         $cleanup->mustRun();
-        File::delete(array_merge(
-            ["{$barrier}.go"],
-            collect(array_keys($processes))->map(fn (string $worker): string => "{$barrier}.{$worker}.ready")->all(),
-        ));
+        File::delete(
+            array_merge(
+                ["{$barrier}.go"],
+                collect(array_keys($processes))
+                    ->map(fn (string $worker): string => "{$barrier}.{$worker}.ready")
+                    ->all(),
+            ),
+        );
     }
 }

@@ -70,8 +70,13 @@ class ArchiveAssetTaxonomyBranchController extends Controller
     private function authorizedUnitId(Request $request): int
     {
         if ($request->user()->isUnit()) {
-            if ($request->filled('unit_kerja_id') && $request->integer('unit_kerja_id') !== $request->user()->unit_kerja_id) {
-                throw ValidationException::withMessages(['unit_kerja_id' => 'Akun wilayah hanya dapat mengelola unit kerjanya sendiri.']);
+            if (
+                $request->filled('unit_kerja_id') &&
+                $request->integer('unit_kerja_id') !== $request->user()->unit_kerja_id
+            ) {
+                throw ValidationException::withMessages([
+                    'unit_kerja_id' => 'Akun wilayah hanya dapat mengelola unit kerjanya sendiri.',
+                ]);
             }
 
             return (int) $request->user()->unit_kerja_id;

@@ -16,17 +16,16 @@ watch(() => [props.success, props.error], () => {
 
 <template>
   <div v-if="visible && (success || error)" class="mb-5">
-    <div
+    <output
       v-if="success"
-      role="status"
       class="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
     >
       <CircleCheck :size="19" class="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
-      <p class="flex-1 leading-5">{{ success }}</p>
+      <span class="flex-1 leading-5">{{ success }}</span>
       <button type="button" class="rounded p-0.5 text-emerald-700 hover:bg-emerald-100" aria-label="Tutup pemberitahuan" @click="visible = false">
         <X :size="16" aria-hidden="true" />
       </button>
-    </div>
+    </output>
 
     <div
       v-if="error"

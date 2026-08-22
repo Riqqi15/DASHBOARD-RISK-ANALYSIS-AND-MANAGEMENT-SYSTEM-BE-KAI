@@ -89,7 +89,17 @@ class MasterAssetWorkbookImporter
     }
 
     /**
-     * @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int, openings_created: int, openings_updated: int, predictive_snapshots: int}
+     * @return array{
+     *     created: int,
+     *     updated: int,
+     *     unchanged: int,
+     *     duplicates_skipped: int,
+     *     duplicate_locations: list<string>,
+     *     skipped: int,
+     *     openings_created: int,
+     *     openings_updated: int,
+     *     predictive_snapshots: int
+     * }
      */
     public function import(string $workbookPath, UnitKerja $unit): array
     {
@@ -118,13 +128,9 @@ class MasterAssetWorkbookImporter
                 throw new RuntimeException("Fingerprint workbook gagal dibuat: {$workbookPath}");
             }
 
-            return DB::transaction(fn (): array => $this->importRows(
-                $sheet,
-                $columns,
-                $unit,
-                basename($workbookPath),
-                $workbookHash,
-            ));
+            return DB::transaction(
+                fn (): array => $this->importRows($sheet, $columns, $unit, basename($workbookPath), $workbookHash),
+            );
         } finally {
             $spreadsheet->disconnectWorksheets();
             unset($spreadsheet);
@@ -152,7 +158,9 @@ class MasterAssetWorkbookImporter
         $missing = array_diff(array_values(self::REQUIRED_HEADERS), array_keys($columns));
 
         if ($missing !== []) {
-            throw new RuntimeException('Header workbook tidak valid. Kolom wajib yang hilang: '.implode(', ', $missing).'.');
+            throw new RuntimeException(
+                'Header workbook tidak valid. Kolom wajib yang hilang: '.implode(', ', $missing).'.',
+            );
         }
 
         return $columns;
@@ -160,7 +168,17 @@ class MasterAssetWorkbookImporter
 
     /**
      * @param  array<string, int>  $columns
-     * @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int, openings_created: int, openings_updated: int, predictive_snapshots: int}
+     * @return array{
+     *     created: int,
+     *     updated: int,
+     *     unchanged: int,
+     *     duplicates_skipped: int,
+     *     duplicate_locations: list<string>,
+     *     skipped: int,
+     *     openings_created: int,
+     *     openings_updated: int,
+     *     predictive_snapshots: int
+     * }
      */
     private function importRows(
         Worksheet $sheet,
@@ -229,24 +247,22 @@ class MasterAssetWorkbookImporter
                 ]);
 
                 throw new RuntimeException(
-                    "Duplikat subsistem kanonis pada workbook {$workbookName}, sheet ".self::SHEET
-                        .", row {$firstRow} dan row {$row}, path {$path}.",
+                    "Duplikat subsistem kanonis pada workbook {$workbookName}, sheet ".
+                        self::SHEET.
+                        ", row {$firstRow} dan row {$row}, path {$path}.",
                 );
             }
             $resolvedRowsBySubsystem[$subsystemId] = $row;
 
             $sourceKey = $this->assetSourceKey($unit, $categories['subsystem']);
-            $previousStableSourceKey = hash('sha256', implode('|', [
-                $unit->code,
-                self::SHEET,
-                $categories['subsystem']->id,
-            ]));
-            $legacySourceKey = hash('sha256', implode('|', [
-                $unit->code,
-                self::SHEET,
-                $legacyCurrentSystem,
-                $legacySubsystem,
-            ]));
+            $previousStableSourceKey = hash(
+                'sha256',
+                implode('|', [$unit->code, self::SHEET, $categories['subsystem']->id]),
+            );
+            $legacySourceKey = hash(
+                'sha256',
+                implode('|', [$unit->code, self::SHEET, $legacyCurrentSystem, $legacySubsystem]),
+            );
             $sourceValues = [
                 'unit_kerja_id' => $unit->getKey(),
                 'asset_subsystem_id' => $categories['subsystem']->id,
@@ -259,7 +275,9 @@ class MasterAssetWorkbookImporter
                     $row,
                     'TOTAL',
                 ),
-                'tanggal_pemasangan' => $this->date($sheet->getCell([$columns['installed_at'], $row])->getCalculatedValue()),
+                'tanggal_pemasangan' => $this->date(
+                    $sheet->getCell([$columns['installed_at'], $row])->getCalculatedValue(),
+                ),
                 'source_key' => $sourceKey,
             ];
 
@@ -292,17 +310,20 @@ class MasterAssetWorkbookImporter
                     ->lockForUpdate()
                     ->get()
                     ->filter(function (Asset $candidate) use ($normalizedSubsystem): bool {
-                        return $this->categoryResolver->normalize($candidate->subsystem) === $normalizedSubsystem
-                            || $this->categoryResolver->normalize($candidate->assetSubsystem->name) === $normalizedSubsystem;
+                        return $this->categoryResolver->normalize($candidate->subsystem) === $normalizedSubsystem ||
+                            $this->categoryResolver->normalize($candidate->assetSubsystem->name) ===
+                                $normalizedSubsystem;
                     })
                     ->values();
             }
 
             if ($matchingAssets->count() > 1) {
                 throw new RuntimeException(
-                    "Konflik kandidat aset impor pada workbook {$workbookName}, sheet ".self::SHEET
-                        .", row {$row}, path {$currentGroup}|{$currentSystem}|{$subsystem}: "
-                        .$matchingAssets->count().' kandidat ditemukan.',
+                    "Konflik kandidat aset impor pada workbook {$workbookName}, sheet ".
+                        self::SHEET.
+                        ", row {$row}, path {$currentGroup}|{$currentSystem}|{$subsystem}: ".
+                        $matchingAssets->count().
+                        ' kandidat ditemukan.',
                 );
             }
 
@@ -386,37 +407,61 @@ class MasterAssetWorkbookImporter
         }
 
         $functionCriterion = $this->integerValue($sheet, $columns['function_criterion'], $row, 'Criteria Function');
-        $productionImpact = $this->integerValue($sheet, $columns['production_impact'], $row, 'Criteria Production Impact');
+        $productionImpact = $this->integerValue(
+            $sheet,
+            $columns['production_impact'],
+            $row,
+            'Criteria Production Impact',
+        );
         $leadTimeMonths = $this->decimalValue($sheet, $columns['lead_time_months'], $row, 'Lead Time (Month)');
         $priceCategory = $this->cellText($sheet, $columns['price_category'], $row);
         $averageYearlyUsage = $this->decimalValue($sheet, $columns['average_yearly_usage'], $row, 'Average Usage');
         $rawSla = $this->decimalValue($sheet, $columns['sla'], $row, 'SLA');
         $slaPercentage = $rawSla <= 1 ? $rawSla * 100 : $rawSla;
-        $failureSafetyStock = $this->decimalValue($sheet, $columns['failure_safety_stock'], $row, 'Safety Stock Based on Failure');
-        $sparepartIn = $this->quantity($this->cachedCellValue($sheet, $columns['sparepart_in'], $row), $workbookName, $row, 'Sparepart IN');
-        $sparepartOut = $this->quantity($this->cachedCellValue($sheet, $columns['sparepart_out'], $row), $workbookName, $row, 'Sparepart OUT');
+        $failureSafetyStock = $this->decimalValue(
+            $sheet,
+            $columns['failure_safety_stock'],
+            $row,
+            'Safety Stock Based on Failure',
+        );
+        $sparepartIn = $this->quantity(
+            $this->cachedCellValue($sheet, $columns['sparepart_in'], $row),
+            $workbookName,
+            $row,
+            'Sparepart IN',
+        );
+        $sparepartOut = $this->quantity(
+            $this->cachedCellValue($sheet, $columns['sparepart_out'], $row),
+            $workbookName,
+            $row,
+            'Sparepart OUT',
+        );
         $currentStock = $sparepartIn - $sparepartOut - (int) ceil($failureSafetyStock);
         $installedAt = $assetValues['tanggal_pemasangan'];
         $lifetimeYears = $this->nullableDecimalValue($sheet, $columns['lifetime_years'], $row, 'Lifetime (Years)');
         $vandalismCount = $this->integerValue($sheet, $columns['vandalism_count'], $row, 'Jumlah Vandalisme');
         $likelihood = $this->nullableIntegerValue($sheet, $columns['likelihood'], $row, 'Likelihood');
         $consequence = $this->nullableIntegerValue($sheet, $columns['consequence'], $row, 'Consequences');
-        $calculation = $this->predictiveInventoryCalculator->calculate([
-            'function_criterion' => $functionCriterion,
-            'production_impact' => $productionImpact,
-            'lead_time_months' => $leadTimeMonths,
-            'price_category' => $priceCategory,
-            'current_stock' => $currentStock,
-            'total_assets' => (int) $assetValues['jumlah_unit'],
-            'average_yearly_usage' => $averageYearlyUsage,
-            'sla_percentage' => $slaPercentage,
-            'failure_safety_stock' => $failureSafetyStock,
-            'installed_at' => $installedAt ? CarbonImmutable::parse($installedAt) : null,
-            'lifetime_years' => $lifetimeYears,
-        ], now());
-        $risk = $likelihood !== null && $consequence !== null
-            ? $this->riskAssessmentCalculator->calculate($likelihood, $consequence)
-            : ['rating' => null, 'level' => null];
+        $calculation = $this->predictiveInventoryCalculator->calculate(
+            [
+                'function_criterion' => $functionCriterion,
+                'production_impact' => $productionImpact,
+                'lead_time_months' => $leadTimeMonths,
+                'price_category' => $priceCategory,
+                'current_stock' => $currentStock,
+                'total_assets' => (int) $assetValues['jumlah_unit'],
+                'average_yearly_usage' => $averageYearlyUsage,
+                'sla_percentage' => $slaPercentage,
+                'failure_safety_stock' => $failureSafetyStock,
+                'installed_at' => $installedAt ? CarbonImmutable::parse($installedAt) : null,
+                'lifetime_years' => $lifetimeYears,
+            ],
+            now(),
+        );
+        $risk =
+            $likelihood !== null && $consequence !== null
+                ? $this->riskAssessmentCalculator->calculate($likelihood, $consequence)
+                : ['rating' => null, 'level' => null];
         $backendValues = [
             'criticality' => $calculation['criticality'],
             'lead_time_category' => $calculation['lead_time_category'],
@@ -522,9 +567,10 @@ class MasterAssetWorkbookImporter
                 continue;
             }
             $backendValue = $backendValues[$key];
-            $matches = is_numeric($excelValue) && is_numeric($backendValue)
-                ? abs((float) $excelValue - (float) $backendValue) < 0.0001
-                : mb_strtolower(trim((string) $excelValue)) === mb_strtolower(trim((string) $backendValue));
+            $matches =
+                is_numeric($excelValue) && is_numeric($backendValue)
+                    ? abs((float) $excelValue - (float) $backendValue) < 0.0001
+                    : mb_strtolower(trim((string) $excelValue)) === mb_strtolower(trim((string) $backendValue));
             if (! $matches) {
                 $differences[$key] = ['excel' => $excelValue, 'backend' => $backendValue];
             }
@@ -545,19 +591,33 @@ class MasterAssetWorkbookImporter
         $lockedSubsystem = AssetSubsystem::withTrashed()->lockForUpdate()->find($subsystem->id);
 
         if (
-            ! $lockedGroup || $lockedGroup->trashed()
-            || ! $lockedSystem || $lockedSystem->trashed() || $lockedSystem->asset_group_id !== $lockedGroup->id
-            || ! $lockedSubsystem || $lockedSubsystem->trashed() || $lockedSubsystem->asset_system_id !== $lockedSystem->id
+            ! $lockedGroup ||
+            $lockedGroup->trashed() ||
+            ! $lockedSystem ||
+            $lockedSystem->trashed() ||
+            $lockedSystem->asset_group_id !== $lockedGroup->id ||
+            ! $lockedSubsystem ||
+            $lockedSubsystem->trashed() ||
+            $lockedSubsystem->asset_system_id !== $lockedSystem->id
         ) {
             throw new RuntimeException(
-                "Asset category resolution conflict in workbook {$workbookName}, sheet ".self::SHEET.", row {$row}.",
+                "Asset category resolution conflict in workbook {$workbookName}, sheet ".
+                    self::SHEET.
+                    ", row {$row}.",
             );
         }
     }
 
     /**
      * @param  array<string, int>  $columns
-     * @param  array{created: int, updated: int, skipped: int, openings_created: int, openings_updated: int, predictive_snapshots: int}  $result
+     * @param  array{
+     *     created: int,
+     *     updated: int,
+     *     skipped: int,
+     *     openings_created: int,
+     *     openings_updated: int,
+     *     predictive_snapshots: int
+     * }  $result
      */
     private function importOpening(
         Worksheet $sheet,
@@ -634,23 +694,20 @@ class MasterAssetWorkbookImporter
     /** @return array<string, int|string> */
     private function openingAuditValues(UnitSubsystemOpening $opening): array
     {
-        return $opening->only([
-            'unit_kerja_id',
-            'asset_subsystem_id',
-            'sparepart_in',
-            'sparepart_out',
-            'source_key',
-        ]);
+        return $opening->only(['unit_kerja_id', 'asset_subsystem_id', 'sparepart_in', 'sparepart_out', 'source_key']);
     }
 
     private function assetSourceKey(UnitKerja $unit, AssetSubsystem $subsystem): string
     {
         return hash(
             'sha256',
-            'rams:master-asset:v2'
-                .'|unit_id='.$unit->id
-                .'|sheet='.self::SHEET
-                .'|asset_subsystem_id='.$subsystem->id,
+            'rams:master-asset:v2'.
+                '|unit_id='.
+                $unit->id.
+                '|sheet='.
+                self::SHEET.
+                '|asset_subsystem_id='.
+                $subsystem->id,
         );
     }
 
@@ -658,10 +715,13 @@ class MasterAssetWorkbookImporter
     {
         return hash(
             'sha256',
-            'rams:unit-subsystem-opening:v2'
-                .'|unit_id='.$unit->id
-                .'|sheet='.self::SHEET
-                .'|asset_subsystem_id='.$subsystem->id,
+            'rams:unit-subsystem-opening:v2'.
+                '|unit_id='.
+                $unit->id.
+                '|sheet='.
+                self::SHEET.
+                '|asset_subsystem_id='.
+                $subsystem->id,
         );
     }
 
@@ -694,7 +754,9 @@ class MasterAssetWorkbookImporter
     {
         $value = $this->decimalValue($sheet, $column, $row, $header);
         if (floor($value) !== $value || $value > 4294967295) {
-            throw new RuntimeException("Nilai {$header} harus bilangan bulat pada sheet ".self::SHEET.", row {$row}.");
+            throw new RuntimeException(
+                "Nilai {$header} harus bilangan bulat pada sheet ".self::SHEET.", row {$row}.",
+            );
         }
 
         return (int) $value;
@@ -725,9 +787,7 @@ class MasterAssetWorkbookImporter
             '' => null,
             'Y', 'YES', 'YA' => true,
             'N', 'NO', 'TIDAK' => false,
-            default => throw new RuntimeException(
-                'Repairable harus Y/N pada sheet '.self::SHEET.", row {$row}.",
-            ),
+            default => throw new RuntimeException('Repairable harus Y/N pada sheet '.self::SHEET.", row {$row}."),
         };
     }
 
@@ -747,7 +807,7 @@ class MasterAssetWorkbookImporter
     {
         $trimmed = preg_replace('/^\s+|\s+$/u', '', (string) ($value ?? '')) ?? trim((string) ($value ?? ''));
 
-        return preg_replace('/\s+/u', ' ', $trimmed) ?? $trimmed;
+        return preg_replace("/\s+/u", ' ', $trimmed) ?? $trimmed;
     }
 
     private function quantity(mixed $value, string $workbookName, int $row, string $header): int
@@ -787,15 +847,12 @@ class MasterAssetWorkbookImporter
         return (int) $quantity;
     }
 
-    private function invalidQuantity(
-        string $workbookName,
-        int $row,
-        string $header,
-        string $reason,
-    ): RuntimeException {
+    private function invalidQuantity(string $workbookName, int $row, string $header, string $reason): RuntimeException
+    {
         return new RuntimeException(
-            "Nilai kuantitas tidak valid pada workbook {$workbookName}, sheet ".self::SHEET
-                .", row {$row}, kolom {$header}: {$reason}.",
+            "Nilai kuantitas tidak valid pada workbook {$workbookName}, sheet ".
+                self::SHEET.
+                ", row {$row}, kolom {$header}: {$reason}.",
         );
     }
 
@@ -829,7 +886,9 @@ class MasterAssetWorkbookImporter
             }
         }
 
-        throw new RuntimeException('Tanggal pemasangan "'.trim((string) $value).'" tidak menggunakan format yang didukung.');
+        throw new RuntimeException(
+            'Tanggal pemasangan "'.trim((string) $value).'" tidak menggunakan format yang didukung.',
+        );
     }
 
     /** @return array<string, mixed> */

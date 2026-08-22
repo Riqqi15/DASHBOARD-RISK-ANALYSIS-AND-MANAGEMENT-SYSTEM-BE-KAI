@@ -61,10 +61,13 @@ final class ExcelReliabilitySnapshotImporterTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         $subsystem = AssetSubsystem::factory()->create(['name' => $subsystemName]);
-        $asset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
-            'subsystem' => mb_strtoupper($subsystemName),
-            'jumlah_unit' => 2,
-        ]);
+        $asset = Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create([
+                'subsystem' => mb_strtoupper($subsystemName),
+                'jumlah_unit' => 2,
+            ]);
 
         return [$unit, $asset];
     }
@@ -82,21 +85,23 @@ final class ExcelReliabilitySnapshotImporterTest extends TestCase
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('Interlocking Elektrik');
         $sheet->setCellValue('P8', 42736);
-        foreach ([
-            'B3' => 'Subsystem',
-            'C3' => 'Jumlah Unit',
-            'D3' => 'Total Operating Hour',
-            'E3' => 'Total Uptime',
-            'F3' => 'Total Downtime',
-            'G3' => 'Jumlah Failure',
-            'H3' => 'MTTF',
-            'I3' => 'MTBF',
-            'J3' => 'Failure Rate',
-            'K3' => 'Reliability',
-            'L3' => 'Availability',
-            'M3' => 'Jumlah penggantian sparepart',
-            'N3' => 'Jumlah Tindak Vandalisme',
-        ] as $cell => $value) {
+        foreach (
+            [
+                'B3' => 'Subsystem',
+                'C3' => 'Jumlah Unit',
+                'D3' => 'Total Operating Hour',
+                'E3' => 'Total Uptime',
+                'F3' => 'Total Downtime',
+                'G3' => 'Jumlah Failure',
+                'H3' => 'MTTF',
+                'I3' => 'MTBF',
+                'J3' => 'Failure Rate',
+                'K3' => 'Reliability',
+                'L3' => 'Availability',
+                'M3' => 'Jumlah penggantian sparepart',
+                'N3' => 'Jumlah Tindak Vandalisme',
+            ] as $cell => $value
+        ) {
             $sheet->setCellValue($cell, $value);
         }
 
@@ -114,9 +119,21 @@ final class ExcelReliabilitySnapshotImporterTest extends TestCase
         $sheet->setCellValue('M4', 0);
         $sheet->setCellValue('N4', 0);
         $sheet->setCellValueExplicit('D5', '=Dashboard!R4*24*[@[Jumlah Unit]]', DataType::TYPE_STRING);
-        $sheet->setCellValueExplicit('F5', '=SUM(Interlocking_Elektrik_failure[Konversi ke Menit])', DataType::TYPE_STRING);
-        $sheet->setCellValueExplicit('G5', '=COUNTA(Interlocking_Elektrik_failure[[#All],[Failure Event]])-1', DataType::TYPE_STRING);
-        $sheet->setCellValueExplicit('M5', '=COUNTA(Interlocking_Elektrik_failure[Penggantian Sparepart])', DataType::TYPE_STRING);
+        $sheet->setCellValueExplicit(
+            'F5',
+            '=SUM(Interlocking_Elektrik_failure[Konversi ke Menit])',
+            DataType::TYPE_STRING,
+        );
+        $sheet->setCellValueExplicit(
+            'G5',
+            '=COUNTA(Interlocking_Elektrik_failure[[#All],[Failure Event]])-1',
+            DataType::TYPE_STRING,
+        );
+        $sheet->setCellValueExplicit(
+            'M5',
+            '=COUNTA(Interlocking_Elektrik_failure[Penggantian Sparepart])',
+            DataType::TYPE_STRING,
+        );
 
         (new Xlsx($spreadsheet))->save($path);
         $spreadsheet->disconnectWorksheets();

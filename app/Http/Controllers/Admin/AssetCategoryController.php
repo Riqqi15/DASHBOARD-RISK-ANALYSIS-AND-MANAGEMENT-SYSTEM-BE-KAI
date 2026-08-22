@@ -38,27 +38,67 @@ class AssetCategoryController extends Controller
         $groups = AssetGroup::query()
             ->when($unitId, fn (Builder $query): Builder => $query->forUnit($unitId))
             ->withCount('systems')
-            ->with(['systems' => fn ($systems) => $systems
-                ->withCount('subsystems')
-                ->with(['subsystems' => fn ($subsystems) => $subsystems->withCount('assets')])])
+            ->with([
+                'systems' => fn ($systems) => $systems
+                    ->withCount('subsystems')
+                    ->with(['subsystems' => fn ($subsystems) => $subsystems->withCount('assets')]),
+            ])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
-            ->map(fn (AssetGroup $group): array => [
-                ...$group->only(['id', 'name', 'sort_order', 'dashboard_color', 'dashboard_color_source', 'is_active']),
-                'systems_count' => $group->systems_count,
-                'aliases_count' => (int) ($aliases->get('group')?->get($group->id) ?? 0),
-                'systems' => $group->systems->map(fn ($system): array => [
-                    ...$system->only(['id', 'asset_group_id', 'name', 'sort_order', 'dashboard_color', 'dashboard_color_source', 'is_active']),
-                    'subsystems_count' => $system->subsystems_count,
-                    'aliases_count' => (int) ($aliases->get('system')?->get($system->id) ?? 0),
-                    'subsystems' => $system->subsystems->map(fn ($subsystem): array => [
-                        ...$subsystem->only(['id', 'asset_system_id', 'name', 'sort_order', 'dashboard_color', 'dashboard_color_source', 'is_active']),
-                        'assets_count' => $subsystem->assets_count,
-                        'aliases_count' => (int) ($aliases->get('subsystem')?->get($subsystem->id) ?? 0),
-                    ])->values()->all(),
-                ])->values()->all(),
-            ])->values();
+            ->map(
+                fn (AssetGroup $group): array => [
+                    ...$group->only([
+                        'id',
+                        'name',
+                        'sort_order',
+                        'dashboard_color',
+                        'dashboard_color_source',
+                        'is_active',
+                    ]),
+                    'systems_count' => $group->systems_count,
+                    'aliases_count' => (int) ($aliases->get('group')?->get($group->id) ?? 0),
+                    'systems' => $group->systems
+                        ->map(
+                            fn ($system): array => [
+                                ...$system->only([
+                                    'id',
+                                    'asset_group_id',
+                                    'name',
+                                    'sort_order',
+                                    'dashboard_color',
+                                    'dashboard_color_source',
+                                    'is_active',
+                                ]),
+                                'subsystems_count' => $system->subsystems_count,
+                                'aliases_count' => (int) ($aliases->get('system')?->get($system->id) ?? 0),
+                                'subsystems' => $system->subsystems
+                                    ->map(
+                                        fn ($subsystem): array => [
+                                            ...$subsystem->only([
+                                                'id',
+                                                'asset_system_id',
+                                                'name',
+                                                'sort_order',
+                                                'dashboard_color',
+                                                'dashboard_color_source',
+                                                'is_active',
+                                            ]),
+                                            'assets_count' => $subsystem->assets_count,
+                                            'aliases_count' => (int) (
+                                                $aliases->get('subsystem')?->get($subsystem->id) ?? 0
+                                            ),
+                                        ],
+                                    )
+                                    ->values()
+                                    ->all(),
+                            ],
+                        )
+                        ->values()
+                        ->all(),
+                ],
+            )
+            ->values();
 
         $requestedGroupId = $request->integer('group', $request->integer('selected_group_id'));
         $selectedGroup = $groups->firstWhere('id', $requestedGroupId) ?? $groups->first();
@@ -95,17 +135,19 @@ class AssetCategoryController extends Controller
             }
         }
         $visibleRootIds = array_values(array_unique($visibleRootIds));
-        $nodes = $allNodes->filter(function (AssetCategoryNode $node) use ($nodesById, $visibleRootIds): bool {
-            $root = $node;
-            while ($root->parent_id) {
-                $root = $nodesById->get($root->parent_id);
-                if (! $root) {
-                    return false;
+        $nodes = $allNodes
+            ->filter(function (AssetCategoryNode $node) use ($nodesById, $visibleRootIds): bool {
+                $root = $node;
+                while ($root->parent_id) {
+                    $root = $nodesById->get($root->parent_id);
+                    if (! $root) {
+                        return false;
+                    }
                 }
-            }
 
-            return in_array($root->id, $visibleRootIds, true);
-        })->values();
+                return in_array($root->id, $visibleRootIds, true);
+            })
+            ->values();
         $directCounts = $activeAssets->groupBy('asset_category_node_id');
         $nodePayload = $nodes->map(function (AssetCategoryNode $node) use ($directCounts): array {
             $subtree = $this->taxonomy->subtreeIds($node);
@@ -113,8 +155,16 @@ class AssetCategoryController extends Controller
 
             return [
                 ...$node->only([
-                    'id', 'asset_category_level_id', 'parent_id', 'name', 'sort_order',
-                    'dashboard_color', 'dashboard_color_source', 'is_active', 'legacy_type', 'legacy_id',
+                    'id',
+                    'asset_category_level_id',
+                    'parent_id',
+                    'name',
+                    'sort_order',
+                    'dashboard_color',
+                    'dashboard_color_source',
+                    'is_active',
+                    'legacy_type',
+                    'legacy_id',
                 ]),
                 'level_position' => $node->level->position,
                 'direct_assets_count' => $groups->get($node->id, collect())->count(),
@@ -123,9 +173,10 @@ class AssetCategoryController extends Controller
             ];
         });
         $requestedNode = $nodes->firstWhere('id', $request->integer('node'));
-        $selectedNode = $requestedNode
-            ?? $nodes->firstWhere('id', $activeAssets->first()?->asset_category_node_id)
-            ?? ($request->user()->isPusat() ? $nodes->first() : null);
+        $selectedNode =
+            $requestedNode ??
+            ($nodes->firstWhere('id', $activeAssets->first()?->asset_category_node_id) ??
+                ($request->user()->isPusat() ? $nodes->first() : null));
         $assetQuery = Asset::query()
             ->with(['unitKerja:id,code,name', 'assetCategoryNode.level:id,name,position'])
             ->when($unitId, fn (Builder $query): Builder => $query->where('unit_kerja_id', $unitId));
@@ -135,14 +186,24 @@ class AssetCategoryController extends Controller
         $assets = $assetQuery
             ->orderBy('nama_aset')
             ->paginate(20)
-            ->through(fn (Asset $asset): array => [
-                ...$asset->only([
-                    'id', 'unit_kerja_id', 'asset_category_node_id', 'nama_aset',
-                    'jumlah_unit', 'tanggal_pemasangan', 'status', 'aset_prasarana_sintel', 'system', 'subsystem',
-                ]),
-                'unit_kerja' => $asset->unitKerja?->only(['id', 'code', 'name']),
-                'category_node' => $asset->assetCategoryNode?->only(['id', 'name', 'asset_category_level_id']),
-            ])
+            ->through(
+                fn (Asset $asset): array => [
+                    ...$asset->only([
+                        'id',
+                        'unit_kerja_id',
+                        'asset_category_node_id',
+                        'nama_aset',
+                        'jumlah_unit',
+                        'tanggal_pemasangan',
+                        'status',
+                        'aset_prasarana_sintel',
+                        'system',
+                        'subsystem',
+                    ]),
+                    'unit_kerja' => $asset->unitKerja?->only(['id', 'code', 'name']),
+                    'category_node' => $asset->assetCategoryNode?->only(['id', 'name', 'asset_category_level_id']),
+                ],
+            )
             ->withQueryString();
 
         return Inertia::render('Admin/AssetCategories/Index', [
@@ -153,7 +214,10 @@ class AssetCategoryController extends Controller
             'nodes' => $nodePayload,
             'assets' => $assets,
             'units' => $request->user()->isPusat()
-                ? UnitKerja::query()->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name'])
+                ? UnitKerja::query()
+                    ->where('is_active', true)
+                    ->orderBy('code')
+                    ->get(['id', 'code', 'name'])
                 : [],
             'selectedUnitId' => $unitId,
             'selectedNodeId' => $selectedNode?->id,

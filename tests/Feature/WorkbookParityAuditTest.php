@@ -65,18 +65,18 @@ final class WorkbookParityAuditTest extends TestCase
                 continue;
             }
             $subsystem = AssetSubsystem::factory()->create(['name' => $subsystemName]);
-            Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
-                'subsystem' => mb_strtoupper($subsystemName),
-                'jumlah_unit' => 1, // Will be overridden by actual workbook data
-            ]);
+            Asset::factory()
+                ->for($unit)
+                ->for($subsystem, 'assetSubsystem')
+                ->create([
+                    'subsystem' => mb_strtoupper($subsystemName),
+                    'jumlah_unit' => 1, // Will be overridden by actual workbook data
+                ]);
             $createdSubsystems[$subsystemName] = true;
         }
 
         // Step 1: Import failure logs from workbook
-        $importResult = app(FailureLogWorkbookImporter::class)->import(
-            self::WORKBOOK_PATH,
-            $unit,
-        );
+        $importResult = app(FailureLogWorkbookImporter::class)->import(self::WORKBOOK_PATH, $unit);
         $this->assertGreaterThan(0, $importResult['sheets'], 'At least one sheet should be imported');
 
         // Step 2: Import Excel snapshots
@@ -87,15 +87,15 @@ final class WorkbookParityAuditTest extends TestCase
         );
         $this->assertGreaterThan(0, $snapshotResult['snapshots'], 'At least one snapshot should be created');
 
-        Asset::query()->where('unit_kerja_id', $unit->id)->get()->each(function (Asset $asset): void {
-            $snapshot = ReliabilityExcelSnapshot::query()
-                ->where('asset_id', $asset->id)
-                ->latest('id')
-                ->first();
-            if ($snapshot && is_numeric($snapshot->summary_values['unit_count'] ?? null)) {
-                $asset->update(['jumlah_unit' => (int) $snapshot->summary_values['unit_count']]);
-            }
-        });
+        Asset::query()
+            ->where('unit_kerja_id', $unit->id)
+            ->get()
+            ->each(function (Asset $asset): void {
+                $snapshot = ReliabilityExcelSnapshot::query()->where('asset_id', $asset->id)->latest('id')->first();
+                if ($snapshot && is_numeric($snapshot->summary_values['unit_count'] ?? null)) {
+                    $asset->update(['jumlah_unit' => (int) $snapshot->summary_values['unit_count']]);
+                }
+            });
 
         // Step 3: Run parity checks
         $parityResult = app(ReliabilityParityService::class)->recalculateUnit($unit);
@@ -103,37 +103,70 @@ final class WorkbookParityAuditTest extends TestCase
         $unexpectedDifferences = ReliabilitySummary::query()
             ->where('parity_status', 'mismatch')
             ->get()
-            ->flatMap(fn (ReliabilitySummary $summary): array => array_diff(
-                array_keys($summary->parity_differences ?? []),
-                ['mttf_hours'],
-            ));
-        $this->assertSame([], $unexpectedDifferences->values()->all(), ReliabilitySummary::query()
-            ->where('parity_status', 'mismatch')
-            ->get(['asset_id', 'parity_differences'])
-            ->toJson(JSON_PRETTY_PRINT));
+            ->flatMap(
+                fn (ReliabilitySummary $summary): array => array_diff(array_keys($summary->parity_differences ?? []), [
+                    'mttf_hours',
+                ]),
+            );
+        $this->assertSame(
+            [],
+            $unexpectedDifferences->values()->all(),
+            ReliabilitySummary::query()
+                ->where('parity_status', 'mismatch')
+                ->get(['asset_id', 'parity_differences'])
+                ->toJson(JSON_PRETTY_PRINT),
+        );
 
         // Step 4: Verify snapshots have correct profile keys
         $snapshots = ReliabilityExcelSnapshot::all();
         foreach ($snapshots as $snapshot) {
             $profile = $snapshot->formula_profile;
             $this->assertArrayHasKey('downtime_mode', $profile, "Sheet {$snapshot->sheet_name} missing downtime_mode");
-            $this->assertArrayHasKey('interval_baseline_date', $profile, "Sheet {$snapshot->sheet_name} missing interval_baseline_date");
-            $this->assertArrayHasKey('empty_mttf_mode', $profile, "Sheet {$snapshot->sheet_name} missing empty_mttf_mode");
-            $this->assertArrayHasKey('failure_count_mode', $profile, "Sheet {$snapshot->sheet_name} missing failure_count_mode");
-            $this->assertArrayHasKey('spare_part_count_mode', $profile, "Sheet {$snapshot->sheet_name} missing spare_part_count_mode");
-            $this->assertArrayHasKey('vandalism_count_mode', $profile, "Sheet {$snapshot->sheet_name} missing vandalism_count_mode");
-            $this->assertContains($profile['downtime_mode'], ['minutes', 'excel_day_fraction'], "Sheet {$snapshot->sheet_name} invalid downtime_mode");
-            $this->assertContains($profile['failure_count_mode'], ['counta', 'counta_all_minus_1'], "Sheet {$snapshot->sheet_name} invalid failure_count_mode");
+            $this->assertArrayHasKey(
+                'interval_baseline_date',
+                $profile,
+                "Sheet {$snapshot->sheet_name} missing interval_baseline_date",
+            );
+            $this->assertArrayHasKey(
+                'empty_mttf_mode',
+                $profile,
+                "Sheet {$snapshot->sheet_name} missing empty_mttf_mode",
+            );
+            $this->assertArrayHasKey(
+                'failure_count_mode',
+                $profile,
+                "Sheet {$snapshot->sheet_name} missing failure_count_mode",
+            );
+            $this->assertArrayHasKey(
+                'spare_part_count_mode',
+                $profile,
+                "Sheet {$snapshot->sheet_name} missing spare_part_count_mode",
+            );
+            $this->assertArrayHasKey(
+                'vandalism_count_mode',
+                $profile,
+                "Sheet {$snapshot->sheet_name} missing vandalism_count_mode",
+            );
+            $this->assertContains(
+                $profile['downtime_mode'],
+                ['minutes', 'excel_day_fraction'],
+                "Sheet {$snapshot->sheet_name} invalid downtime_mode",
+            );
+            $this->assertContains(
+                $profile['failure_count_mode'],
+                ['counta', 'counta_all_minus_1'],
+                "Sheet {$snapshot->sheet_name} invalid failure_count_mode",
+            );
         }
 
         // Report parity results as a structured table
         echo "\n\n=== WORKBOOK PARITY AUDIT RESULTS ===\n";
-        echo str_pad('Sheet', 40)
-            .str_pad('Status', 22)
-            .str_pad('Snap', 6)
-            .str_pad('Failures', 10)
-            .str_pad('Differences', 30)
-            ."\n";
+        echo str_pad('Sheet', 40).
+            str_pad('Status', 22).
+            str_pad('Snap', 6).
+            str_pad('Failures', 10).
+            str_pad('Differences', 30).
+            "\n";
         echo str_repeat('-', 108)."\n";
 
         $summaries = ReliabilitySummary::with('asset.assetSubsystem', 'excelSnapshot')->get();
@@ -142,16 +175,14 @@ final class WorkbookParityAuditTest extends TestCase
             $status = $summary->parity_status;
             $hasSnap = $summary->excel_snapshot_id ? 'Yes' : 'No';
             $failures = $summary->failure_count;
-            $diffs = $summary->parity_differences
-                ? implode(', ', array_keys($summary->parity_differences))
-                : '-';
+            $diffs = $summary->parity_differences ? implode(', ', array_keys($summary->parity_differences)) : '-';
 
-            echo str_pad($sheetName, 40)
-                .str_pad($status, 22)
-                .str_pad($hasSnap, 6)
-                .str_pad((string) $failures, 10)
-                .str_pad($diffs, 30)
-                ."\n";
+            echo str_pad($sheetName, 40).
+                str_pad($status, 22).
+                str_pad($hasSnap, 6).
+                str_pad((string) $failures, 10).
+                str_pad($diffs, 30).
+                "\n";
         }
         echo "\n=== SUMMARY ===\n";
         echo "Calculated: {$parityResult['calculated']}\n";
@@ -179,10 +210,13 @@ final class WorkbookParityAuditTest extends TestCase
 
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         $subsystem = AssetSubsystem::factory()->create(['name' => 'Interlocking Elektrik']);
-        $asset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
-            'subsystem' => 'INTERLOCKING ELEKTRIK',
-            'jumlah_unit' => 2,
-        ]);
+        $asset = Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create([
+                'subsystem' => 'INTERLOCKING ELEKTRIK',
+                'jumlah_unit' => 2,
+            ]);
 
         app(FailureLogWorkbookImporter::class)->import(self::WORKBOOK_PATH, $unit);
         app(ExcelReliabilitySnapshotImporter::class)->import(self::WORKBOOK_PATH, $unit, 'RAMS Daop 1.xlsm');

@@ -30,7 +30,9 @@ class UpdateFailureLogRequest extends FormRequest
                 Rule::requiredIf(fn (): bool => $this->boolean('spare_part_replaced')),
                 'nullable',
                 'integer',
-                Rule::exists('spare_parts', 'id')->where(fn ($query) => $query->where('is_active', true)->whereNull('deleted_at')),
+                Rule::exists('spare_parts', 'id')->where(
+                    fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'),
+                ),
             ],
             'spare_part_quantity' => [
                 Rule::requiredIf(fn (): bool => $this->boolean('spare_part_replaced')),
@@ -62,7 +64,7 @@ class UpdateFailureLogRequest extends FormRequest
                 continue;
             }
 
-            $value = preg_replace('/\s+/u', ' ', trim($this->string($field)->toString()));
+            $value = preg_replace("/\s+/u", ' ', trim($this->string($field)->toString()));
             $normalized[$field] = $value === '' ? null : $value;
         }
 

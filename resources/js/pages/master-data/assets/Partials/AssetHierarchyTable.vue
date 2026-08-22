@@ -24,9 +24,11 @@ const statusClass = (status) => ({
   nonaktif: 'bg-slate-100 text-slate-600 ring-slate-500/15',
   dalam_perbaikan: 'bg-amber-50 text-amber-700 ring-amber-600/15',
 }[status] ?? 'bg-slate-100 text-slate-600 ring-slate-500/15')
-const unitLabel = (asset) => asset.unit_kerja
-  ? `${asset.unit_kerja.code}${asset.unit_kerja.name ? ` — ${asset.unit_kerja.name}` : ''}`
-  : 'Unit tidak tersedia'
+const unitLabel = (asset) => {
+  if (!asset.unit_kerja) return 'Unit tidak tersedia'
+  const name = asset.unit_kerja.name ? ` — ${asset.unit_kerja.name}` : ''
+  return `${asset.unit_kerja.code}${name}`
+}
 const emptyGroupRowId = (groupId) => `asset-empty-group-${groupId}`
 const emptySystemRowId = (groupId, systemId) => `asset-empty-system-${groupId}-${systemId}`
 const subsystemRow = (subsystem, aggregate = {}) => ({

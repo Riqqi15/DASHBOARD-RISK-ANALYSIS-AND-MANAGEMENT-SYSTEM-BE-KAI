@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 class CheckTableCounts extends Command
 {
     protected $signature = 'rams:table-counts';
+
     protected $description = 'Tampilkan jumlah baris semua tabel';
 
     public function handle(): int

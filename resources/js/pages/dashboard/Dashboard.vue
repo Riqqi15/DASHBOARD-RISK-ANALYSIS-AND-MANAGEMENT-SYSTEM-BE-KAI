@@ -317,7 +317,7 @@ const assetGroups = computed(() => {
   props.asset_categories.forEach((category) => {
     const group = ensureChild(groups, getLabel(category.name), category.id, category.dashboard_color)
     const order = Number(category.sort_order)
-    if (!/^\s*\d+\s*[.\-]/.test(group.name) && Number.isInteger(order) && order > 0) {
+    if (!/^\s*\d+\s*[.-]/.test(group.name) && Number.isInteger(order) && order > 0) {
       group.displayName = `${order}. ${group.name}`
     }
 
@@ -441,7 +441,7 @@ const goToTroubleReport = (subsystemName = null) => {
   justify-content: center;
   border-radius: 0.625rem;
   background: #fee2e2;
-  color: #dc2626;
+  color: #b91c1c;
   border: 1px solid #fecaca;
 }
 

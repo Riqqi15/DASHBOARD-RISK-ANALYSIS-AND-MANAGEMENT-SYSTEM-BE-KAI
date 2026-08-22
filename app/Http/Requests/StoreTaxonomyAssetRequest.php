@@ -20,11 +20,18 @@ class StoreTaxonomyAssetRequest extends FormRequest
     {
         return [
             'unit_kerja_id' => $this->user()->isPusat()
-                ? ['required', Rule::exists('unit_kerjas', 'id')->where(fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'))]
+                ? [
+                    'required',
+                    Rule::exists('unit_kerjas', 'id')->where(
+                        fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'),
+                    ),
+                ]
                 : ['prohibited'],
             'asset_category_node_id' => [
                 'required',
-                Rule::exists('asset_category_nodes', 'id')->where(fn ($query) => $query->where('is_active', true)->whereNull('deleted_at')),
+                Rule::exists('asset_category_nodes', 'id')->where(
+                    fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'),
+                ),
             ],
             'nama_aset' => ['required', 'string', 'max:255'],
             'jumlah_unit' => ['required', 'integer', 'min:0'],
@@ -35,9 +42,7 @@ class StoreTaxonomyAssetRequest extends FormRequest
 
     public function unitId(): int
     {
-        return $this->user()->isPusat()
-            ? (int) $this->validated('unit_kerja_id')
-            : (int) $this->user()->unit_kerja_id;
+        return $this->user()->isPusat() ? (int) $this->validated('unit_kerja_id') : (int) $this->user()->unit_kerja_id;
     }
 
     public function assetData(AssetCategoryNode $node, array $path): array
@@ -65,7 +70,7 @@ class StoreTaxonomyAssetRequest extends FormRequest
             if (! $this->exists($field)) {
                 continue;
             }
-            $value = preg_replace('/\s+/u', ' ', trim($this->string($field)->toString())) ?? '';
+            $value = preg_replace("/\s+/u", ' ', trim($this->string($field)->toString())) ?? '';
             $values[$field] = $value;
         }
         $this->merge($values);

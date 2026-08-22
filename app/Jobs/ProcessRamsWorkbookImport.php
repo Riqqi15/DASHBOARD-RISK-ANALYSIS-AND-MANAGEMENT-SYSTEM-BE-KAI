@@ -36,7 +36,9 @@ final class ProcessRamsWorkbookImport implements ShouldBeUniqueUntilProcessing, 
 
     public function handle(FailureLogImportService $service): void
     {
-        $batch = RamsImportBatch::query()->with(['unitKerja', 'uploadedBy'])->findOrFail($this->batchId);
+        $batch = RamsImportBatch::query()
+            ->with(['unitKerja', 'uploadedBy'])
+            ->findOrFail($this->batchId);
         $storedPath = $batch->stored_path;
         if (! is_string($storedPath) || ! Storage::disk('local')->exists($storedPath)) {
             throw new RuntimeException('File workbook antrean tidak ditemukan.');

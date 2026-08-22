@@ -18,9 +18,21 @@ class StoreRegionalAccountRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'username' => ['required', 'string', 'min:3', 'max:50', 'regex:/\A[a-z0-9._-]+\z/', 'unique:users,username'],
+            'username' => [
+                'required',
+                'string',
+                'min:3',
+                'max:50',
+                "regex:/\A[a-z0-9._-]+\z/",
+                'unique:users,username',
+            ],
             'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
-            'unit_kerja_id' => ['required', Rule::exists('unit_kerjas', 'id')->where(fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'))],
+            'unit_kerja_id' => [
+                'required',
+                Rule::exists('unit_kerjas', 'id')->where(
+                    fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'),
+                ),
+            ],
             'password' => ['required', 'confirmed', Password::min(12)],
         ];
     }

@@ -27,7 +27,14 @@ class InventoryController extends Controller
 
     private const TABS = ['stock', 'history', 'predictive', 'reconciliation', 'master'];
 
-    private const RECONCILIATION_STATUSES = ['all', 'matched', 'difference', 'missing_ledger', 'missing_excel', 'ambiguous'];
+    private const RECONCILIATION_STATUSES = [
+        'all',
+        'matched',
+        'difference',
+        'missing_ledger',
+        'missing_excel',
+        'ambiguous',
+    ];
 
     private const MAX_PAGE = 1_000_000;
 
@@ -91,8 +98,18 @@ class InventoryController extends Controller
             'movements' => $movements,
             'predictiveAssets' => $this->predictiveAssets($request, $filters),
             'reconciliation' => $filters['tab'] === 'reconciliation'
-                ? $reconciliationService->reconcile($request->user(), $filters)
-                : ['rows' => [], 'stats' => ['total' => 0, 'matched' => 0, 'difference' => 0, 'missing_ledger' => 0, 'missing_excel' => 0, 'ambiguous' => 0]],
+                    ? $reconciliationService->reconcile($request->user(), $filters)
+                    : [
+                        'rows' => [],
+                        'stats' => [
+                            'total' => 0,
+                            'matched' => 0,
+                            'difference' => 0,
+                            'missing_ledger' => 0,
+                            'missing_excel' => 0,
+                            'ambiguous' => 0,
+                        ],
+                    ],
             'spareParts' => $this->spareParts($request, $filters),
             'categories' => $this->categories(),
             'units' => $request->user()->isPusat() ? $this->activeUnits() : [],
@@ -117,18 +134,26 @@ class InventoryController extends Controller
                 fn (Builder $query): Builder => $query->where('unit_kerja_id', (int) $filters['unit_kerja_id']),
                 fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
             )
-            ->when($filters['asset_group_id'] !== '', fn (Builder $query): Builder => $query->whereHas(
-                'assetSubsystem.assetSystem',
-                fn (Builder $systems): Builder => $systems->where('asset_group_id', (int) $filters['asset_group_id']),
-            ))
-            ->when($filters['asset_subsystem_id'] !== '', fn (Builder $query): Builder => $query->where('asset_subsystem_id', (int) $filters['asset_subsystem_id']))
+            ->when(
+                $filters['asset_group_id'] !== '',
+                fn (Builder $query): Builder => $query->whereHas(
+                    'assetSubsystem.assetSystem',
+                    fn (Builder $systems): Builder => $systems->where(
+                        'asset_group_id',
+                        (int) $filters['asset_group_id'],
+                    ),
+                ),
+            )
+            ->when(
+                $filters['asset_subsystem_id'] !== '',
+                fn (Builder $query): Builder => $query->where(
+                    'asset_subsystem_id',
+                    (int) $filters['asset_subsystem_id'],
+                ),
+            )
             ->search($filters['search'])
             ->whereHas('latestPredictiveAssetSnapshot')
-            ->with([
-                'unitKerja:id,code,name',
-                'assetSubsystem.assetSystem.assetGroup',
-                'latestPredictiveAssetSnapshot',
-            ])
+            ->with(['unitKerja:id,code,name', 'assetSubsystem.assetSystem.assetGroup', 'latestPredictiveAssetSnapshot'])
             ->orderBy('nama_aset')
             ->get()
             ->map(function (Asset $asset): array {
@@ -186,7 +211,9 @@ class InventoryController extends Controller
             'unit_kerja_id' => ($unitId = $this->activeUnitId($request)) ? (string) $unitId : '',
             'tab' => in_array($tab, self::TABS, true) ? $tab : 'stock',
             'movement_type' => StockMovementType::tryFrom($movementType)?->value ?? '',
-            'reconciliation_status' => in_array($reconciliationStatus, self::RECONCILIATION_STATUSES, true) ? $reconciliationStatus : 'all',
+            'reconciliation_status' => in_array($reconciliationStatus, self::RECONCILIATION_STATUSES, true)
+                ? $reconciliationStatus
+                : 'all',
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
             'master_page' => (string) $this->page($request->input('master_page')),
@@ -245,21 +272,34 @@ class InventoryController extends Controller
             )
             ->when(
                 $filters['date_from'] !== '',
-                fn (Builder $filtered): Builder => $filtered->where('stock_movements.movement_date', '>=', $filters['date_from']),
+                fn (Builder $filtered): Builder => $filtered->where(
+                    'stock_movements.movement_date',
+                    '>=',
+                    $filters['date_from'],
+                ),
             )
             ->when(
                 $filters['date_to'] !== '',
-                fn (Builder $filtered): Builder => $filtered->where('stock_movements.movement_date', '<=', $filters['date_to']),
+                fn (Builder $filtered): Builder => $filtered->where(
+                    'stock_movements.movement_date',
+                    '<=',
+                    $filters['date_to'],
+                ),
             );
     }
 
     /** @param array<string, string> $filters */
-    private function applyCommonFilters(Builder $query, array $filters, string $table, bool $includeMovementText = false): void
-    {
+    private function applyCommonFilters(
+        Builder $query,
+        array $filters,
+        string $table,
+        bool $includeMovementText = false,
+    ): void {
         if ($filters['search'] !== '') {
             $like = '%'.$filters['search'].'%';
             $query->where(function (Builder $search) use ($like, $includeMovementText): void {
-                $search->where('spare_parts.code', 'like', $like)
+                $search
+                    ->where('spare_parts.code', 'like', $like)
                     ->orWhere('spare_parts.equipment', 'like', $like)
                     ->orWhere('spare_parts.detail_equipment', 'like', $like)
                     ->orWhere('asset_subsystems.name', 'like', $like)
@@ -269,7 +309,8 @@ class InventoryController extends Controller
                     ->orWhere('unit_kerjas.name', 'like', $like);
 
                 if ($includeMovementText) {
-                    $search->orWhere('stock_movements.reference_number', 'like', $like)
+                    $search
+                        ->orWhere('stock_movements.reference_number', 'like', $like)
                         ->orWhere('stock_movements.notes', 'like', $like);
                 }
             });
@@ -278,15 +319,24 @@ class InventoryController extends Controller
         $query
             ->when(
                 $filters['asset_group_id'] !== '',
-                fn (Builder $filtered): Builder => $filtered->where('asset_groups.id', (int) $filters['asset_group_id']),
+                fn (Builder $filtered): Builder => $filtered->where(
+                    'asset_groups.id',
+                    (int) $filters['asset_group_id'],
+                ),
             )
             ->when(
                 $filters['asset_subsystem_id'] !== '',
-                fn (Builder $filtered): Builder => $filtered->where('asset_subsystems.id', (int) $filters['asset_subsystem_id']),
+                fn (Builder $filtered): Builder => $filtered->where(
+                    'asset_subsystems.id',
+                    (int) $filters['asset_subsystem_id'],
+                ),
             )
             ->when(
                 $filters['unit_kerja_id'] !== '',
-                fn (Builder $filtered): Builder => $filtered->where($table.'.unit_kerja_id', (int) $filters['unit_kerja_id']),
+                fn (Builder $filtered): Builder => $filtered->where(
+                    $table.'.unit_kerja_id',
+                    (int) $filters['unit_kerja_id'],
+                ),
                 fn (Builder $filtered): Builder => $filtered->whereRaw('1 = 0'),
             );
     }
@@ -297,25 +347,41 @@ class InventoryController extends Controller
         $parts = SparePart::query()
             ->when(! $request->user()->isPusat(), fn (Builder $query): Builder => $query->active())
             ->with('assetSubsystem.assetSystem.assetGroup')
-            ->when($filters['asset_group_id'] !== '', fn (Builder $query): Builder => $query->whereHas(
-                'assetSubsystem.assetSystem',
-                fn (Builder $system): Builder => $system->where('asset_group_id', (int) $filters['asset_group_id']),
-            ))
-            ->when($filters['asset_subsystem_id'] !== '', fn (Builder $query): Builder => $query->where(
-                'asset_subsystem_id',
-                (int) $filters['asset_subsystem_id'],
-            ))
+            ->when(
+                $filters['asset_group_id'] !== '',
+                fn (Builder $query): Builder => $query->whereHas(
+                    'assetSubsystem.assetSystem',
+                    fn (Builder $system): Builder => $system->where('asset_group_id', (int) $filters['asset_group_id']),
+                ),
+            )
+            ->when(
+                $filters['asset_subsystem_id'] !== '',
+                fn (Builder $query): Builder => $query->where(
+                    'asset_subsystem_id',
+                    (int) $filters['asset_subsystem_id'],
+                ),
+            )
             ->when($filters['search'] !== '', function (Builder $query) use ($filters): void {
                 $like = '%'.$filters['search'].'%';
                 $query->where(function (Builder $search) use ($like): void {
-                    $search->where('code', 'like', $like)
+                    $search
+                        ->where('code', 'like', $like)
                         ->orWhere('equipment', 'like', $like)
                         ->orWhere('detail_equipment', 'like', $like)
-                        ->orWhereHas('assetSubsystem', fn (Builder $subsystem): Builder => $subsystem
-                            ->where('name', 'like', $like)
-                            ->orWhereHas('assetSystem', fn (Builder $system): Builder => $system
+                        ->orWhereHas(
+                            'assetSubsystem',
+                            fn (Builder $subsystem): Builder => $subsystem
                                 ->where('name', 'like', $like)
-                                ->orWhereHas('assetGroup', fn (Builder $group): Builder => $group->where('name', 'like', $like))));
+                                ->orWhereHas(
+                                    'assetSystem',
+                                    fn (Builder $system): Builder => $system
+                                        ->where('name', 'like', $like)
+                                        ->orWhereHas(
+                                            'assetGroup',
+                                            fn (Builder $group): Builder => $group->where('name', 'like', $like),
+                                        ),
+                                ),
+                        );
                 });
             })
             ->orderBy('code')
@@ -366,14 +432,14 @@ class InventoryController extends Controller
         $part = $movement->sparePart;
         $unit = $movement->unitKerja;
 
-        return $movement->type !== StockMovementType::Correction
-            && ! (bool) $movement->getAttribute('corrections_exists')
-            && $part !== null
-            && $part->is_active
-            && ! $part->trashed()
-            && $unit !== null
-            && $unit->is_active
-            && ! $unit->trashed();
+        return $movement->type !== StockMovementType::Correction &&
+            ! (bool) $movement->getAttribute('corrections_exists') &&
+            $part !== null &&
+            $part->is_active &&
+            ! $part->trashed() &&
+            $unit !== null &&
+            $unit->is_active &&
+            ! $unit->trashed();
     }
 
     private function partPayload(SparePart $part): array
@@ -402,11 +468,13 @@ class InventoryController extends Controller
                 'unit_of_measure',
                 'is_active',
             ]),
-            'category' => $subsystem && $system && $group ? [
-                'group' => $group->only(['id', 'name', 'is_active']),
-                'system' => $system->only(['id', 'name', 'is_active']),
-                'subsystem' => $subsystem->only(['id', 'name', 'is_active']),
-            ] : null,
+            'category' => $subsystem && $system && $group
+                    ? [
+                        'group' => $group->only(['id', 'name', 'is_active']),
+                        'system' => $system->only(['id', 'name', 'is_active']),
+                        'subsystem' => $subsystem->only(['id', 'name', 'is_active']),
+                    ]
+                    : null,
         ];
     }
 
@@ -430,21 +498,30 @@ class InventoryController extends Controller
     {
         return AssetGroup::query()
             ->where('is_active', true)
-            ->with(['systems' => fn ($systems) => $systems
-                ->where('is_active', true)
-                ->with(['subsystems' => fn ($subsystems) => $subsystems->where('is_active', true)])])
+            ->with([
+                'systems' => fn ($systems) => $systems
+                    ->where('is_active', true)
+                    ->with(['subsystems' => fn ($subsystems) => $subsystems->where('is_active', true)]),
+            ])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
-            ->map(fn (AssetGroup $group): array => [
-                ...$group->only(['id', 'name']),
-                'systems' => $group->systems->map(fn (AssetSystem $system): array => [
-                    ...$system->only(['id', 'name']),
-                    'subsystems' => $system->subsystems->map(
-                        fn (AssetSubsystem $subsystem): array => $subsystem->only(['id', 'name']),
-                    )->all(),
-                ])->all(),
-            ])->all();
+            ->map(
+                fn (AssetGroup $group): array => [
+                    ...$group->only(['id', 'name']),
+                    'systems' => $group->systems
+                        ->map(
+                            fn (AssetSystem $system): array => [
+                                ...$system->only(['id', 'name']),
+                                'subsystems' => $system->subsystems
+                                    ->map(fn (AssetSubsystem $subsystem): array => $subsystem->only(['id', 'name']))
+                                    ->all(),
+                            ],
+                        )
+                        ->all(),
+                ],
+            )
+            ->all();
     }
 
     private function activeUnits(): array
@@ -466,15 +543,11 @@ class InventoryController extends Controller
         }
 
         $value = $this->scalarString($request->input('unit_kerja_id'));
-        $selected = ctype_digit($value) ? UnitKerja::query()
-            ->where('is_active', true)
-            ->whereKey((int) $value)
-            ->value('id') : null;
+        $selected = ctype_digit($value)
+            ? UnitKerja::query()->where('is_active', true)->whereKey((int) $value)->value('id')
+            : null;
 
-        return $selected ?? UnitKerja::query()
-            ->where('is_active', true)
-            ->orderBy('code')
-            ->value('id');
+        return $selected ?? UnitKerja::query()->where('is_active', true)->orderBy('code')->value('id');
     }
 
     private function activeGroupId(mixed $value): ?int
@@ -496,9 +569,12 @@ class InventoryController extends Controller
 
         return AssetSubsystem::query()
             ->where('is_active', true)
-            ->whereHas('assetSystem', fn (Builder $system): Builder => $system
-                ->where('is_active', true)
-                ->whereHas('assetGroup', fn (Builder $group): Builder => $group->where('is_active', true)))
+            ->whereHas(
+                'assetSystem',
+                fn (Builder $system): Builder => $system
+                    ->where('is_active', true)
+                    ->whereHas('assetGroup', fn (Builder $group): Builder => $group->where('is_active', true)),
+            )
             ->whereKey((int) $value)
             ->value('id');
     }
@@ -520,9 +596,7 @@ class InventoryController extends Controller
 
     private function scalarString(mixed $value): string
     {
-        return is_string($value) || is_int($value) || is_float($value)
-            ? trim((string) $value)
-            : '';
+        return is_string($value) || is_int($value) || is_float($value) ? trim((string) $value) : '';
     }
 
     private function page(mixed $value): int
@@ -539,8 +613,10 @@ class InventoryController extends Controller
         }
 
         $maximum = (string) self::MAX_PAGE;
-        if (strlen($value) > strlen($maximum)
-            || (strlen($value) === strlen($maximum) && strcmp($value, $maximum) > 0)) {
+        if (
+            strlen($value) > strlen($maximum) ||
+            (strlen($value) === strlen($maximum) && strcmp($value, $maximum) > 0)
+        ) {
             return self::MAX_PAGE;
         }
 
@@ -550,15 +626,15 @@ class InventoryController extends Controller
     private function stockStatusSql(): string
     {
         return <<<'SQL'
-CASE
-    WHEN inventory_stocks.quantity = 0 THEN 'empty'
-    WHEN spare_parts.safety_stock IS NOT NULL
-        AND inventory_stocks.quantity <= spare_parts.safety_stock THEN 'critical'
-    WHEN spare_parts.reorder_point IS NOT NULL
-        AND inventory_stocks.quantity > COALESCE(spare_parts.safety_stock, 0)
-        AND inventory_stocks.quantity <= spare_parts.reorder_point THEN 'below_reorder'
-    ELSE 'available'
-END
-SQL;
+        CASE
+            WHEN inventory_stocks.quantity = 0 THEN 'empty'
+            WHEN spare_parts.safety_stock IS NOT NULL
+                AND inventory_stocks.quantity <= spare_parts.safety_stock THEN 'critical'
+            WHEN spare_parts.reorder_point IS NOT NULL
+                AND inventory_stocks.quantity > COALESCE(spare_parts.safety_stock, 0)
+                AND inventory_stocks.quantity <= spare_parts.reorder_point THEN 'below_reorder'
+            ELSE 'available'
+        END
+        SQL;
     }
 }

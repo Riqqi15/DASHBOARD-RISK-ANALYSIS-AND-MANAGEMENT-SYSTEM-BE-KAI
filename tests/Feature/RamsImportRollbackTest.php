@@ -27,22 +27,35 @@ final class RamsImportRollbackTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $unitUser = User::factory()->unit($unit)->create();
         $subsystem = AssetSubsystem::factory()->create();
-        $asset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create(['nama_aset' => 'Nama sebelum']);
+        $asset = Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create(['nama_aset' => 'Nama sebelum']);
         $part = SparePart::factory()->for($subsystem, 'assetSubsystem')->create();
-        InventoryStock::factory()->for($unit)->for($part)->create(['quantity' => 5]);
-        StockMovement::factory()->for($unit)->for($part)->for($unitUser, 'actor')->create(['quantity' => 5]);
+        InventoryStock::factory()
+            ->for($unit)
+            ->for($part)
+            ->create(['quantity' => 5]);
+        StockMovement::factory()
+            ->for($unit)
+            ->for($part)
+            ->for($unitUser, 'actor')
+            ->create(['quantity' => 5]);
         $batch = $this->batch($unit, $pusat);
         $recorder = app(RamsImportChangeRecorder::class);
         $before = $recorder->snapshot();
 
         $asset->update(['nama_aset' => 'Nama hasil import']);
-        $risk = RiskRegister::factory()->for($asset)->create(['risk_event' => 'Risiko import']);
+        $risk = RiskRegister::factory()
+            ->for($asset)
+            ->create(['risk_event' => 'Risiko import']);
         $recorder->record($batch, $before, $recorder->snapshot());
         $usersBefore = User::query()->orderBy('id')->get()->map->getRawOriginal()->all();
         $stocksBefore = InventoryStock::query()->orderBy('id')->get()->map->getRawOriginal()->all();
         $movementsBefore = StockMovement::query()->orderBy('id')->get()->map->getRawOriginal()->all();
 
-        $this->actingAs($pusat)->post("/trouble-report/import/batch/{$batch->id}/rollback")
+        $this->actingAs($pusat)
+            ->post("/trouble-report/import/batch/{$batch->id}/rollback")
             ->assertRedirect('/trouble-report/import')
             ->assertSessionHas('success');
 
@@ -59,7 +72,9 @@ final class RamsImportRollbackTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
         $pusat = User::factory()->pusat()->create();
-        $asset = Asset::factory()->for($unit)->create(['nama_aset' => 'Sebelum']);
+        $asset = Asset::factory()
+            ->for($unit)
+            ->create(['nama_aset' => 'Sebelum']);
         $batch = $this->batch($unit, $pusat);
         $recorder = app(RamsImportChangeRecorder::class);
         $before = $recorder->snapshot();
@@ -67,7 +82,8 @@ final class RamsImportRollbackTest extends TestCase
         $recorder->record($batch, $before, $recorder->snapshot());
         $asset->update(['nama_aset' => 'Edit manual']);
 
-        $this->actingAs($pusat)->post("/trouble-report/import/batch/{$batch->id}/rollback")
+        $this->actingAs($pusat)
+            ->post("/trouble-report/import/batch/{$batch->id}/rollback")
             ->assertRedirect('/trouble-report/import')
             ->assertSessionHas('error');
         $this->assertSame('Edit manual', $asset->fresh()->nama_aset);
@@ -75,7 +91,8 @@ final class RamsImportRollbackTest extends TestCase
 
         $asset->update(['nama_aset' => 'Hasil import']);
         $later = $this->batch($unit, $pusat, 'later.xlsx');
-        $this->actingAs($pusat)->post("/trouble-report/import/batch/{$batch->id}/rollback")
+        $this->actingAs($pusat)
+            ->post("/trouble-report/import/batch/{$batch->id}/rollback")
             ->assertSessionHas('error');
         $this->assertSame('succeeded', $later->fresh()->status);
         $this->assertSame('Hasil import', $asset->fresh()->nama_aset);
@@ -87,7 +104,8 @@ final class RamsImportRollbackTest extends TestCase
         $batch = $this->batch($unit, User::factory()->pusat()->create());
         $user = User::factory()->unit($unit)->create();
 
-        $this->actingAs($user)->post("/trouble-report/import/batch/{$batch->id}/rollback")
+        $this->actingAs($user)
+            ->post("/trouble-report/import/batch/{$batch->id}/rollback")
             ->assertForbidden();
     }
 

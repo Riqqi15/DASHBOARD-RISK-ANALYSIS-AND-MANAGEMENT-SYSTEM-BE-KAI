@@ -60,9 +60,12 @@ final class ExcelParityReliabilityCalculator
             $previousStart = $startedAt;
         }
 
-        $mttfHours = $intervals === []
-            ? (($profile['empty_mttf_mode'] ?? 'null') === 'zero' ? 0.0 : null)
-            : array_sum($intervals) / count($intervals);
+        $mttfHours =
+            $intervals === []
+                ? (($profile['empty_mttf_mode'] ?? 'null') === 'zero'
+                    ? 0.0
+                    : null)
+                : array_sum($intervals) / count($intervals);
         $mtbfHours = $failureCount > 0 ? $uptimeHours / $failureCount : 0.0;
         $failureRate = $mtbfHours > 0 ? 1 / $mtbfHours : 0.0;
         $availability = $operatingHours > 0 ? $uptimeHours / $operatingHours : null;
@@ -77,12 +80,22 @@ final class ExcelParityReliabilityCalculator
             'failure_count' => $failureCount,
             'mttf_hours' => $mttfHours,
             'mtbf_hours' => $mtbfHours,
-            'mttr_hours' => $failureCount > 0 ? ($downtimeMinutes / 60) / $failureCount : null,
+            'mttr_hours' => $failureCount > 0 ? $downtimeMinutes / 60 / $failureCount : null,
             'failure_rate' => $failureRate,
             'reliability' => exp(-$failureRate),
             'availability' => $availability,
-            'spare_part_replacement_count' => $this->markerCount($rows->all(), $profile['spare_part_count_mode'] ?? 'countif_ya', 'spare_part_marker', 'spare_part_replaced'),
-            'vandalism_count' => $this->markerCount($rows->all(), $profile['vandalism_count_mode'] ?? 'countif_ya', 'vandalism_marker', 'vandalism'),
+            'spare_part_replacement_count' => $this->markerCount(
+                $rows->all(),
+                $profile['spare_part_count_mode'] ?? 'countif_ya',
+                'spare_part_marker',
+                'spare_part_replaced',
+            ),
+            'vandalism_count' => $this->markerCount(
+                $rows->all(),
+                $profile['vandalism_count_mode'] ?? 'countif_ya',
+                'vandalism_marker',
+                'vandalism',
+            ),
             'calculation_status' => $operatingHours > 0 ? 'calculated' : 'insufficient_data',
             'formula_version' => self::FORMULA_VERSION,
         ];

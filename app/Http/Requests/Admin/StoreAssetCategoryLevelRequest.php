@@ -18,7 +18,12 @@ class StoreAssetCategoryLevelRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:100'],
-            'normalized_name' => ['required', 'string', 'max:100', Rule::unique('asset_category_levels', 'normalized_name')->withoutTrashed()],
+            'normalized_name' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('asset_category_levels', 'normalized_name')->withoutTrashed(),
+            ],
         ];
     }
 
@@ -31,7 +36,7 @@ class StoreAssetCategoryLevelRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $name = preg_replace('/\s+/u', ' ', trim($this->string('name')->toString())) ?? '';
+        $name = preg_replace("/\s+/u", ' ', trim($this->string('name')->toString())) ?? '';
         $this->merge(['name' => $name, 'normalized_name' => mb_strtolower($name)]);
     }
 }

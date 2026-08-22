@@ -34,9 +34,7 @@ class RamsDashboardQuery
             'selected_area' => $unit?->code,
             'units' => $user->isPusat() ? $this->units() : [],
             'summary' => $this->summary($user, $unit),
-            'assets' => $dashboardAssets
-                ->map(fn (Asset $asset): array => $this->assetPayload($asset))
-                ->all(),
+            'assets' => $dashboardAssets->map(fn (Asset $asset): array => $this->assetPayload($asset))->all(),
             'asset_categories' => $this->assetCategories($dashboardAssets, $unit),
         ];
     }
@@ -62,23 +60,29 @@ class RamsDashboardQuery
             'units' => $user->isPusat() ? $this->units() : [],
             'risks' => RiskMatrix::query()
                 ->visibleTo($user)
-                ->when($unit, fn (Builder $query): Builder => $query->whereHas(
-                    'asset',
-                    fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id),
-                ))
+                ->when(
+                    $unit,
+                    fn (Builder $query): Builder => $query->whereHas(
+                        'asset',
+                        fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id),
+                    ),
+                )
                 ->with('asset.assetSubsystem.assetSystem.assetGroup')
                 ->get()
-                ->map(fn (RiskMatrix $risk): array => [
-                    'id' => $risk->id,
-                    'asset_id' => $risk->asset_id,
-                    'system' => $risk->asset->assetSubsystem->assetSystem->name,
-                    'subsystem' => $risk->asset->assetSubsystem->name,
-                    'likelihood' => $risk->likelihood,
-                    'consequence' => $risk->consequence,
-                    'rating' => $risk->rating,
-                    'level' => $risk->level,
-                    'last_update' => $risk->assessed_at?->toDateString() ?? $risk->updated_at->toDateString(),
-                ])->all(),
+                ->map(
+                    fn (RiskMatrix $risk): array => [
+                        'id' => $risk->id,
+                        'asset_id' => $risk->asset_id,
+                        'system' => $risk->asset->assetSubsystem->assetSystem->name,
+                        'subsystem' => $risk->asset->assetSubsystem->name,
+                        'likelihood' => $risk->likelihood,
+                        'consequence' => $risk->consequence,
+                        'rating' => $risk->rating,
+                        'level' => $risk->level,
+                        'last_update' => $risk->assessed_at?->toDateString() ?? $risk->updated_at->toDateString(),
+                    ],
+                )
+                ->all(),
         ];
     }
 
@@ -109,7 +113,10 @@ class RamsDashboardQuery
     public function troubleReport(User $user, ?UnitKerja $unit, string $subsystem): array
     {
         $assets = $this->assetQuery($user, $unit)
-            ->whereHas('assetSubsystem', fn (Builder $query): Builder => $query->whereRaw('LOWER(name) = ?', [mb_strtolower($subsystem)]))
+            ->whereHas(
+                'assetSubsystem',
+                fn (Builder $query): Builder => $query->whereRaw('LOWER(name) = ?', [mb_strtolower($subsystem)]),
+            )
             ->with('assetSubsystem')
             ->get();
         $assetIds = $assets->pluck('id');
@@ -161,7 +168,9 @@ class RamsDashboardQuery
             'selected_area' => $unit?->code,
             'subsystem' => $subsystem,
             'assets' => $assets->map(fn (Asset $asset): array => $this->assetPayload($asset))->all(),
-            'reliability' => $summaries->map(fn (ReliabilitySummary $summary): array => $this->reliabilityPayload($summary))->all(),
+            'reliability' => $summaries
+                ->map(fn (ReliabilitySummary $summary): array => $this->reliabilityPayload($summary))
+                ->all(),
             'failure_logs' => collect($logsWithInterval)
                 ->map(fn (FailureLog $log): array => $this->failurePayload($log))
                 ->all(),
@@ -227,7 +236,9 @@ class RamsDashboardQuery
             'overallReliability' => $overallReliability,
             'overallAvailability' => $overallAvailability,
             'operatingDays' => $operatingStartDate
-                ? (int) CarbonImmutable::parse($operatingStartDate)->startOfDay()->diffInDays(now()->startOfDay())
+                ? (int) CarbonImmutable::parse($operatingStartDate)
+                    ->startOfDay()
+                    ->diffInDays(now()->startOfDay())
                 : null,
             'reliabilityGroups' => $this->reliabilityGroups($latestReliability, $unit),
             'latestImport' => $this->latestImport($unit),
@@ -250,11 +261,7 @@ class RamsDashboardQuery
     private function dashboardAssetModels(User $user, ?UnitKerja $unit): Collection
     {
         return $this->assetQuery($user, $unit)
-            ->with([
-                'unitKerja:id,code,name',
-                'assetSubsystem.assetSystem.assetGroup',
-                'latestPredictiveAssetSnapshot',
-            ])
+            ->with(['unitKerja:id,code,name', 'assetSubsystem.assetSystem.assetGroup', 'latestPredictiveAssetSnapshot'])
             ->orderBy('id')
             ->get();
     }
@@ -286,16 +293,18 @@ class RamsDashboardQuery
                     ->map(function (AssetSystem $system) use ($subsystemIds): ?array {
                         $subsystems = $system->subsystems
                             ->filter(
-                                fn (AssetSubsystem $subsystem): bool => $subsystemIds->contains($subsystem->id)
-                                    || (int) ($subsystem->assets_count ?? 0) === 0,
+                                fn (AssetSubsystem $subsystem): bool => $subsystemIds->contains($subsystem->id) ||
+                                    (int) ($subsystem->assets_count ?? 0) === 0,
                             )
-                            ->map(fn (AssetSubsystem $subsystem): array => [
-                                'id' => $subsystem->id,
-                                'name' => $subsystem->name,
-                                'dashboard_color' => $subsystem->dashboard_color,
-                                'dashboard_color_source' => $subsystem->dashboard_color_source,
-                                'is_active' => $subsystem->is_active,
-                            ])
+                            ->map(
+                                fn (AssetSubsystem $subsystem): array => [
+                                    'id' => $subsystem->id,
+                                    'name' => $subsystem->name,
+                                    'dashboard_color' => $subsystem->dashboard_color,
+                                    'dashboard_color_source' => $subsystem->dashboard_color_source,
+                                    'is_active' => $subsystem->is_active,
+                                ],
+                            )
                             ->values();
 
                         if ($system->subsystems->isNotEmpty() && $subsystems->isEmpty()) {
@@ -338,26 +347,32 @@ class RamsDashboardQuery
     {
         return RiskRegister::query()
             ->visibleTo($user)
-            ->when($unit, fn (Builder $query): Builder => $query->whereHas(
-                'asset',
-                fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id),
-            ))
+            ->when(
+                $unit,
+                fn (Builder $query): Builder => $query->whereHas(
+                    'asset',
+                    fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id),
+                ),
+            )
             ->with('asset:id')
             ->latest('updated_at')
             ->get()
-            ->map(fn (RiskRegister $register): array => [
-                'id' => $register->id,
-                'aset_id' => $register->asset_id,
-                'part_number' => $register->part_number,
-                'peristiwa_risiko' => $register->risk_event,
-                'penyebab' => $register->risk_cause,
-                'rekomendasi' => $register->recommendation,
-                'status' => match ($register->status) {
-                    RiskRegisterStatus::Open => 'Open',
-                    RiskRegisterStatus::InProgress => 'In Progress',
-                    RiskRegisterStatus::Closed => 'Closed',
-                },
-            ])->all();
+            ->map(
+                fn (RiskRegister $register): array => [
+                    'id' => $register->id,
+                    'aset_id' => $register->asset_id,
+                    'part_number' => $register->part_number,
+                    'peristiwa_risiko' => $register->risk_event,
+                    'penyebab' => $register->risk_cause,
+                    'rekomendasi' => $register->recommendation,
+                    'status' => match ($register->status) {
+                        RiskRegisterStatus::Open => 'Open',
+                        RiskRegisterStatus::InProgress => 'In Progress',
+                        RiskRegisterStatus::Closed => 'Closed',
+                    },
+                ],
+            )
+            ->all();
     }
 
     /** @return array<int, array{period: string, count: int}> */
@@ -365,18 +380,24 @@ class RamsDashboardQuery
     {
         return FailureLog::query()
             ->visibleTo($user)
-            ->when($unit, fn (Builder $query): Builder => $query->whereHas(
-                'asset',
-                fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id),
-            ))
+            ->when(
+                $unit,
+                fn (Builder $query): Builder => $query->whereHas(
+                    'asset',
+                    fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id),
+                ),
+            )
             ->selectRaw("DATE_FORMAT(started_at, '%Y-%m') as period, COUNT(*) as aggregate")
             ->groupBy('period')
             ->orderBy('period')
             ->get()
-            ->map(fn (FailureLog $row): array => [
-                'period' => (string) $row->getAttribute('period'),
-                'count' => (int) $row->getAttribute('aggregate'),
-            ])->all();
+            ->map(
+                fn (FailureLog $row): array => [
+                    'period' => (string) $row->getAttribute('period'),
+                    'count' => (int) $row->getAttribute('aggregate'),
+                ],
+            )
+            ->all();
     }
 
     private function assetQuery(User $user, ?UnitKerja $unit): Builder
@@ -436,8 +457,7 @@ class RamsDashboardQuery
     /** @return array<string, mixed> */
     private function stockPayload(InventoryStock $stock): array
     {
-        $policy = $stock->sparePart->unitPolicies
-            ->firstWhere('unit_kerja_id', $stock->unit_kerja_id);
+        $policy = $stock->sparePart->unitPolicies->firstWhere('unit_kerja_id', $stock->unit_kerja_id);
 
         return [
             'id' => $stock->id,
@@ -449,13 +469,11 @@ class RamsDashboardQuery
             'category' => $stock->sparePart->equipment,
             'subsystem' => $stock->sparePart->assetSubsystem->name,
             'quantity' => $stock->quantity,
-            'safety_stock' => $policy?->safety_stock ?? $stock->sparePart->safety_stock ?? 0,
-            'reorder_point' => $policy?->reorder_point ?? $stock->sparePart->reorder_point ?? 0,
-            'predicted_need' => $policy?->lead_time_demand ?? $stock->sparePart->lead_time_demand ?? 0,
-            'calculation_status' => $policy?->calculation_status
-                ?? $stock->sparePart->reorder_calculation_status,
-            'formula_version' => $policy?->formula_version
-                ?? $stock->sparePart->reorder_formula_version,
+            'safety_stock' => $policy?->safety_stock ?? ($stock->sparePart->safety_stock ?? 0),
+            'reorder_point' => $policy?->reorder_point ?? ($stock->sparePart->reorder_point ?? 0),
+            'predicted_need' => $policy?->lead_time_demand ?? ($stock->sparePart->lead_time_demand ?? 0),
+            'calculation_status' => $policy?->calculation_status ?? $stock->sparePart->reorder_calculation_status,
+            'formula_version' => $policy?->formula_version ?? $stock->sparePart->reorder_formula_version,
         ];
     }
 
@@ -467,11 +485,15 @@ class RamsDashboardQuery
             'aset_id' => $summary->asset_id,
             'periode' => $summary->period->format('Y-m'),
             'jumlah_unit' => $summary->unit_count,
-            'total_operating_hour' => $summary->operating_hours === null ? $summary->operating_minutes / 60 : (float) $summary->operating_hours,
-            'total_downtime' => $summary->downtime_value === null ? $summary->downtime_minutes / 60 : (float) $summary->downtime_value,
+            'total_operating_hour' => $summary->operating_hours === null
+                    ? $summary->operating_minutes / 60
+                    : (float) $summary->operating_hours,
+            'total_downtime' => $summary->downtime_value === null
+                    ? $summary->downtime_minutes / 60
+                    : (float) $summary->downtime_value,
             'total_uptime' => $summary->uptime_hours === null
-                ? ($summary->operating_minutes - $summary->downtime_minutes) / 60
-                : (float) $summary->uptime_hours,
+                    ? ($summary->operating_minutes - $summary->downtime_minutes) / 60
+                    : (float) $summary->uptime_hours,
             'jumlah_failure' => $summary->failure_count,
             'mttf' => $summary->mttf_hours === null ? null : (float) $summary->mttf_hours,
             'mtbf' => $summary->mtbf_hours === null ? null : (float) $summary->mtbf_hours,
@@ -510,9 +532,9 @@ class RamsDashboardQuery
             'CDS' => '#FF0000',
         ];
         $grouped = $summaries->groupBy(
-            fn (ReliabilitySummary $summary): string => mb_strtolower($this->assetGroupLabel(
-                $summary->asset->assetSubsystem->assetSystem->assetGroup->name,
-            )),
+            fn (ReliabilitySummary $summary): string => mb_strtolower(
+                $this->assetGroupLabel($summary->asset->assetSubsystem->assetSystem->assetGroup->name),
+            ),
         );
         $groups = AssetGroup::query()
             ->when($unit, fn (Builder $query): Builder => $query->forUnit($unit))
@@ -535,16 +557,22 @@ class RamsDashboardQuery
                     'id' => $group->id,
                     'code' => $code,
                     'name' => $standardLabels[$code] ?? $this->assetGroupLabel($group->name),
-                    'color' => $group->dashboard_color ?? $standardColors[$code] ?? '#64748B',
+                    'color' => $group->dashboard_color ?? ($standardColors[$code] ?? '#64748B'),
                     'asset_count' => $items->count(),
-                    'reliability' => $reliabilityItems->isEmpty() ? null : $reliabilityItems->reduce(
-                        fn (float $product, ReliabilitySummary $summary): float => $product * (float) $summary->reliability,
-                        1.0,
-                    ),
-                    'availability' => $availabilityItems->isEmpty() ? null : $availabilityItems->reduce(
-                        fn (float $product, ReliabilitySummary $summary): float => $product * (float) $summary->availability,
-                        1.0,
-                    ),
+                    'reliability' => $reliabilityItems->isEmpty()
+                        ? null
+                        : $reliabilityItems->reduce(
+                            fn (float $product, ReliabilitySummary $summary): float => $product *
+                                (float) $summary->reliability,
+                            1.0,
+                        ),
+                    'availability' => $availabilityItems->isEmpty()
+                        ? null
+                        : $availabilityItems->reduce(
+                            fn (float $product, ReliabilitySummary $summary): float => $product *
+                                (float) $summary->availability,
+                            1.0,
+                        ),
                 ];
             })
             ->values()
@@ -596,41 +624,57 @@ class RamsDashboardQuery
                 'asset_groups' => $groupNames->push($values['name'] ?? null),
                 'asset_systems' => $groupIds->push($values['asset_group_id'] ?? null),
                 'asset_subsystems' => $systemIds->push($values['asset_system_id'] ?? null),
-                'assets', 'unit_subsystem_openings', 'spare_parts' => $subsystemIds->push($values['asset_subsystem_id'] ?? null),
+                'assets', 'unit_subsystem_openings', 'spare_parts' => $subsystemIds->push(
+                    $values['asset_subsystem_id'] ?? null,
+                ),
                 'unit_spare_part_policies' => $sparePartIds->push($values['spare_part_id'] ?? null),
-                'predictive_asset_snapshots', 'risk_matrices', 'risk_registers', 'failure_logs',
-                'reliability_excel_snapshots', 'reliability_summaries' => $assetIds->push($values['asset_id'] ?? null),
+                'predictive_asset_snapshots',
+                'risk_matrices',
+                'risk_registers',
+                'failure_logs',
+                'reliability_excel_snapshots',
+                'reliability_summaries' => $assetIds->push($values['asset_id'] ?? null),
                 default => null,
             };
         }
 
         if ($sparePartIds->filter()->isNotEmpty()) {
             $subsystemIds = $subsystemIds->merge(
-                DB::table('spare_parts')->whereIn('id', $sparePartIds->filter()->unique())->pluck('asset_subsystem_id'),
+                DB::table('spare_parts')
+                    ->whereIn('id', $sparePartIds->filter()->unique())
+                    ->pluck('asset_subsystem_id'),
             );
         }
 
         if ($assetIds->filter()->isNotEmpty()) {
             $subsystemIds = $subsystemIds->merge(
-                Asset::query()->whereIn('id', $assetIds->filter()->unique())->pluck('asset_subsystem_id'),
+                Asset::query()
+                    ->whereIn('id', $assetIds->filter()->unique())
+                    ->pluck('asset_subsystem_id'),
             );
         }
 
         if ($subsystemIds->filter()->isNotEmpty()) {
             $systemIds = $systemIds->merge(
-                AssetSubsystem::query()->whereIn('id', $subsystemIds->filter()->unique())->pluck('asset_system_id'),
+                AssetSubsystem::query()
+                    ->whereIn('id', $subsystemIds->filter()->unique())
+                    ->pluck('asset_system_id'),
             );
         }
 
         if ($systemIds->filter()->isNotEmpty()) {
             $groupIds = $groupIds->merge(
-                AssetSystem::query()->whereIn('id', $systemIds->filter()->unique())->pluck('asset_group_id'),
+                AssetSystem::query()
+                    ->whereIn('id', $systemIds->filter()->unique())
+                    ->pluck('asset_group_id'),
             );
         }
 
         if ($groupIds->filter()->isNotEmpty()) {
             $groupNames = $groupNames->merge(
-                AssetGroup::query()->whereIn('id', $groupIds->filter()->unique())->pluck('name'),
+                AssetGroup::query()
+                    ->whereIn('id', $groupIds->filter()->unique())
+                    ->pluck('name'),
             );
         }
 
@@ -663,7 +707,15 @@ class RamsDashboardQuery
 
         $before = $change->before_values ?? [];
         $after = $change->after_values ?? [];
-        foreach (['created_at', 'updated_at', 'calculated_at', 'imported_at', 'first_imported_at', 'last_imported_at'] as $field) {
+        $dateFields = [
+            'created_at',
+            'updated_at',
+            'calculated_at',
+            'imported_at',
+            'first_imported_at',
+            'last_imported_at',
+        ];
+        foreach ($dateFields as $field) {
             unset($before[$field], $after[$field]);
         }
 
@@ -689,12 +741,12 @@ class RamsDashboardQuery
 
     private function assetGroupLabel(string $groupName): string
     {
-        return preg_replace('/^\s*\d+\s*[.\-]\s*/u', '', trim($groupName)) ?: trim($groupName);
+        return preg_replace("/^\s*\d+\s*[.\-]\s*/u", '', trim($groupName)) ?: trim($groupName);
     }
 
     private function assetGroupInitials(string $groupName): string
     {
-        $words = preg_split('/[^\pL\pN]+/u', $this->assetGroupLabel($groupName), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $words = preg_split("/[^\pL\pN]+/u", $this->assetGroupLabel($groupName), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         $initials = collect($words)
             ->map(fn (string $word): string => mb_strtoupper(mb_substr($word, 0, 1)))
             ->implode('');
@@ -716,11 +768,13 @@ class RamsDashboardQuery
             'failure_event' => $log->failure_event,
             'penyebab' => $log->cause,
             'tindakan' => $log->action_taken,
-            'penggantian_sparepart' => ($log->spare_part_replaced || $isYes($log->spare_part_marker)) ? 'Y' : 'N',
-            'tindak_vandalisme' => ($log->vandalism || $isYes($log->vandalism_marker)) ? 'Y' : 'N',
+            'penggantian_sparepart' => $log->spare_part_replaced || $isYes($log->spare_part_marker) ? 'Y' : 'N',
+            'tindak_vandalisme' => $log->vandalism || $isYes($log->vandalism_marker) ? 'Y' : 'N',
             'tanggal_jam_kejadian' => $log->started_at->toDateTimeString(),
             'tanggal_jam_penanganan' => $log->resolved_at->toDateTimeString(),
-            'downtime_jam' => floor($log->downtime_minutes / 60).':'.str_pad((string) ($log->downtime_minutes % 60), 2, '0', STR_PAD_LEFT),
+            'downtime_jam' => floor($log->downtime_minutes / 60).
+                ':'.
+                str_pad((string) ($log->downtime_minutes % 60), 2, '0', STR_PAD_LEFT),
             'downtime_menit' => $log->downtime_minutes,
             'interval_jam' => $log->interval_jam !== null ? round($log->interval_jam, 2) : null,
             'nama_sparepart' => $log->sparePart?->detail_equipment,

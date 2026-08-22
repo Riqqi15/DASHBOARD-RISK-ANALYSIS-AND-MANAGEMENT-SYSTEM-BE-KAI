@@ -45,8 +45,8 @@ class MasterAssetController extends Controller
             'unique_subsystems' => (clone $query)
                 ->whereNotNull('asset_subsystem_id')
                 ->distinct()
-                ->count('asset_subsystem_id')
-                + (clone $query)
+                ->count('asset_subsystem_id') +
+                (clone $query)
                     ->whereNull('asset_subsystem_id')
                     ->whereRaw("TRIM(`subsystem`) <> ''")
                     ->distinct()
@@ -54,19 +54,18 @@ class MasterAssetController extends Controller
         ];
 
         $assets = $query
-            ->with([
-                'assetSubsystem.assetSystem.assetGroup',
-                'unitKerja:id,code,name',
-            ])
+            ->with(['assetSubsystem.assetSystem.assetGroup', 'unitKerja:id,code,name'])
             ->orderBy('unit_kerja_id')
             ->orderBy('system')
             ->orderBy('subsystem')
             ->orderBy('nama_aset')
             ->paginate(15)
-            ->through(fn (Asset $asset): array => [
-                ...$this->assetPayload($asset),
-                'unit_kerja' => $asset->unitKerja->only(['id', 'code', 'name']),
-            ])
+            ->through(
+                fn (Asset $asset): array => [
+                    ...$this->assetPayload($asset),
+                    'unit_kerja' => $asset->unitKerja->only(['id', 'code', 'name']),
+                ],
+            )
             ->withQueryString();
 
         return Inertia::render('master-data/assets/MasterAsset', [
@@ -194,12 +193,14 @@ class MasterAssetController extends Controller
 
         return [
             'hierarchy' => $hierarchy,
-            'legacySummary' => $legacy ? [
-                'asset_count' => (int) $legacy->getAttribute('asset_count'),
-                'total' => (int) $legacy->getAttribute('total'),
-                'sparepart_in' => 0,
-                'sparepart_out' => 0,
-            ] : null,
+            'legacySummary' => $legacy
+                ? [
+                    'asset_count' => (int) $legacy->getAttribute('asset_count'),
+                    'total' => (int) $legacy->getAttribute('total'),
+                    'sparepart_in' => 0,
+                    'sparepart_out' => 0,
+                ]
+                : null,
         ];
     }
 
@@ -242,15 +243,10 @@ class MasterAssetController extends Controller
             'options' => ['min_range' => 1],
         ]);
 
-        $selected = $unitId === false ? null : UnitKerja::query()
-            ->where('is_active', true)
-            ->whereKey($unitId)
-            ->value('id');
+        $selected =
+            $unitId === false ? null : UnitKerja::query()->where('is_active', true)->whereKey($unitId)->value('id');
 
-        return $selected ?? UnitKerja::query()
-            ->where('is_active', true)
-            ->orderBy('code')
-            ->value('id');
+        return $selected ?? UnitKerja::query()->where('is_active', true)->orderBy('code')->value('id');
     }
 
     private function statusOptions(): array
@@ -280,11 +276,13 @@ class MasterAssetController extends Controller
             ]),
             'status' => $asset->status->value,
             'tanggal_pemasangan' => $asset->tanggal_pemasangan?->toDateString(),
-            'category' => $subsystem && $system && $group ? [
-                'group' => $this->categoryPayload($group),
-                'system' => $this->categoryPayload($system),
-                'subsystem' => $this->categoryPayload($subsystem),
-            ] : null,
+            'category' => $subsystem && $system && $group
+                    ? [
+                        'group' => $this->categoryPayload($group),
+                        'system' => $this->categoryPayload($system),
+                        'subsystem' => $this->categoryPayload($subsystem),
+                    ]
+                    : null,
         ];
     }
 
@@ -297,27 +295,43 @@ class MasterAssetController extends Controller
     {
         $categories = AssetGroup::query()
             ->where('is_active', true)
-            ->with(['systems' => fn ($systems) => $systems
-                ->where('is_active', true)
-                ->with(['subsystems' => fn ($subsystems) => $subsystems->where('is_active', true)])])
+            ->with([
+                'systems' => fn ($systems) => $systems
+                    ->where('is_active', true)
+                    ->with(['subsystems' => fn ($subsystems) => $subsystems->where('is_active', true)]),
+            ])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
-            ->map(fn (AssetGroup $group): array => [
-                'id' => $group->id,
-                'name' => $group->name,
-                '_sort_order' => $group->sort_order,
-                'systems' => $group->systems->map(fn (AssetSystem $system): array => [
-                    'id' => $system->id,
-                    'name' => $system->name,
-                    '_sort_order' => $system->sort_order,
-                    'subsystems' => $system->subsystems->map(fn (AssetSubsystem $subsystem): array => [
-                        'id' => $subsystem->id,
-                        'name' => $subsystem->name,
-                        '_sort_order' => $subsystem->sort_order,
-                    ])->values()->all(),
-                ])->values()->all(),
-            ])->values()->all();
+            ->map(
+                fn (AssetGroup $group): array => [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    '_sort_order' => $group->sort_order,
+                    'systems' => $group->systems
+                        ->map(
+                            fn (AssetSystem $system): array => [
+                                'id' => $system->id,
+                                'name' => $system->name,
+                                '_sort_order' => $system->sort_order,
+                                'subsystems' => $system->subsystems
+                                    ->map(
+                                        fn (AssetSubsystem $subsystem): array => [
+                                            'id' => $subsystem->id,
+                                            'name' => $subsystem->name,
+                                            '_sort_order' => $subsystem->sort_order,
+                                        ],
+                                    )
+                                    ->values()
+                                    ->all(),
+                            ],
+                        )
+                        ->values()
+                        ->all(),
+                ],
+            )
+            ->values()
+            ->all();
 
         if (! $currentSubsystem) {
             return $this->orderedCategoryOptions($categories);
@@ -336,18 +350,22 @@ class MasterAssetController extends Controller
             'name' => $currentGroup->name,
             '_sort_order' => $currentGroup->sort_order,
             'is_active' => $currentGroup->is_active,
-            'systems' => [[
-                'id' => $currentSystem->id,
-                'name' => $currentSystem->name,
-                '_sort_order' => $currentSystem->sort_order,
-                'is_active' => $currentSystem->is_active,
-                'subsystems' => [[
-                    'id' => $currentSubsystem->id,
-                    'name' => $currentSubsystem->name,
-                    '_sort_order' => $currentSubsystem->sort_order,
-                    'is_active' => $currentSubsystem->is_active,
-                ]],
-            ]],
+            'systems' => [
+                [
+                    'id' => $currentSystem->id,
+                    'name' => $currentSystem->name,
+                    '_sort_order' => $currentSystem->sort_order,
+                    'is_active' => $currentSystem->is_active,
+                    'subsystems' => [
+                        [
+                            'id' => $currentSubsystem->id,
+                            'name' => $currentSubsystem->name,
+                            '_sort_order' => $currentSubsystem->sort_order,
+                            'is_active' => $currentSubsystem->is_active,
+                        ],
+                    ],
+                ],
+            ],
         ];
         $groupIndex = array_search($currentGroup->id, array_column($categories, 'id'), true);
 
@@ -357,11 +375,7 @@ class MasterAssetController extends Controller
             return $this->orderedCategoryOptions($categories);
         }
 
-        $systemIndex = array_search(
-            $currentSystem->id,
-            array_column($categories[$groupIndex]['systems'], 'id'),
-            true,
-        );
+        $systemIndex = array_search($currentSystem->id, array_column($categories[$groupIndex]['systems'], 'id'), true);
 
         if ($systemIndex === false) {
             $categories[$groupIndex]['systems'][] = $currentPath['systems'][0];
@@ -371,7 +385,8 @@ class MasterAssetController extends Controller
 
         $subsystemIds = array_column($categories[$groupIndex]['systems'][$systemIndex]['subsystems'], 'id');
         if (! in_array($currentSubsystem->id, $subsystemIds, true)) {
-            $categories[$groupIndex]['systems'][$systemIndex]['subsystems'][] = $currentPath['systems'][0]['subsystems'][0];
+            $categories[$groupIndex]['systems'][$systemIndex]['subsystems'][] =
+                $currentPath['systems'][0]['subsystems'][0];
         }
 
         return $this->orderedCategoryOptions($categories);
@@ -379,9 +394,9 @@ class MasterAssetController extends Controller
 
     private function orderedCategoryOptions(array $categories): array
     {
-        $compare = fn (array $left, array $right): int => ($left['_sort_order'] <=> $right['_sort_order'])
-            ?: strcasecmp($left['name'], $right['name'])
-            ?: ($left['id'] <=> $right['id']);
+        $compare = fn (array $left, array $right): int => $left['_sort_order'] <=> $right['_sort_order'] ?:
+        strcasecmp($left['name'], $right['name']) ?:
+        $left['id'] <=> $right['id'];
         usort($categories, $compare);
 
         foreach ($categories as &$group) {
@@ -411,9 +426,7 @@ class MasterAssetController extends Controller
 
     private function lockedCategoryPath(int $subsystemId, bool $allowInactive): AssetSubsystem
     {
-        $identity = AssetSubsystem::query()
-            ->with('assetSystem:id,asset_group_id')
-            ->find($subsystemId);
+        $identity = AssetSubsystem::query()->with('assetSystem:id,asset_group_id')->find($subsystemId);
 
         if (! $identity || ! $identity->assetSystem) {
             throw ValidationException::withMessages([
@@ -431,7 +444,12 @@ class MasterAssetController extends Controller
             ->lockForUpdate()
             ->find($subsystemId);
 
-        if (! $group || ! $system || ! $subsystem || (! $allowInactive && (! $group->is_active || ! $system->is_active || ! $subsystem->is_active))) {
+        if (
+            ! $group ||
+            ! $system ||
+            ! $subsystem ||
+            (! $allowInactive && (! $group->is_active || ! $system->is_active || ! $subsystem->is_active))
+        ) {
             throw ValidationException::withMessages([
                 'asset_subsystem_id' => 'Kategori aset yang dipilih tidak aktif atau tidak tersedia.',
             ]);

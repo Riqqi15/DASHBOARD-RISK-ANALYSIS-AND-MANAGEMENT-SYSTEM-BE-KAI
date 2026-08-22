@@ -24,39 +24,45 @@ final class ReliabilityWorkbookExportTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
         $otherUnit = UnitKerja::factory()->create(['code' => 'DAOP-4']);
-        $user = User::factory()->unit($unit)->create([
-            'name' => 'Operator Rahasia',
-            'email' => 'operator-rahasia@example.test',
-        ]);
+        $user = User::factory()
+            ->unit($unit)
+            ->create([
+                'name' => 'Operator Rahasia',
+                'email' => 'operator-rahasia@example.test',
+            ]);
 
         $interlocking = $this->asset($unit, 'Interlocking Elektrik', 2, '2017-01-01');
         $catuDaya = $this->asset($unit, 'Catu Daya Sintel', 3, '2017-01-01');
         $otherAsset = $this->asset($otherUnit, 'RAHASIA DAOP-4', 99, '2017-01-01');
 
-        ReliabilitySummary::factory()->for($interlocking)->create([
-            'baseline_date' => '2017-01-01',
-            'calculation_date' => '2026-08-08',
-            'calculation_profile' => [
-                'downtime_mode' => 'minutes',
-                'interval_baseline_date' => '2020-01-01',
-                'failure_count_mode' => 'counta_all_minus_1',
-                'spare_part_count_mode' => 'counta',
-                'vandalism_count_mode' => 'counta',
-            ],
-            'formula_version' => 'kai-rams-excel-parity-v1.1.0',
-        ]);
-        ReliabilitySummary::factory()->for($catuDaya)->create([
-            'baseline_date' => '2017-01-01',
-            'calculation_date' => '2026-08-08',
-            'calculation_profile' => [
-                'downtime_mode' => 'hours',
-                'interval_baseline_date' => '2017-01-01',
-                'failure_count_mode' => 'counta',
-                'spare_part_count_mode' => 'countif_ya',
-                'vandalism_count_mode' => 'countif_ya',
-                'failure_interval_row_count' => 4,
-            ],
-        ]);
+        ReliabilitySummary::factory()
+            ->for($interlocking)
+            ->create([
+                'baseline_date' => '2017-01-01',
+                'calculation_date' => '2026-08-08',
+                'calculation_profile' => [
+                    'downtime_mode' => 'minutes',
+                    'interval_baseline_date' => '2020-01-01',
+                    'failure_count_mode' => 'counta_all_minus_1',
+                    'spare_part_count_mode' => 'counta',
+                    'vandalism_count_mode' => 'counta',
+                ],
+                'formula_version' => 'kai-rams-excel-parity-v1.1.0',
+            ]);
+        ReliabilitySummary::factory()
+            ->for($catuDaya)
+            ->create([
+                'baseline_date' => '2017-01-01',
+                'calculation_date' => '2026-08-08',
+                'calculation_profile' => [
+                    'downtime_mode' => 'hours',
+                    'interval_baseline_date' => '2017-01-01',
+                    'failure_count_mode' => 'counta',
+                    'spare_part_count_mode' => 'countif_ya',
+                    'vandalism_count_mode' => 'countif_ya',
+                    'failure_interval_row_count' => 4,
+                ],
+            ]);
         ReliabilitySummary::factory()->for($otherAsset)->create();
 
         $this->failure($interlocking, $user, 8, '2026-01-10 08:00:00', '2026-01-10 10:00:00', true, false);
@@ -64,10 +70,7 @@ final class ReliabilityWorkbookExportTest extends TestCase
         $this->failure($otherAsset, $user, 8, '2026-01-01 08:00:00', '2026-01-01 09:00:00', false, false);
 
         $workbook = app(ReliabilityWorkbookExportService::class)->workbook($user, $unit);
-        $sheetNames = array_map(
-            static fn ($sheet): string => $sheet->getTitle(),
-            $workbook->getAllSheets(),
-        );
+        $sheetNames = array_map(static fn ($sheet): string => $sheet->getTitle(), $workbook->getAllSheets());
 
         $this->assertSame('Ringkasan Reliability', $sheetNames[0]);
         $this->assertContains('Interlocking Elektrik', $sheetNames);
@@ -136,12 +139,19 @@ final class ReliabilityWorkbookExportTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
         $user = User::factory()->unit($unit)->create();
-        $asset = $this->asset($unit, 'Pengontrol/Petunjuk [Wesel]: Mekanik? Dengan Nama Sangat Panjang', 1, '2017-01-01');
-        ReliabilitySummary::factory()->for($asset)->create([
-            'baseline_date' => '2017-01-01',
-            'calculation_date' => '2026-08-08',
-            'calculation_profile' => [],
-        ]);
+        $asset = $this->asset(
+            $unit,
+            'Pengontrol/Petunjuk [Wesel]: Mekanik? Dengan Nama Sangat Panjang',
+            1,
+            '2017-01-01',
+        );
+        ReliabilitySummary::factory()
+            ->for($asset)
+            ->create([
+                'baseline_date' => '2017-01-01',
+                'calculation_date' => '2026-08-08',
+                'calculation_profile' => [],
+            ]);
 
         $workbook = app(ReliabilityWorkbookExportService::class)->workbook($user, $unit);
         $path = tempnam(sys_get_temp_dir(), 'reliability-formula-').'.xlsx';
@@ -167,20 +177,19 @@ final class ReliabilityWorkbookExportTest extends TestCase
         }
     }
 
-    private function asset(
-        UnitKerja $unit,
-        string $subsystemName,
-        int $unitCount,
-        string $installedAt,
-    ): Asset {
+    private function asset(UnitKerja $unit, string $subsystemName, int $unitCount, string $installedAt): Asset
+    {
         $subsystem = AssetSubsystem::factory()->create(['name' => $subsystemName]);
 
-        return Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
-            'nama_aset' => $subsystemName,
-            'subsystem' => mb_strtoupper($subsystemName),
-            'jumlah_unit' => $unitCount,
-            'tanggal_pemasangan' => $installedAt,
-        ]);
+        return Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create([
+                'nama_aset' => $subsystemName,
+                'subsystem' => mb_strtoupper($subsystemName),
+                'jumlah_unit' => $unitCount,
+                'tanggal_pemasangan' => $installedAt,
+            ]);
     }
 
     private function failure(
@@ -192,21 +201,24 @@ final class ReliabilityWorkbookExportTest extends TestCase
         bool $sparePart,
         bool $vandalism,
     ): FailureLog {
-        return FailureLog::factory()->for($asset)->for($creator, 'creator')->create([
-            'source_row' => $sourceRow,
-            'location' => 'Stasiun Uji',
-            'resort' => 'Resor 1.1',
-            'qc' => 'QC',
-            'failure_event' => "Gangguan {$sourceRow}",
-            'cause' => 'Penyebab uji',
-            'action_taken' => 'Tindakan uji',
-            'started_at' => $startedAt,
-            'resolved_at' => $resolvedAt,
-            'downtime_minutes' => 120,
-            'spare_part_replaced' => $sparePart,
-            'spare_part_marker' => $sparePart ? 'Ya' : null,
-            'vandalism' => $vandalism,
-            'vandalism_marker' => $vandalism ? 'Ya' : null,
-        ]);
+        return FailureLog::factory()
+            ->for($asset)
+            ->for($creator, 'creator')
+            ->create([
+                'source_row' => $sourceRow,
+                'location' => 'Stasiun Uji',
+                'resort' => 'Resor 1.1',
+                'qc' => 'QC',
+                'failure_event' => "Gangguan {$sourceRow}",
+                'cause' => 'Penyebab uji',
+                'action_taken' => 'Tindakan uji',
+                'started_at' => $startedAt,
+                'resolved_at' => $resolvedAt,
+                'downtime_minutes' => 120,
+                'spare_part_replaced' => $sparePart,
+                'spare_part_marker' => $sparePart ? 'Ya' : null,
+                'vandalism' => $vandalism,
+                'vandalism_marker' => $vandalism ? 'Ya' : null,
+            ]);
     }
 }

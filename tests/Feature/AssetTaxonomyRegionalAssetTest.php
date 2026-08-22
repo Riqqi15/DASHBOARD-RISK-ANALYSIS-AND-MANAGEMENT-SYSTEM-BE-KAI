@@ -23,8 +23,14 @@ class AssetTaxonomyRegionalAssetTest extends TestCase
         $firstUnit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
         $secondUnit = UnitKerja::factory()->create(['code' => 'DAOP-2']);
         $level = AssetCategoryLevel::query()->where('position', 1)->firstOrFail();
-        $firstNode = AssetCategoryNode::factory()->create(['asset_category_level_id' => $level->id, 'parent_id' => null]);
-        $secondNode = AssetCategoryNode::factory()->create(['asset_category_level_id' => $level->id, 'parent_id' => null]);
+        $firstNode = AssetCategoryNode::factory()->create([
+            'asset_category_level_id' => $level->id,
+            'parent_id' => null,
+        ]);
+        $secondNode = AssetCategoryNode::factory()->create([
+            'asset_category_level_id' => $level->id,
+            'parent_id' => null,
+        ]);
         Asset::factory()->create([
             'unit_kerja_id' => $firstUnit->id,
             'asset_subsystem_id' => null,
@@ -39,16 +45,17 @@ class AssetTaxonomyRegionalAssetTest extends TestCase
         $this->actingAs($pusat)
             ->get("/admin/asset-categories?unit_kerja_id={$secondUnit->id}")
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('selectedUnitId', $secondUnit->id)
-                ->where('selectedNodeId', $secondNode->id)
-                ->where('assets.data.0.unit_kerja_id', $secondUnit->id)
-                ->where('nodes', function ($nodes) use ($firstNode, $secondNode): bool {
-                    $byId = collect($nodes)->keyBy('id');
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->where('selectedUnitId', $secondUnit->id)
+                    ->where('selectedNodeId', $secondNode->id)
+                    ->where('assets.data.0.unit_kerja_id', $secondUnit->id)
+                    ->where('nodes', function ($nodes) use ($firstNode, $secondNode): bool {
+                        $byId = collect($nodes)->keyBy('id');
 
-                    return ! $byId->has($firstNode->id)
-                        && $byId[$secondNode->id]['subtree_assets_count'] === 1;
-                }));
+                        return ! $byId->has($firstNode->id) && $byId[$secondNode->id]['subtree_assets_count'] === 1;
+                    }),
+            );
     }
 
     public function test_regional_asset_creation_is_locked_to_its_own_unit_and_accepts_any_level(): void
@@ -62,20 +69,24 @@ class AssetTaxonomyRegionalAssetTest extends TestCase
             'name' => 'Peralatan Sintel',
         ]);
 
-        $this->actingAs($user)->post('/admin/asset-category-assets', [
-            'unit_kerja_id' => $otherUnit->id,
-            'asset_category_node_id' => $node->id,
-            'nama_aset' => 'Aset Wilayah',
-            'jumlah_unit' => 3,
-            'status' => AssetStatus::Aktif->value,
-        ])->assertSessionHasErrors('unit_kerja_id');
+        $this->actingAs($user)
+            ->post('/admin/asset-category-assets', [
+                'unit_kerja_id' => $otherUnit->id,
+                'asset_category_node_id' => $node->id,
+                'nama_aset' => 'Aset Wilayah',
+                'jumlah_unit' => 3,
+                'status' => AssetStatus::Aktif->value,
+            ])
+            ->assertSessionHasErrors('unit_kerja_id');
 
-        $this->actingAs($user)->post('/admin/asset-category-assets', [
-            'asset_category_node_id' => $node->id,
-            'nama_aset' => 'Aset Wilayah',
-            'jumlah_unit' => 3,
-            'status' => AssetStatus::Aktif->value,
-        ])->assertSessionDoesntHaveErrors();
+        $this->actingAs($user)
+            ->post('/admin/asset-category-assets', [
+                'asset_category_node_id' => $node->id,
+                'nama_aset' => 'Aset Wilayah',
+                'jumlah_unit' => 3,
+                'status' => AssetStatus::Aktif->value,
+            ])
+            ->assertSessionDoesntHaveErrors();
 
         $this->assertDatabaseHas('assets', [
             'unit_kerja_id' => $unit->id,
@@ -117,15 +128,18 @@ class AssetTaxonomyRegionalAssetTest extends TestCase
         ]);
         $failure = FailureLog::factory()->for($second)->create();
 
-        $this->actingAs($pusat)->getJson("/admin/asset-category-nodes/{$root->id}/archive-preview?unit_kerja_id={$unit->id}")
+        $this->actingAs($pusat)
+            ->getJson("/admin/asset-category-nodes/{$root->id}/archive-preview?unit_kerja_id={$unit->id}")
             ->assertOk()
             ->assertJsonPath('assets_count', 2)
             ->assertJsonPath('historical_records_count', 1);
 
-        $this->actingAs($pusat)->delete("/admin/asset-category-nodes/{$root->id}/assets", [
-            'unit_kerja_id' => $unit->id,
-            'confirmation' => 'HAPUS ASET WILAYAH',
-        ])->assertSessionDoesntHaveErrors();
+        $this->actingAs($pusat)
+            ->delete("/admin/asset-category-nodes/{$root->id}/assets", [
+                'unit_kerja_id' => $unit->id,
+                'confirmation' => 'HAPUS ASET WILAYAH',
+            ])
+            ->assertSessionDoesntHaveErrors();
 
         $this->assertSoftDeleted($first);
         $this->assertSoftDeleted($second);

@@ -17,23 +17,29 @@ const props = defineProps({
 const emit = defineEmits(['close', 'success'])
 const isCorrection = computed(() => Boolean(props.correction))
 const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
-const form = useForm(props.correction ? {
-  direction: props.correction.direction === 'out' ? 'in' : 'out',
-  quantity: props.correction.quantity,
-  movement_date: today,
-  notes: '',
-  idempotency_key: '',
-} : {
-  unit_kerja_id: '',
-  spare_part_id: '',
-  type: 'in',
-  direction: 'in',
-  quantity: 1,
-  movement_date: today,
-  reference_number: '',
-  notes: '',
-  idempotency_key: '',
-})
+const initialForm = () => {
+  if (props.correction) {
+    return {
+      direction: props.correction.direction === 'out' ? 'in' : 'out',
+      quantity: props.correction.quantity,
+      movement_date: today,
+      notes: '',
+      idempotency_key: '',
+    }
+  }
+  return {
+    unit_kerja_id: '',
+    spare_part_id: '',
+    type: 'in',
+    direction: 'in',
+    quantity: 1,
+    movement_date: today,
+    reference_number: '',
+    notes: '',
+    idempotency_key: '',
+  }
+}
+const form = useForm(initialForm())
 
 const localError = ref('')
 const confirmingOut = ref(false)
@@ -50,18 +56,27 @@ let stateRequest = 0
 const selectedPart = computed(() => isCorrection.value
   ? props.correction.spare_part
   : props.spareParts.find((part) => String(part.id) === String(form.spare_part_id)))
-const selectedUnitId = computed(() => isCorrection.value
-  ? props.correction.unit.id
-  : props.canChooseUnit ? form.unit_kerja_id : (props.initialStock?.unit_kerja_id ?? props.stocks.find((row) => String(row.spare_part_id) === String(form.spare_part_id))?.unit_kerja_id))
+const selectedUnitId = computed(() => {
+  if (isCorrection.value) return props.correction.unit.id
+  if (props.canChooseUnit) return form.unit_kerja_id
+  return props.initialStock?.unit_kerja_id
+    ?? props.stocks.find((row) => String(row.spare_part_id) === String(form.spare_part_id))?.unit_kerja_id
+})
 const matchingStock = computed(() => props.stocks.find((row) =>
   String(row.spare_part_id) === String(isCorrection.value ? props.correction.spare_part_id : form.spare_part_id)
   && String(row.unit_kerja_id) === String(selectedUnitId.value)))
 const balanceKnown = computed(() => isCorrection.value || Boolean(matchingStock.value) || Boolean(verifiedState.value))
-const stockBefore = computed(() => Number(isCorrection.value
-  ? props.correction.current_stock
-  : (matchingStock.value?.quantity ?? verifiedState.value?.quantity ?? 0)))
+const stockBefore = computed(() => {
+  const value = isCorrection.value
+    ? props.correction.current_stock
+    : (matchingStock.value?.quantity ?? verifiedState.value?.quantity ?? 0)
+  return Number(value)
+})
 const quantity = computed(() => Number(form.quantity || 0))
-const direction = computed(() => isCorrection.value ? form.direction : (form.type === 'out' ? 'out' : 'in'))
+const direction = computed(() => {
+  if (isCorrection.value) return form.direction
+  return form.type === 'out' ? 'out' : 'in'
+})
 const projectedStock = computed(() => stockBefore.value + (direction.value === 'out' ? -quantity.value : quantity.value))
 const unitLabel = computed(() => selectedPart.value?.unit_of_measure ?? 'unit')
 const canUseOut = computed(() => isCorrection.value || Boolean(matchingStock.value ? stockBefore.value > 0 : verifiedState.value?.can_out))
@@ -102,7 +117,9 @@ const resetValues = () => {
   }
 
   form.unit_kerja_id = props.canChooseUnit && props.initialStock?.unit_kerja_id ? String(props.initialStock.unit_kerja_id) : ''
-  form.spare_part_id = props.initialPart?.id ? String(props.initialPart.id) : (props.initialStock?.spare_part_id ? String(props.initialStock.spare_part_id) : '')
+  if (props.initialPart?.id) form.spare_part_id = String(props.initialPart.id)
+  else if (props.initialStock?.spare_part_id) form.spare_part_id = String(props.initialStock.spare_part_id)
+  else form.spare_part_id = ''
   form.type = 'in'
   form.direction = 'in'
   form.reference_number = ''
@@ -284,7 +301,7 @@ const focusFirstError = () => {
 <template>
   <Teleport to="body">
     <div v-if="open" data-dialog-backdrop class="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-[1px] sm:items-center sm:p-4" @click.self="close">
-      <section ref="dialogPanel" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="movement-dialog-title" class="max-h-[94vh] w-full overscroll-contain overflow-y-auto rounded-t-2xl bg-white outline-none shadow-2xl sm:max-w-3xl sm:rounded-2xl">
+      <dialog open ref="dialogPanel" tabindex="-1" aria-labelledby="movement-dialog-title" class="static m-0 max-h-[94vh] w-full overscroll-contain overflow-y-auto rounded-t-2xl border-0 bg-white p-0 text-slate-900 outline-none shadow-2xl sm:max-w-3xl sm:rounded-2xl">
         <header class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
           <div>
             <p class="font-mono text-sm font-semibold uppercase tracking-[0.16em] text-[#2d2a70]">{{ isCorrection ? `Ledger / sumber #${correction.id}` : 'Ledger / transaksi baru' }}</p>
@@ -372,7 +389,7 @@ const focusFirstError = () => {
             <button type="submit" :disabled="form.processing" class="min-h-11 rounded-lg bg-[#f26522] px-5 text-sm font-semibold text-white outline-none hover:bg-[#d95418] focus:ring-2 focus:ring-[#f26522] focus:ring-offset-2 disabled:opacity-50">{{ form.processing ? 'Menyimpan…' : isCorrection ? 'Catat koreksi' : 'Catat IN/OUT' }}</button>
           </div>
         </form>
-      </section>
+      </dialog>
 
       <div v-if="confirmingOut" data-out-confirmation class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4">
         <section ref="confirmationPanel" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="out-confirm-title" class="w-full max-w-md rounded-2xl bg-white p-6 outline-none shadow-2xl">

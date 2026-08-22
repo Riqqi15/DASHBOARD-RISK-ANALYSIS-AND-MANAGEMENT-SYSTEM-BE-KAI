@@ -7,7 +7,6 @@ namespace App\Services;
 use App\Models\Asset;
 use App\Models\UnitKerja;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use RuntimeException;
 
 final class RamsWorkbookAssetResolver
 {
@@ -16,10 +15,7 @@ final class RamsWorkbookAssetResolver
     public function resolve(Worksheet $sheet, UnitKerja $unit, string $sheetName): ?Asset
     {
         $label = trim((string) ($sheet->getCell('B4')->getValue() ?? '')) ?: $sheetName;
-        $normalizedCandidates = array_unique([
-            $this->comparable($label),
-            $this->comparable($sheetName),
-        ]);
+        $normalizedCandidates = array_unique([$this->comparable($label), $this->comparable($sheetName)]);
         $matches = Asset::query()
             ->where('unit_kerja_id', $unit->id)
             ->with('assetSubsystem')
@@ -27,8 +23,8 @@ final class RamsWorkbookAssetResolver
             ->filter(function (Asset $asset) use ($normalizedCandidates): bool {
                 $subsystemName = $asset->assetSubsystem?->name;
 
-                return $subsystemName !== null
-                    && in_array($this->comparable($subsystemName), $normalizedCandidates, true);
+                return $subsystemName !== null &&
+                    in_array($this->comparable($subsystemName), $normalizedCandidates, true);
             });
 
         if ($matches->count() !== 1) {

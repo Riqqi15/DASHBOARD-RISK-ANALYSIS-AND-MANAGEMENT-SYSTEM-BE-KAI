@@ -29,7 +29,9 @@ class AssetCategoryNodeController extends Controller
     public function store(StoreAssetCategoryNodeRequest $request): RedirectResponse
     {
         $node = DB::transaction(function () use ($request): AssetCategoryNode {
-            $level = AssetCategoryLevel::query()->lockForUpdate()->findOrFail($request->integer('asset_category_level_id'));
+            $level = AssetCategoryLevel::query()
+                ->lockForUpdate()
+                ->findOrFail($request->integer('asset_category_level_id'));
             $parent = $request->filled('parent_id')
                 ? AssetCategoryNode::query()->with('level')->lockForUpdate()->findOrFail($request->integer('parent_id'))
                 : null;
@@ -37,7 +39,9 @@ class AssetCategoryNodeController extends Controller
 
             if ($level->position <= 3) {
                 if ($level->position === 1 && ! $request->filled('unit_kerja_id')) {
-                    throw ValidationException::withMessages(['unit_kerja_id' => 'Wilayah kerja wajib dipilih untuk kategori utama.']);
+                    throw ValidationException::withMessages([
+                        'unit_kerja_id' => 'Wilayah kerja wajib dipilih untuk kategori utama.',
+                    ]);
                 }
 
                 $values = $request->validated();
@@ -68,18 +72,26 @@ class AssetCategoryNodeController extends Controller
             return $node;
         });
 
-        return redirect()->route('admin.asset-categories.index', [
-            'node' => $node->id,
-            'unit_kerja_id' => $request->integer('unit_kerja_id') ?: null,
-        ])
+        return redirect()
+            ->route('admin.asset-categories.index', [
+                'node' => $node->id,
+                'unit_kerja_id' => $request->integer('unit_kerja_id') ?: null,
+            ])
             ->with('success', 'Kategori berhasil ditambahkan.');
     }
 
-    public function update(UpdateAssetCategoryNodeRequest $request, AssetCategoryNode $assetCategoryNode): RedirectResponse
-    {
+    public function update(
+        UpdateAssetCategoryNodeRequest $request,
+        AssetCategoryNode $assetCategoryNode,
+    ): RedirectResponse {
         DB::transaction(function () use ($request, $assetCategoryNode): void {
             $node = AssetCategoryNode::query()->with('level')->lockForUpdate()->findOrFail($assetCategoryNode->id);
-            $this->assertUniqueSibling($node->asset_category_level_id, $node->parent_id, $request->validated('name'), $node->id);
+            $this->assertUniqueSibling(
+                $node->asset_category_level_id,
+                $node->parent_id,
+                $request->validated('name'),
+                $node->id,
+            );
             $before = $this->auditValues($node);
             $values = [
                 'name' => $request->validated('name'),
@@ -114,13 +126,21 @@ class AssetCategoryNodeController extends Controller
                 'kategori turunan' => $node->children()->count(),
                 'aset' => $node->assets()->withTrashed()->count(),
                 'alias sumber' => $node->legacy_type
-                    ? AssetCategorySourceAlias::query()->where('category_type', $node->legacy_type)->where('category_id', $node->legacy_id)->count()
+                    ? AssetCategorySourceAlias::query()
+                        ->where('category_type', $node->legacy_type)
+                        ->where('category_id', $node->legacy_id)
+                        ->count()
                     : 0,
             ];
             $blockers = array_filter($blockers);
             if ($blockers !== []) {
-                $details = collect($blockers)->map(fn (int $count, string $label): string => "{$count} {$label}")->implode(', ');
-                throw ValidationException::withMessages(['category' => "Kategori masih digunakan oleh {$details}. Nonaktifkan bila ingin mempertahankan riwayat."]);
+                $details = collect($blockers)
+                    ->map(fn (int $count, string $label): string => "{$count} {$label}")
+                    ->implode(', ');
+                throw ValidationException::withMessages([
+                    'category' => "Kategori masih digunakan oleh {$details}. "
+                        .'Nonaktifkan bila ingin mempertahankan riwayat.',
+                ]);
             }
 
             $before = $this->auditValues($node);
@@ -136,8 +156,12 @@ class AssetCategoryNodeController extends Controller
         return to_route('admin.asset-categories.index')->with('success', 'Kategori berhasil dihapus.');
     }
 
-    private function createLegacyNode(int $position, ?AssetCategoryNode $parent, array $values, ?int $unitId): AssetCategoryNode
-    {
+    private function createLegacyNode(
+        int $position,
+        ?AssetCategoryNode $parent,
+        array $values,
+        ?int $unitId,
+    ): AssetCategoryNode {
         $attributes = [
             'name' => $values['name'],
             'sort_order' => $values['sort_order'],
@@ -159,9 +183,14 @@ class AssetCategoryNodeController extends Controller
         };
         $this->taxonomy->syncLegacyTree();
 
-        return $this->taxonomy->nodeForLegacy(match ($position) {
-            1 => 'group', 2 => 'system', 3 => 'subsystem'
-        }, $legacy->id);
+        return $this->taxonomy->nodeForLegacy(
+            match ($position) {
+                1 => 'group',
+                2 => 'system',
+                3 => 'subsystem',
+            },
+            $legacy->id,
+        );
     }
 
     private function nextRootSortOrder(int $unitId): int
@@ -170,9 +199,7 @@ class AssetCategoryNodeController extends Controller
             ->where('unit_kerja_id', $unitId)
             ->get(['name', 'sort_order'])
             ->reduce(function (int $highest, AssetGroup $group): int {
-                $namePosition = preg_match('/^\s*(\d+)\s*[.\-]/u', $group->name, $matches)
-                    ? (int) $matches[1]
-                    : 0;
+                $namePosition = preg_match("/^\s*(\d+)\s*[.\-]/u", $group->name, $matches) ? (int) $matches[1] : 0;
 
                 return max($highest, (int) $group->sort_order, $namePosition);
             }, 0);
@@ -183,7 +210,9 @@ class AssetCategoryNodeController extends Controller
     private function requiredLegacyParent(?AssetCategoryNode $parent, string $type): int
     {
         if (! $parent || $parent->legacy_type !== $type || ! $parent->legacy_id) {
-            throw ValidationException::withMessages(['parent_id' => 'Parent kategori tidak kompatibel dengan struktur Excel.']);
+            throw ValidationException::withMessages([
+                'parent_id' => 'Parent kategori tidak kompatibel dengan struktur Excel.',
+            ]);
         }
 
         return $parent->legacy_id;
@@ -215,8 +244,15 @@ class AssetCategoryNodeController extends Controller
     private function auditValues(AssetCategoryNode $node): array
     {
         return $node->only([
-            'id', 'asset_category_level_id', 'parent_id', 'name', 'sort_order',
-            'dashboard_color', 'is_active', 'legacy_type', 'legacy_id',
+            'id',
+            'asset_category_level_id',
+            'parent_id',
+            'name',
+            'sort_order',
+            'dashboard_color',
+            'is_active',
+            'legacy_type',
+            'legacy_id',
         ]);
     }
 }

@@ -109,7 +109,7 @@ class AssetCategoryResolver
     {
         $trimmed = preg_replace('/^\s+|\s+$/u', '', $value) ?? trim($value);
 
-        return preg_replace('/\s+/u', ' ', $trimmed) ?? $trimmed;
+        return preg_replace("/\s+/u", ' ', $trimmed) ?? $trimmed;
     }
 
     private function resolveGroup(
@@ -146,14 +146,7 @@ class AssetCategoryResolver
             $sourceRow,
         );
 
-        return $this->storeGroupAlias(
-            $group,
-            $sourcePath,
-            $normalizedPath,
-            $workbookName,
-            $sheetName,
-            $sourceRow,
-        );
+        return $this->storeGroupAlias($group, $sourcePath, $normalizedPath, $workbookName, $sheetName, $sourceRow);
     }
 
     private function resolveSystem(
@@ -370,13 +363,15 @@ class AssetCategoryResolver
         string $workbookName,
         string $sheetName,
     ): void {
-        $alias->fill([
-            'category_id' => $category->getKey(),
-            'source_path' => $sourcePath,
-            'workbook_name' => $workbookName,
-            'sheet_name' => $sheetName,
-            'last_imported_at' => now(),
-        ])->save();
+        $alias
+            ->fill([
+                'category_id' => $category->getKey(),
+                'source_path' => $sourcePath,
+                'workbook_name' => $workbookName,
+                'sheet_name' => $sheetName,
+                'last_imported_at' => now(),
+            ])
+            ->save();
     }
 
     /**
@@ -398,20 +393,13 @@ class AssetCategoryResolver
     ): Model {
         $identity = [...$scope, 'normalized_name' => $normalizedName];
 
-        $active = $modelClass::query()
-            ->where($identity)
-            ->where('is_active', true)
-            ->lockForUpdate()
-            ->first();
+        $active = $modelClass::query()->where($identity)->where('is_active', true)->lockForUpdate()->first();
 
         if ($active) {
             return $active;
         }
 
-        $existing = $modelClass::withTrashed()
-            ->where($identity)
-            ->lockForUpdate()
-            ->first();
+        $existing = $modelClass::withTrashed()->where($identity)->lockForUpdate()->first();
 
         if ($existing) {
             if ($existing->deleted_at === null && $existing->is_active) {
@@ -422,27 +410,16 @@ class AssetCategoryResolver
         }
 
         try {
-            return $modelClass::query()->create([
-                ...$scope,
-                'name' => $name,
-                'normalized_name' => $normalizedName,
-                'is_active' => true,
-            ]);
+            return $modelClass::query()
+                ->create([...$scope, 'name' => $name, 'normalized_name' => $normalizedName, 'is_active' => true]);
         } catch (UniqueConstraintViolationException) {
-            $active = $modelClass::query()
-                ->where($identity)
-                ->where('is_active', true)
-                ->lockForUpdate()
-                ->first();
+            $active = $modelClass::query()->where($identity)->where('is_active', true)->lockForUpdate()->first();
 
             if ($active) {
                 return $active;
             }
 
-            $existing = $modelClass::withTrashed()
-                ->where($identity)
-                ->lockForUpdate()
-                ->first();
+            $existing = $modelClass::withTrashed()->where($identity)->lockForUpdate()->first();
 
             if ($existing && $existing->deleted_at === null && $existing->is_active) {
                 return $existing;
@@ -461,7 +438,8 @@ class AssetCategoryResolver
         $row = $sourceRow === null ? '' : ", row {$sourceRow}";
 
         return new RuntimeException(
-            "Asset category resolution conflict in workbook {$workbookName}, sheet {$sheetName}{$row}, normalized path {$normalizedPath}.",
+            "Asset category resolution conflict in workbook {$workbookName}, "
+                ."sheet {$sheetName}{$row}, normalized path {$normalizedPath}.",
         );
     }
 }

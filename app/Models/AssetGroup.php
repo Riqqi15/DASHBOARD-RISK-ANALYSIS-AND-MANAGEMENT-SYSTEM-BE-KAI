@@ -11,7 +11,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['unit_kerja_id', 'name', 'normalized_name', 'sort_order', 'dashboard_color', 'dashboard_color_source', 'is_active'])]
+#[
+    Fillable([
+        'unit_kerja_id',
+        'name',
+        'normalized_name',
+        'sort_order',
+        'dashboard_color',
+        'dashboard_color_source',
+        'is_active',
+    ]),
+]
 class AssetGroup extends Model
 {
     /** @use HasFactory<AssetGroupFactory> */
@@ -31,21 +41,25 @@ class AssetGroup extends Model
     {
         $unitId = $unit instanceof UnitKerja ? $unit->id : $unit;
 
-        return $query->where(fn (Builder $scope): Builder => $scope
-            ->where('unit_kerja_id', $unitId)
-            ->orWhere(fn (Builder $legacy): Builder => $legacy
-                ->whereNull('unit_kerja_id')
-                ->whereHas(
-                    'systems.subsystems.assets',
-                    fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unitId),
-                )));
+        return $query->where(
+            fn (Builder $scope): Builder => $scope
+                ->where('unit_kerja_id', $unitId)
+                ->orWhere(
+                    fn (Builder $legacy): Builder => $legacy
+                        ->whereNull('unit_kerja_id')
+                        ->whereHas(
+                            'systems.subsystems.assets',
+                            fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unitId),
+                        ),
+                ),
+        );
     }
 
     protected static function booted(): void
     {
         static::saving(function (self $category): void {
             $name = preg_replace('/^\s+|\s+$/u', '', $category->name) ?? trim($category->name);
-            $category->name = preg_replace('/\s+/u', ' ', $name) ?? $name;
+            $category->name = preg_replace("/\s+/u", ' ', $name) ?? $name;
             $category->normalized_name = mb_strtolower($category->name);
         });
     }

@@ -33,7 +33,15 @@ class RiskRegisterWorkbookImporter
         return in_array(self::SHEET, $reader->listWorksheetNames($workbookPath), true);
     }
 
-    /** @return array{created: int, updated: int, unchanged: int, skipped: int, issues: list<array{sheet_name: string, source_row: int, message: string}>} */
+    /**
+     * @return array{
+     *     created: int,
+     *     updated: int,
+     *     unchanged: int,
+     *     skipped: int,
+     *     issues: list<array{sheet_name: string, source_row: int, message: string}>
+     * }
+     */
     public function import(string $workbookPath, UnitKerja $unit): array
     {
         $reader = IOFactory::createReaderForFile($workbookPath);
@@ -61,7 +69,15 @@ class RiskRegisterWorkbookImporter
         }
     }
 
-    /** @return array{created: int, updated: int, unchanged: int, skipped: int, issues: list<array{sheet_name: string, source_row: int, message: string}>} */
+    /**
+     * @return array{
+     *     created: int,
+     *     updated: int,
+     *     unchanged: int,
+     *     skipped: int,
+     *     issues: list<array{sheet_name: string, source_row: int, message: string}>
+     * }
+     */
     private function importRows(Worksheet $sheet, UnitKerja $unit, string $workbookHash, string $workbookName): array
     {
         $result = [
@@ -87,8 +103,9 @@ class RiskRegisterWorkbookImporter
                     'source_row' => $row,
                     'source_column' => 'Baris Utuh',
                     'severity' => 'error',
-                    'message' => 'Konflik: '.implode(' dan ', $locations)
-                        .' memiliki identitas risk register yang sama; seluruh baris konflik dilewati.',
+                    'message' => 'Konflik: '.
+                        implode(' dan ', $locations).
+                        ' memiliki identitas risk register yang sama; seluruh baris konflik dilewati.',
                 ];
             }
         }
@@ -104,8 +121,9 @@ class RiskRegisterWorkbookImporter
             }
 
             $cause = $this->importText($sheet->getCell('E'.$row)->getValue());
-            $assetLabel = $this->text($sheet->getCell('C'.$row)->getValue())
-                ?: $this->text($sheet->getCell('B'.$row)->getValue());
+            $assetLabel =
+                $this->text($sheet->getCell('C'.$row)->getValue()) ?:
+                $this->text($sheet->getCell('B'.$row)->getValue());
             $likelihood = filter_var($sheet->getCell('H'.$row)->getValue(), FILTER_VALIDATE_INT);
             $consequence = filter_var($sheet->getCell('I'.$row)->getValue(), FILTER_VALIDATE_INT);
 
@@ -122,20 +140,19 @@ class RiskRegisterWorkbookImporter
 
             $this->riskAssessmentCalculator->calculate($likelihood, $consequence);
             $asset = $this->resolveAsset($unit, $assetLabel, $row);
-            $sourceKey = hash('sha256', implode('|', [
-                self::IMPORT_VERSION,
-                (string) $unit->id,
-                mb_strtolower(self::SHEET),
-                (string) $row,
-            ]));
-            $register = RiskRegister::query()->where('source_key', $sourceKey)->first()
-                ?? RiskRegister::query()
+            $sourceKey = hash(
+                'sha256',
+                implode('|', [self::IMPORT_VERSION, (string) $unit->id, mb_strtolower(self::SHEET), (string) $row]),
+            );
+            $register =
+                RiskRegister::query()->where('source_key', $sourceKey)->first() ??
+                (RiskRegister::query()
                     ->where('asset_id', $asset->id)
                     ->where('sheet_name', self::SHEET)
                     ->where('source_row', $row)
                     ->latest('updated_at')
-                    ->first()
-                ?? new RiskRegister;
+                    ->first() ??
+                    new RiskRegister);
             $values = [
                 'asset_id' => $asset->id,
                 'sheet_name' => self::SHEET,
@@ -154,11 +171,7 @@ class RiskRegisterWorkbookImporter
 
             if (! $register->exists) {
                 $register->source_key = $sourceKey;
-                $register->fill([
-                    ...$values,
-                    'workbook_hash' => $workbookHash,
-                    'workbook_name' => $workbookName,
-                ]);
+                $register->fill([...$values, 'workbook_hash' => $workbookHash, 'workbook_name' => $workbookName]);
                 $register->save();
                 $result['created']++;
             } else {
@@ -203,19 +216,14 @@ class RiskRegisterWorkbookImporter
                 continue;
             }
 
-            $assetLabel = $this->text($sheet->getCell('C'.$row)->getValue())
-                ?: $this->text($sheet->getCell('B'.$row)->getValue());
-            $identity = hash('sha256', implode('|', [
-                $this->comparable($assetLabel),
-                $this->comparable($event),
-            ]));
+            $assetLabel =
+                $this->text($sheet->getCell('C'.$row)->getValue()) ?:
+                $this->text($sheet->getCell('B'.$row)->getValue());
+            $identity = hash('sha256', implode('|', [$this->comparable($assetLabel), $this->comparable($event)]));
             $rowsByIdentity[$identity][] = $row;
         }
 
-        return array_values(array_filter(
-            $rowsByIdentity,
-            fn (array $rows): bool => count($rows) > 1,
-        ));
+        return array_values(array_filter($rowsByIdentity, fn (array $rows): bool => count($rows) > 1));
     }
 
     private function importText(mixed $value): string
@@ -240,7 +248,9 @@ class RiskRegisterWorkbookImporter
             ->filter(fn (Asset $asset): bool => $this->comparable($asset->assetSubsystem->name) === $comparable);
 
         if ($matches->count() !== 1) {
-            throw new RuntimeException("LxC row {$row} tidak dapat dipetakan tepat ke satu aset {$unit->code} ({$label}).");
+            throw new RuntimeException(
+                "LxC row {$row} tidak dapat dipetakan tepat ke satu aset {$unit->code} ({$label}).",
+            );
         }
 
         return $matches->first();

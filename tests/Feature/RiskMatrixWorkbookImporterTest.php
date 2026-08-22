@@ -44,7 +44,10 @@ final class RiskMatrixWorkbookImporterTest extends TestCase
             'dashboard_color_source' => 'manual',
         ]);
         $system = AssetSystem::factory()->create(['asset_group_id' => $group->id, 'name' => 'CATU DAYA SINYAL']);
-        $subsystem = AssetSubsystem::factory()->create(['asset_system_id' => $system->id, 'name' => 'CATU DAYA SINYAL']);
+        $subsystem = AssetSubsystem::factory()->create([
+            'asset_system_id' => $system->id,
+            'name' => 'CATU DAYA SINYAL',
+        ]);
         $asset = Asset::factory()->create([
             'unit_kerja_id' => $unit->id,
             'asset_subsystem_id' => $subsystem->id,
@@ -73,8 +76,12 @@ final class RiskMatrixWorkbookImporterTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
         $group = AssetGroup::factory()->create(['unit_kerja_id' => $unit->id, 'name' => '5. CATU DAYA SINTEL']);
-        $system = AssetSystem::factory()->for($group)->create(['name' => 'CATU DAYA SINYAL']);
-        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'CATU DAYA SINYAL']);
+        $system = AssetSystem::factory()
+            ->for($group)
+            ->create(['name' => 'CATU DAYA SINYAL']);
+        $subsystem = AssetSubsystem::factory()
+            ->for($system)
+            ->create(['name' => 'CATU DAYA SINYAL']);
         $asset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create();
         $path = $this->workbook();
         $importer = app(RiskMatrixWorkbookImporter::class);
@@ -101,8 +108,12 @@ final class RiskMatrixWorkbookImporterTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
         $group = AssetGroup::factory()->create(['unit_kerja_id' => $unit->id, 'name' => '5. CATU DAYA SINTEL']);
-        $system = AssetSystem::factory()->for($group)->create(['name' => 'CATU DAYA SINYAL']);
-        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'CATU DAYA SINYAL']);
+        $system = AssetSystem::factory()
+            ->for($group)
+            ->create(['name' => 'CATU DAYA SINYAL']);
+        $subsystem = AssetSubsystem::factory()
+            ->for($system)
+            ->create(['name' => 'CATU DAYA SINYAL']);
         Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create();
         $path = $this->workbook();
         $this->appendMatrixRow($path);
@@ -129,10 +140,34 @@ final class RiskMatrixWorkbookImporterTest extends TestCase
         $book = new Spreadsheet;
         $sheet = $book->getActiveSheet();
         $sheet->setTitle('Risk Matrix');
-        foreach (['A1' => 'ASET PRASARANA SINTEL', 'B1' => 'System', 'C1' => 'Subsystem', 'D1' => 'Likelihood', 'E1' => 'Consequences', 'F1' => 'Rating', 'G1' => 'Concat', 'H1' => 'Desc'] as $cell => $value) {
+        foreach (
+            [
+                'A1' => 'ASET PRASARANA SINTEL',
+                'B1' => 'System',
+                'C1' => 'Subsystem',
+                'D1' => 'Likelihood',
+                'E1' => 'Consequences',
+                'F1' => 'Rating',
+                'G1' => 'Concat',
+                'H1' => 'Desc',
+            ] as $cell => $value
+        ) {
             $sheet->setCellValue($cell, $value);
         }
-        $sheet->fromArray(['13. CATU DAYA SINTEL', 'CATU DAYA SINYAL', 'CATU DAYA SINYAL', $likelihood, 4, '=D2*E2', '=CONCATENATE(D2,E2)', 'High'], null, 'A2');
+        $sheet->fromArray(
+            [
+                '13. CATU DAYA SINTEL',
+                'CATU DAYA SINYAL',
+                'CATU DAYA SINYAL',
+                $likelihood,
+                4,
+                '=D2*E2',
+                '=CONCATENATE(D2,E2)',
+                'High',
+            ],
+            null,
+            'A2',
+        );
         $sheet->getStyle('A2:C2')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFFF0000');
         (new Xlsx($book))->save($path);
         $book->disconnectWorksheets();
@@ -142,16 +177,20 @@ final class RiskMatrixWorkbookImporterTest extends TestCase
     {
         $book = IOFactory::load($path);
         $sheet = $book->getSheetByName('Risk Matrix');
-        $sheet->fromArray([
-            '13. CATU DAYA SINTEL',
-            'CATU DAYA SINYAL',
-            'CATU DAYA SINYAL',
-            2,
-            4,
-            '=D3*E3',
-            '=CONCATENATE(D3,E3)',
-            'High',
-        ], null, 'A3');
+        $sheet->fromArray(
+            [
+                '13. CATU DAYA SINTEL',
+                'CATU DAYA SINYAL',
+                'CATU DAYA SINYAL',
+                2,
+                4,
+                '=D3*E3',
+                '=CONCATENATE(D3,E3)',
+                'High',
+            ],
+            null,
+            'A3',
+        );
         (new Xlsx($book))->save($path);
         $book->disconnectWorksheets();
     }

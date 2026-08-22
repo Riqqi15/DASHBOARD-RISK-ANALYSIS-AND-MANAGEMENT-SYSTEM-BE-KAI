@@ -33,11 +33,13 @@ final class RamsImportRollbackService
         if (! $batch->changes()->exists()) {
             return ['allowed' => false, 'reason' => 'Snapshot perubahan batch tidak tersedia.'];
         }
-        if (RamsImportBatch::query()
-            ->where('id', '>', $batch->id)
-            ->where('dry_run', false)
-            ->whereIn('status', ['queued', 'processing', 'succeeded'])
-            ->exists()) {
+        if (
+            RamsImportBatch::query()
+                ->where('id', '>', $batch->id)
+                ->where('dry_run', false)
+                ->whereIn('status', ['queued', 'processing', 'succeeded'])
+                ->exists()
+        ) {
             return ['allowed' => false, 'reason' => 'Ada batch import yang lebih baru. Rollback batch lama diblokir.'];
         }
 
@@ -68,7 +70,9 @@ final class RamsImportRollbackService
                 }
 
                 foreach (RamsImportChangeRecorder::TABLES as $table) {
-                    foreach ($changes->get($table, collect())->whereIn('operation', ['updated', 'deleted']) as $change) {
+                    foreach (
+                        $changes->get($table, collect())->whereIn('operation', ['updated', 'deleted']) as $change
+                    ) {
                         $before = $change->before_values;
                         if (! is_array($before)) {
                             continue;

@@ -25,18 +25,42 @@ final class InventoryExcelReconciliationTest extends TestCase
         $user = User::factory()->unit($unit)->create();
         $subsystem = AssetSubsystem::factory()->create(['name' => 'Catu Daya Sinyal']);
         $missingSubsystem = AssetSubsystem::factory()->create(['name' => 'Perlintasan']);
-        $matched = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create(['nama_aset' => 'Relay 24 VDC']);
-        $missingLedger = Asset::factory()->for($unit)->for($missingSubsystem, 'assetSubsystem')->create(['nama_aset' => 'Rectifier']);
-        $ambiguous = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create(['nama_aset' => 'Modul umum']);
+        $matched = Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create(['nama_aset' => 'Relay 24 VDC']);
+        $missingLedger = Asset::factory()
+            ->for($unit)
+            ->for($missingSubsystem, 'assetSubsystem')
+            ->create(['nama_aset' => 'Rectifier']);
+        $ambiguous = Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create(['nama_aset' => 'Modul umum']);
         $this->snapshot($matched, 8, 1);
         $this->snapshot($missingLedger, 3, 2);
         $this->snapshot($ambiguous, 1, 3);
-        $relay = SparePart::factory()->for($subsystem, 'assetSubsystem')->create(['detail_equipment' => 'Relay 24 VDC']);
-        $orphan = SparePart::factory()->for($subsystem, 'assetSubsystem')->create(['detail_equipment' => 'Kabel cadangan']);
-        $other = SparePart::factory()->for($subsystem, 'assetSubsystem')->create(['detail_equipment' => 'Fuse cadangan']);
-        InventoryStock::factory()->for($unit)->for($relay)->create(['quantity' => 6]);
-        InventoryStock::factory()->for($unit)->for($orphan)->create(['quantity' => 4]);
-        InventoryStock::factory()->for($unit)->for($other)->create(['quantity' => 2]);
+        $relay = SparePart::factory()
+            ->for($subsystem, 'assetSubsystem')
+            ->create(['detail_equipment' => 'Relay 24 VDC']);
+        $orphan = SparePart::factory()
+            ->for($subsystem, 'assetSubsystem')
+            ->create(['detail_equipment' => 'Kabel cadangan']);
+        $other = SparePart::factory()
+            ->for($subsystem, 'assetSubsystem')
+            ->create(['detail_equipment' => 'Fuse cadangan']);
+        InventoryStock::factory()
+            ->for($unit)
+            ->for($relay)
+            ->create(['quantity' => 6]);
+        InventoryStock::factory()
+            ->for($unit)
+            ->for($orphan)
+            ->create(['quantity' => 4]);
+        InventoryStock::factory()
+            ->for($unit)
+            ->for($other)
+            ->create(['quantity' => 2]);
         $stocksBefore = InventoryStock::query()->orderBy('id')->get()->map->getRawOriginal()->all();
 
         $result = app(InventoryReconciliationService::class)->reconcile($user, []);
@@ -58,13 +82,20 @@ final class InventoryExcelReconciliationTest extends TestCase
         $own = UnitKerja::factory()->create(['code' => 'DAOP-1']);
         $other = UnitKerja::factory()->create(['code' => 'DAOP-4']);
         $subsystem = AssetSubsystem::factory()->create();
-        $ownAsset = Asset::factory()->for($own)->for($subsystem, 'assetSubsystem')->create(['nama_aset' => 'Own']);
-        $otherAsset = Asset::factory()->for($other)->for($subsystem, 'assetSubsystem')->create(['nama_aset' => 'Other']);
+        $ownAsset = Asset::factory()
+            ->for($own)
+            ->for($subsystem, 'assetSubsystem')
+            ->create(['nama_aset' => 'Own']);
+        $otherAsset = Asset::factory()
+            ->for($other)
+            ->for($subsystem, 'assetSubsystem')
+            ->create(['nama_aset' => 'Other']);
         $this->snapshot($ownAsset, 1, 1);
         $this->snapshot($otherAsset, 1, 2);
 
-        $rows = app(InventoryReconciliationService::class)
-            ->reconcile(User::factory()->unit($own)->create(), [])['rows'];
+        $rows = app(InventoryReconciliationService::class)->reconcile(User::factory()->unit($own)->create(), [])[
+            'rows'
+        ];
 
         $this->assertSame([$ownAsset->id], collect($rows)->pluck('asset_id')->filter()->values()->all());
     }

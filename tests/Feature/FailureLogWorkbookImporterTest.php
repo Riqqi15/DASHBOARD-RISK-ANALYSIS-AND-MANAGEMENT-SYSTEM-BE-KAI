@@ -55,18 +55,20 @@ final class FailureLogWorkbookImporterTest extends TestCase
     public function test_it_records_bad_rows_and_unmapped_sheets_without_stopping_other_rows(): void
     {
         [$unit] = $this->assetContext('Interlocking Elektrik');
-        $path = $this->workbook([
-            $this->validRow(),
-            $this->validRow(['event_date' => '#VALUE!']),
-            $this->validRow(['failure_event' => '']),
-        ], includeUnknownSheet: true);
+        $path = $this->workbook(
+            [$this->validRow(), $this->validRow(['event_date' => '#VALUE!']), $this->validRow(['failure_event' => ''])],
+            includeUnknownSheet: true,
+        );
 
         $result = app(FailureLogWorkbookImporter::class)->import($path, $unit);
 
         $this->assertSame(1, $result['created']);
         $this->assertSame(2, $result['skipped']);
         $this->assertCount(2, $result['issues']);
-        $this->assertSame(['Interlocking Elektrik', 'Subsystem Tidak Terdaftar'], array_column($result['issues'], 'sheet_name'));
+        $this->assertSame(
+            ['Interlocking Elektrik', 'Subsystem Tidak Terdaftar'],
+            array_column($result['issues'], 'sheet_name'),
+        );
         $this->assertDatabaseCount('failure_logs', 1);
     }
 
@@ -94,17 +96,19 @@ final class FailureLogWorkbookImporterTest extends TestCase
     {
         [$unit, $asset] = $this->assetContext('Interlocking Elektrik');
         $row = $this->validRow();
-        FailureLog::factory()->for($asset)->create([
-            'source_key' => null,
-            'location' => $row['location'],
-            'resort' => $row['resort'],
-            'qc' => $row['qc'],
-            'failure_event' => $row['failure_event'],
-            'cause' => $row['cause'],
-            'action_taken' => $row['action'],
-            'started_at' => '2026-08-03 00:00:00',
-            'resolved_at' => '2026-08-03 00:00:00',
-        ]);
+        FailureLog::factory()
+            ->for($asset)
+            ->create([
+                'source_key' => null,
+                'location' => $row['location'],
+                'resort' => $row['resort'],
+                'qc' => $row['qc'],
+                'failure_event' => $row['failure_event'],
+                'cause' => $row['cause'],
+                'action_taken' => $row['action'],
+                'started_at' => '2026-08-03 00:00:00',
+                'resolved_at' => '2026-08-03 00:00:00',
+            ]);
         $path = $this->workbook([$row]);
 
         $result = app(FailureLogWorkbookImporter::class)->import($path, $unit);
@@ -120,15 +124,17 @@ final class FailureLogWorkbookImporterTest extends TestCase
     public function test_blank_text_cells_are_imported_as_dashes_instead_of_dropping_the_row(): void
     {
         [$unit] = $this->assetContext('Interlocking Elektrik');
-        $path = $this->workbook([$this->validRow([
-            'location' => '',
-            'resort' => '',
-            'qc' => '',
-            'cause' => '',
-            'action' => '',
-            'spare_part' => '',
-            'vandalism' => '',
-        ])]);
+        $path = $this->workbook([
+            $this->validRow([
+                'location' => '',
+                'resort' => '',
+                'qc' => '',
+                'cause' => '',
+                'action' => '',
+                'spare_part' => '',
+                'vandalism' => '',
+            ]),
+        ]);
 
         $result = app(FailureLogWorkbookImporter::class)->import($path, $unit);
 
@@ -158,11 +164,14 @@ final class FailureLogWorkbookImporterTest extends TestCase
         $this->assertSame(2, $result['duplicates_skipped']);
         $this->assertSame(['Interlocking Elektrik!10', 'Interlocking Elektrik!11'], $result['duplicate_locations']);
         $this->assertDatabaseCount('failure_logs', 0);
-        $this->assertCount(2, array_filter(
-            $result['issues'],
-            fn (array $issue): bool => $issue['severity'] === 'error'
-                && str_contains($issue['message'], 'identitas operasional yang sama'),
-        ));
+        $this->assertCount(
+            2,
+            array_filter(
+                $result['issues'],
+                fn (array $issue): bool => $issue['severity'] === 'error' &&
+                    str_contains($issue['message'], 'identitas operasional yang sama'),
+            ),
+        );
     }
 
     public function test_it_accepts_combined_datetime_columns_when_split_columns_are_absent(): void
@@ -180,9 +189,7 @@ final class FailureLogWorkbookImporterTest extends TestCase
     public function test_it_uses_excel_time_formula_when_legacy_handled_date_is_before_event_date(): void
     {
         [$unit] = $this->assetContext('Interlocking Elektrik');
-        $path = $this->workbook([
-            $this->validRow(['handled_date' => '09/03/2017']),
-        ]);
+        $path = $this->workbook([$this->validRow(['handled_date' => '09/03/2017'])]);
 
         $result = app(FailureLogWorkbookImporter::class)->import($path, $unit);
 
@@ -200,10 +207,13 @@ final class FailureLogWorkbookImporterTest extends TestCase
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         $subsystem = AssetSubsystem::factory()->create(['name' => $subsystemName]);
-        $asset = Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create([
-            'subsystem' => mb_strtoupper($subsystemName),
-            'jumlah_unit' => 2,
-        ]);
+        $asset = Asset::factory()
+            ->for($unit)
+            ->for($subsystem, 'assetSubsystem')
+            ->create([
+                'subsystem' => mb_strtoupper($subsystemName),
+                'jumlah_unit' => 2,
+            ]);
 
         return [$unit, $asset];
     }
@@ -246,10 +256,16 @@ final class FailureLogWorkbookImporterTest extends TestCase
         $sheet->setTitle('Interlocking Elektrik');
         $sheet->setCellValue('B4', 'Interlocking Elektrik');
 
-        foreach ([
-            'C9' => 'Lokasi', 'D9' => 'Failure Event', 'E9' => 'Penyebab', 'F9' => 'Tindakan',
-            'G9' => 'Tanggal Jam Kejadian', 'H9' => 'Tanggal Jam Penanganan',
-        ] as $cell => $header) {
+        foreach (
+            [
+                'C9' => 'Lokasi',
+                'D9' => 'Failure Event',
+                'E9' => 'Penyebab',
+                'F9' => 'Tindakan',
+                'G9' => 'Tanggal Jam Kejadian',
+                'H9' => 'Tanggal Jam Penanganan',
+            ] as $cell => $header
+        ) {
             $sheet->setCellValue($cell, $header);
         }
         $sheet->setCellValue('C10', 'Jakk');
@@ -316,19 +332,22 @@ final class FailureLogWorkbookImporterTest extends TestCase
      */
     private function validRow(array $overrides = []): array
     {
-        return [...[
-            'location' => 'Jakk',
-            'resort' => '1.10 JAKK',
-            'qc' => '1.C MRI',
-            'failure_event' => 'Sinyal masuk mengalami gangguan',
-            'cause' => 'Signal module interface rusak',
-            'action' => 'Diganti',
-            'spare_part' => 'N',
-            'vandalism' => 'N',
-            'event_date' => '09/03/2020',
-            'handled_date' => '09/03/2020',
-            'start_time' => '13:15',
-            'end_time' => '14:50',
-        ], ...$overrides];
+        return [
+            ...[
+                'location' => 'Jakk',
+                'resort' => '1.10 JAKK',
+                'qc' => '1.C MRI',
+                'failure_event' => 'Sinyal masuk mengalami gangguan',
+                'cause' => 'Signal module interface rusak',
+                'action' => 'Diganti',
+                'spare_part' => 'N',
+                'vandalism' => 'N',
+                'event_date' => '09/03/2020',
+                'handled_date' => '09/03/2020',
+                'start_time' => '13:15',
+                'end_time' => '14:50',
+            ],
+            ...$overrides,
+        ];
     }
 }

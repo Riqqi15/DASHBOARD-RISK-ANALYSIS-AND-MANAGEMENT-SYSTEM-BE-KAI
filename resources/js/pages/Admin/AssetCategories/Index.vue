@@ -52,7 +52,7 @@ const nodeDisplayName = (node) => {
   const name = String(node?.name ?? '')
   const order = Number(node?.sort_order)
 
-  if (node?.level_position !== 1 || /^\s*\d+\s*[.\-]/.test(name) || !Number.isInteger(order) || order <= 0) {
+  if (node?.level_position !== 1 || /^\s*\d+\s*[.-]/.test(name) || !Number.isInteger(order) || order <= 0) {
     return name
   }
 
@@ -135,6 +135,7 @@ const submitLevel = () => levelForm.value.post('/admin/asset-category-levels', {
   preserveScroll: true,
   onSuccess: () => { levelForm.value = null },
 })
+const updateFormField = (form, { field, value }) => { form[field] = value }
 
 const deleteLevel = ref(null)
 const deleteLevelForm = ref(null)
@@ -396,7 +397,7 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
       </div>
     </section>
 
-    <LevelDialog v-if="levelForm" :form="levelForm" @close="levelForm = null" @submit="submitLevel" />
+    <LevelDialog v-if="levelForm" :form="levelForm" @close="levelForm = null" @submit="submitLevel" @update-field="updateFormField(levelForm, $event)" />
     <DeleteCategoryDialog
       v-if="deleteLevel && deleteLevelForm"
       :category="deleteLevel"
@@ -415,9 +416,10 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
       :show-sort-order="nodeDialog.mode === 'edit' || nodeDialog.level.position !== 1"
       @close="closeNodeDialog"
       @submit="submitNode"
+      @update-field="updateFormField(nodeForm, $event)"
     />
     <DeleteCategoryDialog v-if="deleteNode && deleteNodeForm" :category="deleteNode" level-label="kategori" :form="deleteNodeForm" @close="deleteNode = null" @confirm="submitDeleteNode" />
-    <TaxonomyAssetDialog v-if="assetForm && selectedNode" :form="assetForm" :node-name="selectedNode.name" @close="assetForm = null" @submit="submitAsset" />
+    <TaxonomyAssetDialog v-if="assetForm && selectedNode" :form="assetForm" :node-name="selectedNode.name" @close="assetForm = null" @submit="submitAsset" @update-field="updateFormField(assetForm, $event)" />
     <ArchiveBranchAssetsDialog v-if="archiveDialog && archiveForm && selectedNode" :node-name="selectedNode.name" :preview="archivePreview" :loading="archiveLoading" :form="archiveForm" @close="archiveDialog = false" @confirm="submitArchive" />
   </MainLayout>
 </template>

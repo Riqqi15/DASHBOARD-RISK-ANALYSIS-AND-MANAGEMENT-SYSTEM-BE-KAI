@@ -24,9 +24,7 @@ class StockMovementController extends Controller
     public function state(ShowInventoryStockStateRequest $request): JsonResponse
     {
         $user = $request->user();
-        $unitId = $user->isPusat()
-            ? (int) $request->validated('unit_kerja_id')
-            : (int) $user->unit_kerja_id;
+        $unitId = $user->isPusat() ? (int) $request->validated('unit_kerja_id') : (int) $user->unit_kerja_id;
         $partId = (int) $request->validated('spare_part_id');
         $stock = InventoryStock::query()
             ->visibleTo($user)
@@ -50,17 +48,11 @@ class StockMovementController extends Controller
     public function store(StoreStockMovementRequest $request): RedirectResponse
     {
         $user = $request->user();
-        $unitId = $user->isPusat()
-            ? (int) $request->validated('unit_kerja_id')
-            : (int) $user->unit_kerja_id;
+        $unitId = $user->isPusat() ? (int) $request->validated('unit_kerja_id') : (int) $user->unit_kerja_id;
         $unit = UnitKerja::query()->findOrFail($unitId);
         $part = SparePart::query()->active()->findOrFail($request->integer('spare_part_id'));
 
-        $stock = InventoryStock::query()
-            ->visibleTo($user)
-            ->whereBelongsTo($unit)
-            ->whereBelongsTo($part)
-            ->first();
+        $stock = InventoryStock::query()->visibleTo($user)->whereBelongsTo($unit)->whereBelongsTo($part)->first();
         if ($stock) {
             Gate::authorize('createMovement', $stock);
         } else {

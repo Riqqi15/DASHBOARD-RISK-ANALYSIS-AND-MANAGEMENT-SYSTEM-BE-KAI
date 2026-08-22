@@ -27,7 +27,8 @@ class AssetSubsystemController extends Controller
 
         try {
             $system = DB::transaction(function () use ($request, $systemId): AssetSystem {
-                // Every dependency creator must lock/revalidate its active parent; Task 4 assets must do this for their subsystem.
+                // Every dependency creator must lock and revalidate its active parent.
+                // Asset creation must do the same for its subsystem.
                 $system = AssetSystem::query()->where('is_active', true)->lockForUpdate()->findOrFail($systemId);
                 $subsystem = AssetSubsystem::query()->create([
                     'asset_system_id' => $system->id,
@@ -45,11 +46,12 @@ class AssetSubsystemController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('admin.asset-categories.index', [
-            'unit_kerja_id' => $system->assetGroup()->value('unit_kerja_id'),
-            'group' => $system->asset_group_id,
-            'system' => $system->id,
-        ])
+        return redirect()
+            ->route('admin.asset-categories.index', [
+                'unit_kerja_id' => $system->assetGroup()->value('unit_kerja_id'),
+                'group' => $system->asset_group_id,
+                'system' => $system->id,
+            ])
             ->with('success', 'Subsistem aset berhasil ditambahkan.');
     }
 
@@ -64,14 +66,20 @@ class AssetSubsystemController extends Controller
                     'dashboard_color' => $request->validated('dashboard_color'),
                     'dashboard_color_source' => $request->validated('dashboard_color') ? 'manual' : null,
                 ]);
-                $this->auditLogger->record('asset_category.updated', $assetSubsystem, $before, $this->auditValues($assetSubsystem->fresh()));
+                $this->auditLogger->record(
+                    'asset_category.updated',
+                    $assetSubsystem,
+                    $before,
+                    $this->auditValues($assetSubsystem->fresh()),
+                );
             });
         } catch (QueryException $exception) {
             $this->throwIfDuplicate($exception);
             throw $exception;
         }
 
-        return redirect()->route('admin.asset-categories.index', $this->selection($assetSubsystem))
+        return redirect()
+            ->route('admin.asset-categories.index', $this->selection($assetSubsystem))
             ->with('success', 'Subsistem aset berhasil diperbarui.');
     }
 
@@ -89,13 +97,22 @@ class AssetSubsystemController extends Controller
 
             $before = $this->auditValues($subsystem);
             $subsystem->update(['is_active' => $requestedStatus]);
-            $this->auditLogger->record('asset_category.status_changed', $subsystem, $before, $this->auditValues($subsystem->fresh()));
+            $this->auditLogger->record(
+                'asset_category.status_changed',
+                $subsystem,
+                $before,
+                $this->auditValues($subsystem->fresh()),
+            );
 
             return true;
         });
 
-        return redirect()->route('admin.asset-categories.index', $selection)
-            ->with('success', $changed ? 'Status subsistem aset berhasil diperbarui.' : 'Status subsistem aset tidak berubah.');
+        return redirect()
+            ->route('admin.asset-categories.index', $selection)
+            ->with(
+                'success',
+                $changed ? 'Status subsistem aset berhasil diperbarui.' : 'Status subsistem aset tidak berubah.',
+            );
     }
 
     public function destroy(AssetSubsystem $assetSubsystem): RedirectResponse
@@ -108,10 +125,15 @@ class AssetSubsystemController extends Controller
             $subsystem = AssetSubsystem::query()->lockForUpdate()->findOrFail($subsystemId);
             $blockers = [
                 'aset' => $subsystem->assets()->withTrashed()->count(),
-                'alias sumber' => AssetCategorySourceAlias::query()->where('category_type', 'subsystem')->where('category_id', $subsystem->id)->count(),
+                'alias sumber' => AssetCategorySourceAlias::query()
+                    ->where('category_type', 'subsystem')
+                    ->where('category_id', $subsystem->id)
+                    ->count(),
             ];
 
-            foreach (['unit_subsystem_openings' => 'pembukaan unit', 'spare_parts' => 'suku cadang'] as $table => $label) {
+            foreach (
+                ['unit_subsystem_openings' => 'pembukaan unit', 'spare_parts' => 'suku cadang'] as $table => $label
+            ) {
                 if (Schema::hasTable($table) && Schema::hasColumn($table, 'asset_subsystem_id')) {
                     $blockers[$label] = DB::table($table)->where('asset_subsystem_id', $subsystem->id)->count();
                 }
@@ -130,10 +152,14 @@ class AssetSubsystemController extends Controller
         });
 
         if ($blockers !== []) {
-            return redirect()->back()->withErrors(['category' => $this->blockedMessage($blockers)]);
+            return redirect()
+                ->back()
+                ->withErrors(['category' => $this->blockedMessage($blockers)]);
         }
 
-        return redirect()->route('admin.asset-categories.index', $selection)->with('success', 'Subsistem aset berhasil dihapus.');
+        return redirect()
+            ->route('admin.asset-categories.index', $selection)
+            ->with('success', 'Subsistem aset berhasil dihapus.');
     }
 
     private function auditValues(AssetSubsystem $subsystem): array

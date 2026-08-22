@@ -43,17 +43,23 @@ class InventoryManagementTest extends TestCase
         $unit = UnitKerja::factory()->create();
         $user = User::factory()->unit($unit)->create();
         $part = SparePart::factory()->create();
-        InventoryStock::factory()->for($unit)->for($part)->create(['quantity' => 10]);
+        InventoryStock::factory()
+            ->for($unit)
+            ->for($part)
+            ->create(['quantity' => 10]);
 
         $this->actingAs($user)
             ->from('/inventory')
-            ->post(route('stock-movements.store'), $this->storePayload($part, [
-                'type' => 'out',
-                'direction' => 'out',
-                'quantity' => 3,
-                'reference_number' => '  WO-001  ',
-                'notes' => "  Penggantian   relay  \n  jalur A  ",
-            ]))
+            ->post(
+                route('stock-movements.store'),
+                $this->storePayload($part, [
+                    'type' => 'out',
+                    'direction' => 'out',
+                    'quantity' => 3,
+                    'reference_number' => '  WO-001  ',
+                    'notes' => "  Penggantian   relay  \n  jalur A  ",
+                ]),
+            )
             ->assertRedirect('/inventory')
             ->assertSessionHas('success', 'Transaksi stok berhasil dicatat.');
 
@@ -77,13 +83,19 @@ class InventoryManagementTest extends TestCase
         $otherUnit = UnitKerja::factory()->create();
         $user = User::factory()->unit($ownUnit)->create();
         $part = SparePart::factory()->create();
-        InventoryStock::factory()->for($otherUnit)->for($part)->create(['quantity' => 10]);
+        InventoryStock::factory()
+            ->for($otherUnit)
+            ->for($part)
+            ->create(['quantity' => 10]);
 
         $this->actingAs($user)
             ->from('/inventory')
-            ->post(route('stock-movements.store'), $this->storePayload($part, [
-                'unit_kerja_id' => $otherUnit->id,
-            ]))
+            ->post(
+                route('stock-movements.store'),
+                $this->storePayload($part, [
+                    'unit_kerja_id' => $otherUnit->id,
+                ]),
+            )
             ->assertRedirect('/inventory')
             ->assertSessionHasErrors('unit_kerja_id');
 
@@ -131,11 +143,14 @@ class InventoryManagementTest extends TestCase
             ->assertExactJson(['quantity' => 0, 'can_open' => true, 'can_out' => false]);
 
         $this->actingAs($user)
-            ->post(route('stock-movements.store'), $this->storePayload($part, [
-                'type' => 'opening',
-                'direction' => 'in',
-                'quantity' => 6,
-            ]))
+            ->post(
+                route('stock-movements.store'),
+                $this->storePayload($part, [
+                    'type' => 'opening',
+                    'direction' => 'in',
+                    'quantity' => 6,
+                ]),
+            )
             ->assertRedirect('/inventory');
 
         $this->assertDatabaseHas('inventory_stocks', [
@@ -153,28 +168,35 @@ class InventoryManagementTest extends TestCase
         $ownUnit = UnitKerja::factory()->create();
         $otherUnit = UnitKerja::factory()->create();
         $part = SparePart::factory()->create();
-        InventoryStock::factory()->for($otherUnit)->for($part)->create(['quantity' => 9]);
+        InventoryStock::factory()
+            ->for($otherUnit)
+            ->for($part)
+            ->create(['quantity' => 9]);
         $regional = User::factory()->unit($ownUnit)->create();
         $pusat = User::factory()->pusat()->create();
 
-        $regionalResponse = $this->actingAs($regional)
-            ->getJson(route('stock-movements.state', [
+        $regionalResponse = $this->actingAs($regional)->getJson(
+            route('stock-movements.state', [
                 'unit_kerja_id' => $otherUnit->id,
                 'spare_part_id' => $part->id,
-            ]));
+            ]),
+        );
         $this->assertSame(422, $regionalResponse->getStatusCode());
         $this->assertStringContainsString('unit_kerja_id', $regionalResponse->getContent());
 
-        $pusatResponse = $this->actingAs($pusat)
-            ->getJson(route('stock-movements.state', ['spare_part_id' => $part->id]));
+        $pusatResponse = $this->actingAs($pusat)->getJson(
+            route('stock-movements.state', ['spare_part_id' => $part->id]),
+        );
         $this->assertSame(422, $pusatResponse->getStatusCode());
         $this->assertStringContainsString('unit_kerja_id', $pusatResponse->getContent());
 
         $this->actingAs($pusat)
-            ->getJson(route('stock-movements.state', [
-                'unit_kerja_id' => $otherUnit->id,
-                'spare_part_id' => $part->id,
-            ]))
+            ->getJson(
+                route('stock-movements.state', [
+                    'unit_kerja_id' => $otherUnit->id,
+                    'spare_part_id' => $part->id,
+                ]),
+            )
             ->assertOk()
             ->assertExactJson(['quantity' => 9, 'can_open' => false, 'can_out' => true]);
     }
@@ -184,12 +206,14 @@ class InventoryManagementTest extends TestCase
         $user = User::factory()->unit()->create();
         $part = SparePart::factory()->create();
 
-        foreach ([
-            [['type' => 'in', 'direction' => 'out'], 'direction'],
-            [['type' => 'out', 'direction' => 'in'], 'direction'],
-            [['type' => 'opening', 'direction' => 'out'], 'direction'],
-            [['type' => 'correction', 'direction' => 'in'], 'type'],
-        ] as [$invalidPair, $errorKey]) {
+        foreach (
+            [
+                [['type' => 'in', 'direction' => 'out'], 'direction'],
+                [['type' => 'out', 'direction' => 'in'], 'direction'],
+                [['type' => 'opening', 'direction' => 'out'], 'direction'],
+                [['type' => 'correction', 'direction' => 'in'], 'type'],
+            ] as [$invalidPair, $errorKey]
+        ) {
             $this->actingAs($user)
                 ->from('/inventory')
                 ->post(route('stock-movements.store'), $this->storePayload($part, $invalidPair))
@@ -198,11 +222,14 @@ class InventoryManagementTest extends TestCase
 
         $this->actingAs($user)
             ->from('/inventory')
-            ->post(route('stock-movements.store'), $this->storePayload($part, [
-                'movement_date' => '2026-07-29',
-                'reference_number' => str_repeat('R', 101),
-                'notes' => str_repeat('N', 1001),
-            ]))
+            ->post(
+                route('stock-movements.store'),
+                $this->storePayload($part, [
+                    'movement_date' => '2026-07-29',
+                    'reference_number' => str_repeat('R', 101),
+                    'notes' => str_repeat('N', 1001),
+                ]),
+            )
             ->assertSessionHasErrors(['movement_date', 'reference_number', 'notes']);
 
         $this->assertDatabaseCount('stock_movements', 0);
@@ -260,7 +287,10 @@ class InventoryManagementTest extends TestCase
         $unit = UnitKerja::factory()->create();
         $user = User::factory()->unit($unit)->create();
         $part = SparePart::factory()->create();
-        InventoryStock::factory()->for($unit)->for($part)->create(['quantity' => 10]);
+        InventoryStock::factory()
+            ->for($unit)
+            ->for($part)
+            ->create(['quantity' => 10]);
         $source = StockMovement::factory()
             ->for($unit)
             ->for($part)
@@ -275,10 +305,13 @@ class InventoryManagementTest extends TestCase
         $sourceAttributes = (array) DB::table('stock_movements')->where('id', $source->id)->first();
         $this->actingAs($user)
             ->from('/inventory')
-            ->post(route('stock-movements.correct', $source), array_replace($this->correctionPayload(), [
-                'unit_kerja_id' => UnitKerja::factory()->create()->id,
-                'spare_part_id' => SparePart::factory()->create()->id,
-            ]))
+            ->post(
+                route('stock-movements.correct', $source),
+                array_replace($this->correctionPayload(), [
+                    'unit_kerja_id' => UnitKerja::factory()->create()->id,
+                    'spare_part_id' => SparePart::factory()->create()->id,
+                ]),
+            )
             ->assertSessionHasErrors(['unit_kerja_id', 'spare_part_id']);
 
         $this->actingAs($user)
@@ -290,9 +323,12 @@ class InventoryManagementTest extends TestCase
             ->assertRedirect('/inventory');
         $this->actingAs($user)
             ->from('/inventory?tab=history')
-            ->post(route('stock-movements.correct', $source), array_replace($this->correctionPayload(), [
-                'idempotency_key' => '1a04c537-8eb8-4cd1-8e0a-07633169bf24',
-            ]))
+            ->post(
+                route('stock-movements.correct', $source),
+                array_replace($this->correctionPayload(), [
+                    'idempotency_key' => '1a04c537-8eb8-4cd1-8e0a-07633169bf24',
+                ]),
+            )
             ->assertSessionHasErrors([
                 'movement' => 'Transaksi sumber sudah pernah dikoreksi.',
             ]);
@@ -312,13 +348,20 @@ class InventoryManagementTest extends TestCase
         $otherUnit = UnitKerja::factory()->create();
         $user = User::factory()->unit($ownUnit)->create();
         $part = SparePart::factory()->create();
-        InventoryStock::factory()->for($ownUnit)->for($part)->create(['quantity' => 5]);
+        InventoryStock::factory()
+            ->for($ownUnit)
+            ->for($part)
+            ->create(['quantity' => 5]);
         $original = StockMovement::factory()->for($ownUnit)->for($part)->for($user, 'actor')->create();
-        $correction = StockMovement::factory()->for($ownUnit)->for($part)->for($user, 'actor')->create([
-            'type' => StockMovementType::Correction,
-            'direction' => StockDirection::In,
-            'reverses_movement_id' => $original->id,
-        ]);
+        $correction = StockMovement::factory()
+            ->for($ownUnit)
+            ->for($part)
+            ->for($user, 'actor')
+            ->create([
+                'type' => StockMovementType::Correction,
+                'direction' => StockDirection::In,
+                'reverses_movement_id' => $original->id,
+            ]);
         $otherMovement = StockMovement::factory()->for($otherUnit)->for($part)->create();
 
         $this->actingAs($user)
@@ -365,16 +408,19 @@ class InventoryManagementTest extends TestCase
     /** @param array<string, mixed> $overrides */
     private function storePayload(SparePart $part, array $overrides = []): array
     {
-        return array_replace([
-            'spare_part_id' => $part->id,
-            'type' => 'in',
-            'direction' => 'in',
-            'quantity' => 5,
-            'movement_date' => '2026-07-28',
-            'reference_number' => 'IN-001',
-            'notes' => 'Penerimaan stok',
-            'idempotency_key' => '98d4bb31-49f7-4e04-af74-e1b884de0b63',
-        ], $overrides);
+        return array_replace(
+            [
+                'spare_part_id' => $part->id,
+                'type' => 'in',
+                'direction' => 'in',
+                'quantity' => 5,
+                'movement_date' => '2026-07-28',
+                'reference_number' => 'IN-001',
+                'notes' => 'Penerimaan stok',
+                'idempotency_key' => '98d4bb31-49f7-4e04-af74-e1b884de0b63',
+            ],
+            $overrides,
+        );
     }
 
     /** @return array<string, mixed> */

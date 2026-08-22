@@ -27,9 +27,18 @@ return new class extends Migration
             $table->index(['asset_id', 'status']);
         });
 
-        DB::statement('ALTER TABLE risk_registers ADD CONSTRAINT chk_risk_registers_likelihood CHECK (likelihood IS NULL OR likelihood BETWEEN 1 AND 4)');
-        DB::statement('ALTER TABLE risk_registers ADD CONSTRAINT chk_risk_registers_consequence CHECK (consequence IS NULL OR consequence BETWEEN 1 AND 4)');
-        DB::statement("ALTER TABLE risk_registers ADD CONSTRAINT chk_risk_registers_status CHECK (status IN ('open', 'in_progress', 'closed'))");
+        DB::statement(
+            'ALTER TABLE risk_registers ADD CONSTRAINT '
+                .'chk_risk_registers_likelihood CHECK (likelihood IS NULL OR likelihood BETWEEN 1 AND 4)',
+        );
+        DB::statement(
+            'ALTER TABLE risk_registers ADD CONSTRAINT '
+                .'chk_risk_registers_consequence CHECK (consequence IS NULL OR consequence BETWEEN 1 AND 4)',
+        );
+        DB::statement(
+            'ALTER TABLE risk_registers ADD CONSTRAINT '
+                ."chk_risk_registers_status CHECK (status IN ('open', 'in_progress', 'closed'))",
+        );
     }
 
     public function down(): void

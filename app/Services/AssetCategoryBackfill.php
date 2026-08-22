@@ -28,9 +28,9 @@ class AssetCategoryBackfill
                         $subsystem = (string) $asset->subsystem;
 
                         if (
-                            $this->resolver->normalize($group) === ''
-                            || $this->resolver->normalize($system) === ''
-                            || $this->resolver->normalize($subsystem) === ''
+                            $this->resolver->normalize($group) === '' ||
+                            $this->resolver->normalize($system) === '' ||
+                            $this->resolver->normalize($subsystem) === ''
                         ) {
                             $skipped++;
 

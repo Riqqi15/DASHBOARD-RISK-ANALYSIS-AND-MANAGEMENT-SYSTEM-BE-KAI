@@ -36,21 +36,36 @@ try {
     if (in_array($action, ['setup-out', 'setup-empty'], true)) {
         $scope = $argv[2] ?? '';
         $unit = UnitKerja::factory()->create(['code' => 'RACE-'.substr(hash('sha256', $scope), 0, 12)]);
-        $part = SparePart::factory()->create(['source_key' => 'race|'.$scope, 'code' => 'RACE-'.substr(hash('sha256', $scope), 0, 12)]);
-        $actor = User::factory()->pusat()->create(['email' => "{$scope}@example.test"]);
+        $part = SparePart::factory()->create([
+            'source_key' => 'race|'.$scope,
+            'code' => 'RACE-'.substr(hash('sha256', $scope), 0, 12),
+        ]);
+        $actor = User::factory()
+            ->pusat()
+            ->create(['email' => "{$scope}@example.test"]);
         $sourceId = null;
         if ($action === 'setup-out') {
-            InventoryStock::factory()->for($unit)->for($part)->create(['quantity' => 5]);
-            $sourceId = StockMovement::factory()->for($unit)->for($part)->for($actor, 'actor')->create([
-                'type' => StockMovementType::Opening,
-                'direction' => StockDirection::In,
-                'quantity' => 5,
-                'stock_before' => 0,
-                'stock_after' => 5,
-                'idempotency_key' => (string) Str::uuid(),
-            ])->id;
+            InventoryStock::factory()
+                ->for($unit)
+                ->for($part)
+                ->create(['quantity' => 5]);
+            $sourceId = StockMovement::factory()
+                ->for($unit)
+                ->for($part)
+                ->for($actor, 'actor')
+                ->create([
+                    'type' => StockMovementType::Opening,
+                    'direction' => StockDirection::In,
+                    'quantity' => 5,
+                    'stock_before' => 0,
+                    'stock_after' => 5,
+                    'idempotency_key' => (string) Str::uuid(),
+                ])->id;
         }
-        echo json_encode(['unit_id' => $unit->id, 'part_id' => $part->id, 'actor_id' => $actor->id, 'source_id' => $sourceId], JSON_THROW_ON_ERROR);
+        echo json_encode(
+            ['unit_id' => $unit->id, 'part_id' => $part->id, 'actor_id' => $actor->id, 'source_id' => $sourceId],
+            JSON_THROW_ON_ERROR,
+        );
         exit(0);
     }
 
@@ -59,12 +74,21 @@ try {
         DB::statement('SET @rams_allow_stock_movement_mutation = 1');
         try {
             DB::transaction(function () use ($scope): void {
-                $part = SparePart::withTrashed()->where('source_key', 'race|'.$scope)->first();
-                $actor = User::query()->where('email', "{$scope}@example.test")->first();
-                $unit = UnitKerja::query()->where('code', 'RACE-'.substr(hash('sha256', $scope), 0, 12))->first();
+                $part = SparePart::withTrashed()
+                    ->where('source_key', 'race|'.$scope)
+                    ->first();
+                $actor = User::query()
+                    ->where('email', "{$scope}@example.test")
+                    ->first();
+                $unit = UnitKerja::query()
+                    ->where('code', 'RACE-'.substr(hash('sha256', $scope), 0, 12))
+                    ->first();
                 if ($part) {
                     $movementIds = StockMovement::query()->where('spare_part_id', $part->id)->pluck('id');
-                    AuditLog::query()->where('auditable_type', StockMovement::class)->whereIn('auditable_id', $movementIds)->delete();
+                    AuditLog::query()
+                        ->where('auditable_type', StockMovement::class)
+                        ->whereIn('auditable_id', $movementIds)
+                        ->delete();
                     StockMovement::query()->where('spare_part_id', $part->id)->delete();
                     InventoryStock::query()->where('spare_part_id', $part->id)->delete();
                     $subsystem = AssetSubsystem::withTrashed()->find($part->asset_subsystem_id);
@@ -127,7 +151,10 @@ try {
         );
         echo json_encode(['success' => true, 'movement_id' => $movement->id], JSON_THROW_ON_ERROR);
     } catch (ValidationException $exception) {
-        echo json_encode(['success' => false, 'validation' => true, 'errors' => $exception->errors()], JSON_THROW_ON_ERROR);
+        echo json_encode(
+            ['success' => false, 'validation' => true, 'errors' => $exception->errors()],
+            JSON_THROW_ON_ERROR,
+        );
     }
     exit(0);
 } catch (Throwable $exception) {

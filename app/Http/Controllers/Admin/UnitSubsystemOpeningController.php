@@ -13,10 +13,8 @@ class UnitSubsystemOpeningController extends Controller
 {
     public function __construct(private readonly AuditLogger $auditLogger) {}
 
-    public function update(
-        UpdateUnitSubsystemOpeningRequest $request,
-        UnitSubsystemOpening $opening,
-    ): RedirectResponse {
+    public function update(UpdateUnitSubsystemOpeningRequest $request, UnitSubsystemOpening $opening): RedirectResponse
+    {
         $changed = DB::transaction(function () use ($request, $opening): bool {
             $locked = UnitSubsystemOpening::query()->lockForUpdate()->findOrFail($opening->id);
             $before = $this->auditValues($locked);
@@ -40,23 +38,17 @@ class UnitSubsystemOpeningController extends Controller
             return true;
         });
 
-        return redirect()->back()->with(
-            'success',
-            $changed
-                ? 'Stok pembukaan unit berhasil diperbarui.'
-                : 'Stok pembukaan unit tidak berubah.',
-        );
+        return redirect()
+            ->back()
+            ->with(
+                'success',
+                $changed ? 'Stok pembukaan unit berhasil diperbarui.' : 'Stok pembukaan unit tidak berubah.',
+            );
     }
 
     /** @return array<string, int|string> */
     private function auditValues(UnitSubsystemOpening $opening): array
     {
-        return $opening->only([
-            'unit_kerja_id',
-            'asset_subsystem_id',
-            'sparepart_in',
-            'sparepart_out',
-            'source_key',
-        ]);
+        return $opening->only(['unit_kerja_id', 'asset_subsystem_id', 'sparepart_in', 'sparepart_out', 'source_key']);
     }
 }

@@ -54,7 +54,15 @@ class SparePartWorkbookImporter
     }
 
     /**
-     * @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int, issues: list<array<string, mixed>>}
+     * @return array{
+     *     created: int,
+     *     updated: int,
+     *     unchanged: int,
+     *     duplicates_skipped: int,
+     *     duplicate_locations: list<string>,
+     *     skipped: int,
+     *     issues: list<array<string, mixed>>
+     * }
      */
     public function import(
         string $workbookPath,
@@ -113,15 +121,24 @@ class SparePartWorkbookImporter
                 $actualLabel = $actual === '' ? '(kosong)' : $actual;
 
                 throw new RuntimeException(
-                    "Workbook {$workbookName}, sheet ".self::SHEET
-                        .", row 1, header {$expected}: ditemukan {$actualLabel}.",
+                    "Workbook {$workbookName}, sheet ".
+                        self::SHEET.
+                        ", row 1, header {$expected}: ditemukan {$actualLabel}.",
                 );
             }
         }
     }
 
     /**
-     * @return array{created: int, updated: int, unchanged: int, duplicates_skipped: int, duplicate_locations: list<string>, skipped: int, issues: list<array<string, mixed>>}
+     * @return array{
+     *     created: int,
+     *     updated: int,
+     *     unchanged: int,
+     *     duplicates_skipped: int,
+     *     duplicate_locations: list<string>,
+     *     skipped: int,
+     *     issues: list<array<string, mixed>>
+     * }
      */
     private function importRows(
         Worksheet $sheet,
@@ -165,11 +182,13 @@ class SparePartWorkbookImporter
             $currentEquipment = $this->boundedText($currentEquipment, 255, $workbookName, $row, 'Equipment');
             $detailEquipment = $this->boundedText($detailEquipment, 255, $workbookName, $row, 'Detail Equipment');
 
-            foreach ([
-                'System' => $currentGroup,
-                'Sub-System' => $currentSystem,
-                'Equipment' => $currentEquipment,
-            ] as $header => $value) {
+            foreach (
+                [
+                    'System' => $currentGroup,
+                    'Sub-System' => $currentSystem,
+                    'Equipment' => $currentEquipment,
+                ] as $header => $value
+            ) {
                 if ($value === '') {
                     throw $this->rowError($workbookName, $row, $header, 'nilai hierarchy kosong.');
                 }
@@ -203,8 +222,8 @@ class SparePartWorkbookImporter
                     'source_row' => $row,
                     'source_column' => 'Equipment',
                     'severity' => 'warning',
-                    'message' => "Hierarchy {$currentGroup}|{$currentSystem}|{$currentEquipment} "
-                        .'tidak ditemukan pada master Predictive Data Asset; baris Reorder Stock dilewati.',
+                    'message' => "Hierarchy {$currentGroup}|{$currentSystem}|{$currentEquipment} ".
+                        'tidak ditemukan pada master Predictive Data Asset; baris Reorder Stock dilewati.',
                 ];
 
                 continue;
@@ -233,9 +252,11 @@ class SparePartWorkbookImporter
 
             $matchingParts = SparePart::withTrashed()
                 ->where(function ($query) use ($sourceKey, $subsystem, $detailEquipment): void {
-                    $query->where('source_key', $sourceKey)
+                    $query
+                        ->where('source_key', $sourceKey)
                         ->orWhere(function ($legacy) use ($subsystem, $detailEquipment): void {
-                            $legacy->where('asset_subsystem_id', $subsystem->id)
+                            $legacy
+                                ->where('asset_subsystem_id', $subsystem->id)
                                 ->where('detail_equipment', $detailEquipment);
                         });
                 })
@@ -279,7 +300,9 @@ class SparePartWorkbookImporter
             try {
                 $part = SparePart::query()->create([
                     ...$sourceValues,
-                    'reorder_calculated_at' => $sourceValues['reorder_calculation_status'] === 'calculated' ? now() : null,
+                    'reorder_calculated_at' => $sourceValues['reorder_calculation_status'] === 'calculated'
+                        ? now()
+                        : null,
                     'source_key' => $sourceKey,
                     'code' => 'SP-'.strtoupper(substr($sourceKey, 0, 10)),
                     'unit_of_measure' => 'unit',
@@ -288,10 +311,7 @@ class SparePartWorkbookImporter
                 $this->syncUnitPolicy($unit, $part, $sourceValues, $workbookName, $workbookHash, $row);
                 $result['created']++;
             } catch (UniqueConstraintViolationException $exception) {
-                $concurrent = SparePart::withTrashed()
-                    ->where('source_key', $sourceKey)
-                    ->lockForUpdate()
-                    ->first();
+                $concurrent = SparePart::withTrashed()->where('source_key', $sourceKey)->lockForUpdate()->first();
                 if (! $concurrent) {
                     throw $exception;
                 }
@@ -303,7 +323,8 @@ class SparePartWorkbookImporter
 
                 $concurrent->fill($sourceValues);
                 if ($concurrent->isDirty()) {
-                    $concurrent->reorder_calculated_at = $concurrent->reorder_calculation_status === 'calculated' ? now() : null;
+                    $concurrent->reorder_calculated_at =
+                        $concurrent->reorder_calculation_status === 'calculated' ? now() : null;
                     $concurrent->save();
                     $result['updated']++;
                 } else {
@@ -360,7 +381,12 @@ class SparePartWorkbookImporter
     }
 
     /**
-     * @param  array{max_yearly_failure: ?string, average_yearly_failure: ?string, max_lead_time_months: ?string, average_lead_time_months: ?string}  $inputs
+     * @param  array{
+     *     max_yearly_failure: ?string,
+     *     average_yearly_failure: ?string,
+     *     max_lead_time_months: ?string,
+     *     average_lead_time_months: ?string
+     * }  $inputs
      * @return array<string, int|string|null|Carbon>
      */
     private function calculateReorderValues(array $inputs): array
@@ -418,9 +444,11 @@ class SparePartWorkbookImporter
             if (! $subsystem || ! $subsystem->assetSystem || ! $subsystem->assetSystem->assetGroup) {
                 throw $this->rowError($workbookName, $row, 'Equipment', 'alias kategori rusak.');
             }
-            if (! $subsystem->is_active
-                || ! $subsystem->assetSystem->is_active
-                || ! $subsystem->assetSystem->assetGroup->is_active) {
+            if (
+                ! $subsystem->is_active ||
+                ! $subsystem->assetSystem->is_active ||
+                ! $subsystem->assetSystem->assetGroup->is_active
+            ) {
                 throw $this->rowError($workbookName, $row, 'Equipment', 'alias kategori tidak aktif.');
             }
 
@@ -441,23 +469,10 @@ class SparePartWorkbookImporter
         }
 
         if (! $bootstrapCategories) {
-            throw $this->unmatchedCategoryError(
-                $workbookName,
-                $row,
-                $groupName,
-                $systemName,
-                $subsystemName,
-            );
+            throw $this->unmatchedCategoryError($workbookName, $row, $groupName, $systemName, $subsystemName);
         }
 
-        $this->bootstrapParentAliases(
-            $groupName,
-            $systemName,
-            $paths,
-            $workbookName,
-            $row,
-            $unitKerjaId,
-        );
+        $this->bootstrapParentAliases($groupName, $systemName, $paths, $workbookName, $row, $unitKerjaId);
         $resolved = $this->categoryResolver->resolve(
             $groupName,
             $systemName,
@@ -468,9 +483,11 @@ class SparePartWorkbookImporter
             $unitKerjaId,
         );
         $subsystem = $resolved['subsystem']->load('assetSystem.assetGroup');
-        if (! $subsystem->is_active
-            || ! $subsystem->assetSystem->is_active
-            || ! $subsystem->assetSystem->assetGroup->is_active) {
+        if (
+            ! $subsystem->is_active ||
+            ! $subsystem->assetSystem->is_active ||
+            ! $subsystem->assetSystem->assetGroup->is_active
+        ) {
             throw $this->rowError($workbookName, $row, 'Equipment', 'kategori hasil bootstrap tidak aktif.');
         }
 
@@ -486,8 +503,11 @@ class SparePartWorkbookImporter
         $groups = AssetGroup::query()
             ->where('is_active', true)
             ->where('unit_kerja_id', $unitKerjaId)
-            ->with(['systems' => fn ($query) => $query->where('is_active', true)
-                ->with(['subsystems' => fn ($subsystems) => $subsystems->where('is_active', true)])])
+            ->with([
+                'systems' => fn ($query) => $query
+                    ->where('is_active', true)
+                    ->with(['subsystems' => fn ($subsystems) => $subsystems->where('is_active', true)]),
+            ])
             ->get()
             ->filter(fn (AssetGroup $group): bool => $this->categoryNameMatches($group->name, $groupName));
 
@@ -544,7 +564,8 @@ class SparePartWorkbookImporter
         $group = $groups->first();
         $this->persistAlias('group', $group->id, $paths['group'], $workbookName, $row, $unitKerjaId);
 
-        $systems = $group->systems()
+        $systems = $group
+            ->systems()
             ->where('is_active', true)
             ->get()
             ->filter(fn (AssetSystem $system): bool => $this->categoryNameMatches($system->name, $systemName));
@@ -685,8 +706,8 @@ class SparePartWorkbookImporter
             $workbookName,
             $row,
             'Equipment',
-            "hierarchy {$groupName}|{$systemName}|{$subsystemName} tidak cocok dengan kategori global; "
-                .'jalankan ulang dengan --bootstrap-categories hanya untuk bootstrap awal yang disetujui.',
+            "hierarchy {$groupName}|{$systemName}|{$subsystemName} tidak cocok dengan kategori global; ".
+                'jalankan ulang dengan --bootstrap-categories hanya untuk bootstrap awal yang disetujui.',
         );
     }
 
@@ -697,7 +718,7 @@ class SparePartWorkbookImporter
 
     private function categoryComparable(string $value): string
     {
-        $value = preg_replace('/^\s*\d+\s*[.)-]?\s*/u', '', $value) ?? $value;
+        $value = preg_replace("/^\s*\d+\s*[.)-]?\s*/u", '', $value) ?? $value;
         $value = str_ireplace(['electric', 'ciruit'], ['elektrik', 'circuit'], $value);
 
         return $this->categoryResolver->normalize($value);
@@ -705,10 +726,10 @@ class SparePartWorkbookImporter
 
     private function sourceKey(string ...$parts): string
     {
-        return hash('sha256', implode('|', [
-            self::SHEET,
-            ...array_map($this->categoryResolver->normalize(...), $parts),
-        ]));
+        return hash(
+            'sha256',
+            implode('|', [self::SHEET, ...array_map($this->categoryResolver->normalize(...), $parts)]),
+        );
     }
 
     private function nullableDecimal(
@@ -728,14 +749,9 @@ class SparePartWorkbookImporter
 
         $number = (float) $value;
         if (! is_finite($number) || $number < 0 || $number > 99999999.99) {
-            throw $this->rowError(
-                $workbookName,
-                $row,
-                $header,
-                'harus berada dalam rentang 0 sampai 99999999.99.',
-            );
+            throw $this->rowError($workbookName, $row, $header, 'harus berada dalam rentang 0 sampai 99999999.99.');
         }
-        if (abs(($number * 100) - round($number * 100)) > 0.0000001) {
+        if (abs($number * 100 - round($number * 100)) > 0.0000001) {
             throw $this->rowError($workbookName, $row, $header, 'maksimal memiliki 2 angka desimal.');
         }
 
@@ -782,13 +798,8 @@ class SparePartWorkbookImporter
         return $value === '' ? null : $this->boundedText($value, $maximum, $workbookName, $row, $header);
     }
 
-    private function boundedText(
-        string $value,
-        int $maximum,
-        string $workbookName,
-        int $row,
-        string $header,
-    ): string {
+    private function boundedText(string $value, int $maximum, string $workbookName, int $row, string $header): string
+    {
         if (mb_strlen($value) > $maximum) {
             throw $this->rowError($workbookName, $row, $header, "maksimal {$maximum} karakter.");
         }
@@ -796,13 +807,8 @@ class SparePartWorkbookImporter
         return $value;
     }
 
-    private function cellText(
-        Worksheet $sheet,
-        int $column,
-        int $row,
-        string $workbookName,
-        string $header,
-    ): string {
+    private function cellText(Worksheet $sheet, int $column, int $row, string $workbookName, string $header): string
+    {
         return $this->text($this->cellValue($sheet, $column, $row, $workbookName, $header, false));
     }
 
@@ -824,7 +830,12 @@ class SparePartWorkbookImporter
         try {
             $value = $cell->getCalculatedValue();
         } catch (Throwable $exception) {
-            throw $this->rowError($workbookName, $row, $header, 'formula gagal dievaluasi: '.$exception->getMessage());
+            throw $this->rowError(
+                $workbookName,
+                $row,
+                $header,
+                'formula gagal dievaluasi: '.$exception->getMessage(),
+            );
         }
 
         if ($isFormula && is_string($value) && str_starts_with($value, '#')) {
@@ -838,7 +849,7 @@ class SparePartWorkbookImporter
     {
         $value = preg_replace('/^\s+|\s+$/u', '', (string) ($value ?? '')) ?? trim((string) ($value ?? ''));
 
-        return preg_replace('/\s+/u', ' ', $value) ?? $value;
+        return preg_replace("/\s+/u", ' ', $value) ?? $value;
     }
 
     private function normalize(string $value): string

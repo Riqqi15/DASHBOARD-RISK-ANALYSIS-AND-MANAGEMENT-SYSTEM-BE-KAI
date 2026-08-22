@@ -21,7 +21,10 @@ class RamsDashboardController extends Controller
 
     public function inventory(RamsAreaRequest $request, RamsDashboardQuery $query): Response
     {
-        return Inertia::render('master-data/inventory/Inventory', $query->inventory($request->user(), $request->selectedUnit()));
+        return Inertia::render(
+            'master-data/inventory/Inventory',
+            $query->inventory($request->user(), $request->selectedUnit()),
+        );
     }
 
     public function troubleReport(RamsAreaRequest $request, RamsDashboardQuery $query): Response

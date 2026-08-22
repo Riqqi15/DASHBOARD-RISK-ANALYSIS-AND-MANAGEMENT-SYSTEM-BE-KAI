@@ -116,19 +116,18 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <div ref="overlay" class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[1px]" @click.self="requestClose">
-      <section
+      <dialog
+        open
         ref="dialogRoot"
         tabindex="-1"
-        role="dialog"
-        aria-modal="true"
         :aria-labelledby="labelledby"
         :aria-describedby="describedby"
         :aria-busy="processing"
-        class="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white outline-none shadow-2xl shadow-slate-950/20"
+        class="static m-0 max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-0 text-slate-900 outline-none shadow-2xl shadow-slate-950/20"
         :class="panelClass"
       >
         <slot />
-      </section>
+      </dialog>
     </div>
   </Teleport>
 </template>

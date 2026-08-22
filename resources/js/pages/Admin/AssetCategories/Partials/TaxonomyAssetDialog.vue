@@ -3,7 +3,9 @@ import { X } from 'lucide-vue-next'
 import AccessibleDialog from './AccessibleDialog.vue'
 
 defineProps({ form: { type: Object, required: true }, nodeName: { type: String, required: true } })
-defineEmits(['close', 'submit'])
+const emit = defineEmits(['close', 'submit', 'update-field'])
+const updateField = (field, value) => emit('update-field', { field, value })
+const numberValue = (event) => event.target.value === '' ? '' : event.target.valueAsNumber
 </script>
 
 <template>
@@ -23,12 +25,12 @@ defineEmits(['close', 'submit'])
       </div>
       <div>
         <label for="taxonomy-asset-units" class="mb-2 block text-sm font-medium text-slate-800">Jumlah unit</label>
-        <input id="taxonomy-asset-units" v-model.number="form.jumlah_unit" data-dialog-initial-focus type="number" min="0" required class="h-11 w-full rounded-lg border border-slate-300 px-3.5 text-sm outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10" />
+        <input id="taxonomy-asset-units" :value="form.jumlah_unit" data-dialog-initial-focus type="number" min="0" required class="h-11 w-full rounded-lg border border-slate-300 px-3.5 text-sm outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10" @input="updateField('jumlah_unit', numberValue($event))" />
         <p v-if="form.errors.jumlah_unit" role="alert" class="mt-2 text-sm text-red-600">{{ form.errors.jumlah_unit }}</p>
       </div>
       <div>
         <label for="taxonomy-asset-date" class="mb-2 block text-sm font-medium text-slate-800">Tanggal pemasangan <span class="font-normal text-slate-400">(opsional)</span></label>
-        <input id="taxonomy-asset-date" v-model="form.tanggal_pemasangan" type="date" class="h-11 w-full rounded-lg border border-slate-300 px-3.5 text-sm outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10" />
+        <input id="taxonomy-asset-date" :value="form.tanggal_pemasangan" type="date" class="h-11 w-full rounded-lg border border-slate-300 px-3.5 text-sm outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10" @input="updateField('tanggal_pemasangan', $event.target.value)" />
         <p class="mt-2 text-xs text-slate-500">Dapat diperbarui lagi melalui halaman Master Aset.</p>
         <p v-if="form.errors.tanggal_pemasangan" role="alert" class="mt-2 text-sm text-red-600">{{ form.errors.tanggal_pemasangan }}</p>
       </div>

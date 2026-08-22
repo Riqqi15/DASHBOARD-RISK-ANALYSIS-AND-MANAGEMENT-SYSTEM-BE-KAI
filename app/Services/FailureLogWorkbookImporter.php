@@ -42,8 +42,12 @@ class FailureLogWorkbookImporter
     public function __construct(private readonly RamsWorkbookAssetResolver $assetResolver) {}
 
     /** @return array<string, mixed> */
-    public function import(string $workbookPath, UnitKerja $unit, ?string $workbookHash = null, ?string $workbookName = null): array
-    {
+    public function import(
+        string $workbookPath,
+        UnitKerja $unit,
+        ?string $workbookHash = null,
+        ?string $workbookName = null,
+    ): array {
         $workbookHash ??= hash_file('sha256', $workbookPath) ?: null;
         $workbookName ??= basename($workbookPath);
         $reader = IOFactory::createReaderForFile($workbookPath);
@@ -94,7 +98,8 @@ class FailureLogWorkbookImporter
                                 'sheet_name' => $sheetName,
                                 'source_row' => null,
                                 'source_column' => null,
-                                'message' => "Aset (AssetGroup/System/Subsystem) untuk sheet {$sheetName} tidak ditemukan atau ambigu.",
+                                'message' => 'Aset (AssetGroup/System/Subsystem) untuk sheet '
+                                    ."{$sheetName} tidak ditemukan atau ambigu.",
                             ];
 
                             continue;
@@ -124,7 +129,6 @@ class FailureLogWorkbookImporter
                     unset($spreadsheet);
                 }
             }
-
         }, 3);
 
         return $result;
@@ -142,8 +146,7 @@ class FailureLogWorkbookImporter
                     $columns[self::HEADER_MAP[$header]] = $column;
                 }
             }
-            $hasStartedAt = isset($columns['started_at'])
-                || isset($columns['event_date'], $columns['start_time']);
+            $hasStartedAt = isset($columns['started_at']) || isset($columns['event_date'], $columns['start_time']);
             if (isset($columns['location'], $columns['failure_event']) && $hasStartedAt) {
                 return ['row' => $row, 'columns' => $columns];
             }
@@ -186,8 +189,9 @@ class FailureLogWorkbookImporter
                     'sheet_name' => $sheetName,
                     'source_row' => $row,
                     'source_column' => 'Baris Utuh',
-                    'message' => 'Konflik: '.implode(' dan ', $locations)
-                        .' memiliki identitas operasional yang sama; seluruh baris konflik dilewati.',
+                    'message' => 'Konflik: '.
+                        implode(' dan ', $locations).
+                        ' memiliki identitas operasional yang sama; seluruh baris konflik dilewati.',
                     'severity' => 'error',
                 ];
             }
@@ -242,7 +246,8 @@ class FailureLogWorkbookImporter
                     'sheet_name' => $sheetName,
                     'source_row' => $row,
                     'source_column' => 'Tanggal Jam Penanganan',
-                    'message' => 'Tanggal penanganan sebelum tanggal kejadian; tanggal kejadian dan waktu selesai digunakan mengikuti formula Excel.',
+                    'message' => 'Tanggal penanganan sebelum tanggal kejadian; tanggal kejadian '
+                        .'dan waktu selesai digunakan mengikuti formula Excel.',
                     'severity' => 'warning',
                 ];
                 $resolvedAt = $this->resolvedAtFromExcelTimeFormula($sheet, $columns, $row, $startedAt);
@@ -257,17 +262,15 @@ class FailureLogWorkbookImporter
                 'resort' => isset($columns['resort'])
                     ? $this->importText($this->cellValue($sheet, $columns['resort'], $row))
                     : '-',
-                'qc' => isset($columns['qc'])
-                    ? $this->importText($this->cellValue($sheet, $columns['qc'], $row))
-                    : '-',
+                'qc' => isset($columns['qc']) ? $this->importText($this->cellValue($sheet, $columns['qc'], $row)) : '-',
                 'failure_event' => $event,
                 'cause' => $cause,
                 'action_taken' => $action,
                 'started_at' => $startedAt,
                 'resolved_at' => $resolvedAt,
                 'downtime_minutes' => $downtimeMinutes,
-                'spare_part_replaced' => isset($columns['spare_part_replaced'])
-                    && $this->yesNo($this->cellValue($sheet, $columns['spare_part_replaced'], $row)),
+                'spare_part_replaced' => isset($columns['spare_part_replaced']) &&
+                    $this->yesNo($this->cellValue($sheet, $columns['spare_part_replaced'], $row)),
                 'spare_part_marker' => isset($columns['spare_part_replaced'])
                     ? $this->importText($this->cellValue($sheet, $columns['spare_part_replaced'], $row))
                     : '-',
@@ -282,15 +285,18 @@ class FailureLogWorkbookImporter
                 'sheet_name' => $sheetName,
                 'source_row' => $row,
             ];
-            $sourceKey = hash('sha256', implode('|', [
-                self::IMPORT_VERSION,
-                (string) $asset->unit_kerja_id,
-                $this->assetResolver->comparable($sheetName),
-                (string) $row,
-            ]));
-            $failure = FailureLog::query()->where('source_key', $sourceKey)->first()
-                ?? $this->identicalManualFailure($values)
-                ?? new FailureLog;
+            $sourceKey = hash(
+                'sha256',
+                implode('|', [
+                    self::IMPORT_VERSION,
+                    (string) $asset->unit_kerja_id,
+                    $this->assetResolver->comparable($sheetName),
+                    (string) $row,
+                ]),
+            );
+            $failure =
+                FailureLog::query()->where('source_key', $sourceKey)->first() ??
+                ($this->identicalManualFailure($values) ?? new FailureLog);
             $failure->source_key = $sourceKey;
             $failure->fill($values);
             if (! $failure->exists) {
@@ -348,26 +354,26 @@ class FailureLogWorkbookImporter
                 continue;
             }
 
-            $identity = hash('sha256', implode('|', [
-                (string) $asset->unit_kerja_id,
-                $this->assetResolver->comparable($sheetName),
-                $this->normalize($this->importText($this->cellValue($sheet, $columns['location'], $row))),
-                isset($columns['resort'])
-                    ? $this->normalize($this->importText($this->cellValue($sheet, $columns['resort'], $row)))
-                    : '-',
-                isset($columns['qc'])
-                    ? $this->normalize($this->importText($this->cellValue($sheet, $columns['qc'], $row)))
-                    : '-',
-                $startedAt->format('Y-m-d H:i:s'),
-                $this->normalize($this->text($this->cellValue($sheet, $columns['failure_event'], $row))),
-            ]));
+            $identity = hash(
+                'sha256',
+                implode('|', [
+                    (string) $asset->unit_kerja_id,
+                    $this->assetResolver->comparable($sheetName),
+                    $this->normalize($this->importText($this->cellValue($sheet, $columns['location'], $row))),
+                    isset($columns['resort'])
+                        ? $this->normalize($this->importText($this->cellValue($sheet, $columns['resort'], $row)))
+                        : '-',
+                    isset($columns['qc'])
+                        ? $this->normalize($this->importText($this->cellValue($sheet, $columns['qc'], $row)))
+                        : '-',
+                    $startedAt->format('Y-m-d H:i:s'),
+                    $this->normalize($this->text($this->cellValue($sheet, $columns['failure_event'], $row))),
+                ]),
+            );
             $rowsByIdentity[$identity][] = $row;
         }
 
-        return array_values(array_filter(
-            $rowsByIdentity,
-            fn (array $rows): bool => count($rows) > 1,
-        ));
+        return array_values(array_filter($rowsByIdentity, fn (array $rows): bool => count($rows) > 1));
     }
 
     private function importText(mixed $value): string
@@ -456,7 +462,10 @@ class FailureLogWorkbookImporter
 
             return CarbonImmutable::parse($text);
         } catch (\Throwable $exception) {
-            throw new RuntimeException("Tanggal/waktu tidak valid pada sheet {$sheet}, row {$row}.", previous: $exception);
+            throw new RuntimeException(
+                "Tanggal/waktu tidak valid pada sheet {$sheet}, row {$row}.",
+                previous: $exception,
+            );
         }
     }
 
@@ -506,7 +515,7 @@ class FailureLogWorkbookImporter
 
         $time = CarbonImmutable::parse($this->timeString($value));
 
-        return ($time->hour * 60) + $time->minute + ($time->second / 60);
+        return $time->hour * 60 + $time->minute + $time->second / 60;
     }
 
     private function dateTime(mixed $date, mixed $time, string $sheet, int $row): CarbonImmutable
@@ -514,7 +523,10 @@ class FailureLogWorkbookImporter
         try {
             return CarbonImmutable::parse($this->dateString($date).' '.$this->timeString($time));
         } catch (\Throwable $exception) {
-            throw new RuntimeException("Tanggal/waktu tidak valid pada sheet {$sheet}, row {$row}.", previous: $exception);
+            throw new RuntimeException(
+                "Tanggal/waktu tidak valid pada sheet {$sheet}, row {$row}.",
+                previous: $exception,
+            );
         }
     }
 
@@ -576,9 +588,12 @@ class FailureLogWorkbookImporter
 
     private function isExcelError(mixed $value): bool
     {
-        return is_string($value) && in_array(mb_strtoupper(trim($value)), [
-            '#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA', '#SPILL!',
-        ], true);
+        return is_string($value) &&
+            in_array(
+                mb_strtoupper(trim($value)),
+                ['#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA', '#SPILL!'],
+                true,
+            );
     }
 
     private function yesNo(mixed $value): bool
@@ -593,6 +608,6 @@ class FailureLogWorkbookImporter
 
     private function text(mixed $value): string
     {
-        return preg_replace('/\s+/u', ' ', trim((string) ($value ?? ''))) ?? '';
+        return preg_replace("/\s+/u", ' ', trim((string) ($value ?? ''))) ?? '';
     }
 }

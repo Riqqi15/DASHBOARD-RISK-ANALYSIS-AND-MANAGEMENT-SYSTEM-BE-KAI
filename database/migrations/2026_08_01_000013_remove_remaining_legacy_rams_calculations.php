@@ -23,12 +23,18 @@ return new class extends Migration
     public function up(): void
     {
         DB::table('risk_matrices')
-            ->whereIn('asset_id', DB::table('assets')->select('id')->whereIn('source_key', $this->legacyAssetSourceKeys))
+            ->whereIn(
+                'asset_id',
+                DB::table('assets')->select('id')->whereIn('source_key', $this->legacyAssetSourceKeys),
+            )
             ->delete();
 
         DB::table('reliability_summaries')
             ->where('period', '2026-07-01')
-            ->whereIn('asset_id', DB::table('assets')->select('id')->whereIn('source_key', $this->legacyReliabilityAssetSourceKeys))
+            ->whereIn(
+                'asset_id',
+                DB::table('assets')->select('id')->whereIn('source_key', $this->legacyReliabilityAssetSourceKeys),
+            )
             ->delete();
     }
 

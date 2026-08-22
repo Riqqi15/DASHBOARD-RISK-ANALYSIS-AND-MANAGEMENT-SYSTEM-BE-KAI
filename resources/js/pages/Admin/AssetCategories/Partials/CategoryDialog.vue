@@ -10,7 +10,9 @@ const props = defineProps({
   showSortOrder: { type: Boolean, default: true },
 })
 
-defineEmits(['close', 'submit'])
+const emit = defineEmits(['close', 'submit', 'update-field'])
+const updateField = (field, value) => emit('update-field', { field, value })
+const numberValue = (event) => event.target.value === '' ? '' : event.target.valueAsNumber
 
 </script>
 
@@ -35,7 +37,8 @@ defineEmits(['close', 'submit'])
             <label for="category-name" class="mb-2 block text-sm font-medium text-slate-800">Nama {{ levelLabel }}</label>
             <input
               id="category-name"
-              v-model="form.name"
+              :value="form.name"
+              @input="updateField('name', $event.target.value)"
               data-dialog-initial-focus
               autofocus
               required
@@ -52,7 +55,8 @@ defineEmits(['close', 'submit'])
             <label for="category-sort-order" class="mb-2 block text-sm font-medium text-slate-800">Urutan tampilan</label>
             <input
               id="category-sort-order"
-              v-model.number="form.sort_order"
+              :value="form.sort_order"
+              @input="updateField('sort_order', numberValue($event))"
               type="number"
               min="0"
               max="65535"
@@ -79,12 +83,13 @@ defineEmits(['close', 'submit'])
                 :disabled="form.processing"
                 class="h-11 w-14 cursor-pointer rounded-md border border-slate-300 bg-white p-1 disabled:cursor-not-allowed"
                 aria-label="Pilih warna dashboard"
-                @input="form.dashboard_color = $event.target.value.toUpperCase()"
+                @input="updateField('dashboard_color', $event.target.value.toUpperCase())"
               />
               <label for="category-dashboard-color-value" class="sr-only">Kode warna dashboard</label>
               <input
                 id="category-dashboard-color-value"
-                v-model="form.dashboard_color"
+                :value="form.dashboard_color"
+                @input="updateField('dashboard_color', $event.target.value)"
                 type="text"
                 maxlength="7"
                 placeholder="#FF0000"
@@ -92,14 +97,14 @@ defineEmits(['close', 'submit'])
                 :aria-invalid="Boolean(form.errors.dashboard_color)"
                 class="h-11 min-w-0 flex-1 rounded-lg border border-slate-300 px-3 font-mono text-sm uppercase outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10 disabled:bg-slate-100"
               />
-              <button type="button" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-100" :disabled="form.processing || !form.dashboard_color" @click="form.dashboard_color = null">Reset</button>
+              <button type="button" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-100" :disabled="form.processing || !form.dashboard_color" @click="updateField('dashboard_color', null)">Reset</button>
             </div>
             <p class="mt-2 text-xs leading-5 text-slate-500">Warna manual tidak akan ditimpa saat workbook diimpor ulang. Reset untuk memakai warna Excel pada import berikutnya.</p>
             <p v-if="form.errors.dashboard_color" role="alert" class="mt-2 text-sm text-red-600">{{ form.errors.dashboard_color }}</p>
           </div>
 
           <label v-if="Object.prototype.hasOwnProperty.call(form, 'is_active')" class="flex items-start gap-3 rounded-lg bg-slate-50 p-4">
-            <input v-model="form.is_active" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-[#171650] focus:ring-[#171650]" />
+            <input :checked="form.is_active" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-[#171650] focus:ring-[#171650]" @change="updateField('is_active', $event.target.checked)" />
             <span><span class="block text-sm font-medium text-slate-800">Kategori aktif</span><span class="mt-1 block text-xs leading-5 text-slate-500">Kategori nonaktif tetap tersimpan, tetapi tidak dapat dipilih untuk data baru.</span></span>
           </label>
 

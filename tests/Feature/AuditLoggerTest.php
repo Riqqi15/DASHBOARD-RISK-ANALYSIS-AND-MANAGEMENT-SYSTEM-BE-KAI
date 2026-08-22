@@ -78,10 +78,16 @@ class AuditLoggerTest extends TestCase
         $this->expectExceptionMessage('Actor audit eksplisit harus sudah tersimpan.');
 
         try {
-            app(AuditLogger::class)->record('unit.updated', $unit, [], ['name' => 'Baru'], new User([
-                'name' => 'Belum tersimpan',
-                'username' => 'unsaved.actor',
-            ]));
+            app(AuditLogger::class)->record(
+                'unit.updated',
+                $unit,
+                [],
+                ['name' => 'Baru'],
+                new User([
+                    'name' => 'Belum tersimpan',
+                    'username' => 'unsaved.actor',
+                ]),
+            );
         } finally {
             $this->assertDatabaseCount('audit_logs', 0);
         }

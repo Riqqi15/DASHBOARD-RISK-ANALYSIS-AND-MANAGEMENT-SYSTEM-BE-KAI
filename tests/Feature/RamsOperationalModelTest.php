@@ -20,20 +20,26 @@ class RamsOperationalModelTest extends TestCase
     public function test_operational_models_cast_values_and_expose_relations(): void
     {
         $asset = Asset::factory()->create();
-        $matrix = RiskMatrix::factory()->for($asset)->create([
-            'likelihood' => 4,
-            'consequence' => 4,
-        ]);
-        $register = RiskRegister::factory()->for($asset)->create([
-            'status' => RiskRegisterStatus::InProgress,
-            'likelihood' => 2,
-            'consequence' => 4,
-        ]);
+        $matrix = RiskMatrix::factory()
+            ->for($asset)
+            ->create([
+                'likelihood' => 4,
+                'consequence' => 4,
+            ]);
+        $register = RiskRegister::factory()
+            ->for($asset)
+            ->create([
+                'status' => RiskRegisterStatus::InProgress,
+                'likelihood' => 2,
+                'consequence' => 4,
+            ]);
         $summary = ReliabilitySummary::factory()->for($asset)->create();
-        $failure = FailureLog::factory()->for($asset)->create([
-            'spare_part_replaced' => true,
-            'vandalism' => false,
-        ]);
+        $failure = FailureLog::factory()
+            ->for($asset)
+            ->create([
+                'spare_part_replaced' => true,
+                'vandalism' => false,
+            ]);
 
         $this->assertTrue($matrix->asset->is($asset));
         $this->assertSame(16, $matrix->rating);
@@ -72,9 +78,21 @@ class RamsOperationalModelTest extends TestCase
         $this->assertSame([$ownRegister->id], RiskRegister::query()->visibleTo($ownUser)->pluck('id')->all());
         $this->assertSame([$ownSummary->id], ReliabilitySummary::query()->visibleTo($ownUser)->pluck('id')->all());
         $this->assertSame([$ownFailure->id], FailureLog::query()->visibleTo($ownUser)->pluck('id')->all());
-        $this->assertEqualsCanonicalizing([$ownMatrix->id, $otherMatrix->id], RiskMatrix::query()->visibleTo($pusat)->pluck('id')->all());
-        $this->assertEqualsCanonicalizing([$ownRegister->id, $otherRegister->id], RiskRegister::query()->visibleTo($pusat)->pluck('id')->all());
-        $this->assertEqualsCanonicalizing([$ownSummary->id, $otherSummary->id], ReliabilitySummary::query()->visibleTo($pusat)->pluck('id')->all());
-        $this->assertEqualsCanonicalizing([$ownFailure->id, $otherFailure->id], FailureLog::query()->visibleTo($pusat)->pluck('id')->all());
+        $this->assertEqualsCanonicalizing(
+            [$ownMatrix->id, $otherMatrix->id],
+            RiskMatrix::query()->visibleTo($pusat)->pluck('id')->all(),
+        );
+        $this->assertEqualsCanonicalizing(
+            [$ownRegister->id, $otherRegister->id],
+            RiskRegister::query()->visibleTo($pusat)->pluck('id')->all(),
+        );
+        $this->assertEqualsCanonicalizing(
+            [$ownSummary->id, $otherSummary->id],
+            ReliabilitySummary::query()->visibleTo($pusat)->pluck('id')->all(),
+        );
+        $this->assertEqualsCanonicalizing(
+            [$ownFailure->id, $otherFailure->id],
+            FailureLog::query()->visibleTo($pusat)->pluck('id')->all(),
+        );
     }
 }

@@ -56,7 +56,16 @@ final class ExcelReliabilitySnapshotImporter
         $result = ['snapshots' => 0, 'skipped' => 0, 'issues' => []];
 
         try {
-            DB::transaction(function () use ($spreadsheet, $unit, $workbookPath, $workbookName, $workbookHash, $baselineDate, $calculationDate, &$result): void {
+            DB::transaction(function () use (
+                $spreadsheet,
+                $unit,
+                $workbookPath,
+                $workbookName,
+                $workbookHash,
+                $baselineDate,
+                $calculationDate,
+                &$result,
+            ): void {
                 foreach ($spreadsheet->getWorksheetIterator() as $sheet) {
                     $sheetName = $sheet->getTitle();
                     if (mb_strtolower($sheetName) === 'dashboard') {
@@ -198,17 +207,18 @@ final class ExcelReliabilitySnapshotImporter
         $intervalBaseline = $this->cellValue($sheet->getCell('P8'));
 
         return [
-            'downtime_mode' => str_contains($downtimeFormula, 'downtime') && ! str_contains($downtimeFormula, 'konversi')
-                ? 'excel_day_fraction'
-                : 'minutes',
+            'downtime_mode' => str_contains($downtimeFormula, 'downtime')
+                && ! str_contains($downtimeFormula, 'konversi')
+                    ? 'excel_day_fraction'
+                    : 'minutes',
             'interval_baseline_date' => is_numeric($intervalBaseline)
                 ? CarbonImmutable::instance(Date::excelToDateTimeObject((float) $intervalBaseline))->toDateString()
                 : null,
-            'empty_mttf_mode' => ! array_key_exists('mttf_hours', $errors)
-                && (float) ($values['failure_count'] ?? 0) === 0.0
-                && is_numeric($values['mttf_hours'] ?? null)
-                ? 'zero'
-                : 'null',
+            'empty_mttf_mode' => ! array_key_exists('mttf_hours', $errors) &&
+                (float) ($values['failure_count'] ?? 0) === 0.0 &&
+                is_numeric($values['mttf_hours'] ?? null)
+                    ? 'zero'
+                    : 'null',
             'failure_count_mode' => str_contains($failureCountFormula, '#all') ? 'counta_all_minus_1' : 'counta',
             'spare_part_count_mode' => str_contains($sparePartFormula, 'counta') ? 'counta' : 'countif_ya',
             'vandalism_count_mode' => str_contains($vandalismFormula, 'counta') ? 'counta' : 'countif_ya',
@@ -292,9 +302,10 @@ final class ExcelReliabilitySnapshotImporter
         $intervals = [];
         $sparePartCount = 0;
         $vandalismCount = 0;
-        $downtimeColumn = ($profile['downtime_mode'] ?? 'minutes') === 'excel_day_fraction'
-            ? ($columns['downtime_hours'] ?? null)
-            : ($columns['downtime_minutes'] ?? null);
+        $downtimeColumn =
+            ($profile['downtime_mode'] ?? 'minutes') === 'excel_day_fraction'
+                ? $columns['downtime_hours'] ?? null
+                : $columns['downtime_minutes'] ?? null;
 
         for ($row = $headers['row'] + 1; $row <= $sheet->getHighestDataRow(); $row++) {
             $event = $this->text($this->cellValue($sheet->getCell([$columns['failure_event'], $row])));
@@ -396,14 +407,17 @@ final class ExcelReliabilitySnapshotImporter
 
     private function isExcelError(mixed $value): bool
     {
-        return is_string($value) && in_array(mb_strtoupper(trim($value)), [
-            '#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA', '#SPILL!',
-        ], true);
+        return is_string($value) &&
+            in_array(
+                mb_strtoupper(trim($value)),
+                ['#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA', '#SPILL!'],
+                true,
+            );
     }
 
     private function normalize(mixed $value): string
     {
-        $text = preg_replace('/\s+/u', ' ', trim((string) ($value ?? ''))) ?? '';
+        $text = preg_replace("/\s+/u", ' ', trim((string) ($value ?? ''))) ?? '';
         $text = str_replace('λ', 'lambda', $text);
 
         return mb_strtolower($text);
@@ -411,6 +425,6 @@ final class ExcelReliabilitySnapshotImporter
 
     private function text(mixed $value): string
     {
-        return preg_replace('/\s+/u', ' ', trim((string) ($value ?? ''))) ?? '';
+        return preg_replace("/\s+/u", ' ', trim((string) ($value ?? ''))) ?? '';
     }
 }

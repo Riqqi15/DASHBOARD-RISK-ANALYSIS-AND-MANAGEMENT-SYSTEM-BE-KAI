@@ -73,23 +73,30 @@ class AssetCategoryManagementTest extends TestCase
         $this->actingAs($pusat)
             ->get('/admin/asset-categories?unit_kerja_id='.$daopTwo->id)
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('selectedUnitId', $daopTwo->id)
-                ->has('groups', 0)
-                ->has('nodes', 0)
-                ->where('selectedGroupId', null)
-                ->where('selectedSystemId', null));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->where('selectedUnitId', $daopTwo->id)
+                    ->has('groups', 0)
+                    ->has('nodes', 0)
+                    ->where('selectedGroupId', null)
+                    ->where('selectedSystemId', null),
+            );
 
         $this->actingAs($pusat)
             ->get('/admin/asset-categories?unit_kerja_id='.$daopOne->id)
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('selectedUnitId', $daopOne->id)
-                ->has('groups', 2)
-                ->where('nodes', fn ($nodes) => $nodes->pluck('name')->contains('Legacy DAOP 1')
-                    && $nodes->pluck('name')->contains('Manual DAOP 1'))
-                ->where('groups.0.name', 'Legacy DAOP 1')
-                ->where('groups.1.name', 'Manual DAOP 1'));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->where('selectedUnitId', $daopOne->id)
+                    ->has('groups', 2)
+                    ->where(
+                        'nodes',
+                        fn ($nodes) => $nodes->pluck('name')->contains('Legacy DAOP 1') &&
+                            $nodes->pluck('name')->contains('Manual DAOP 1'),
+                    )
+                    ->where('groups.0.name', 'Legacy DAOP 1')
+                    ->where('groups.1.name', 'Manual DAOP 1'),
+            );
     }
 
     public function test_new_root_category_is_scoped_to_the_selected_unit(): void
@@ -99,12 +106,14 @@ class AssetCategoryManagementTest extends TestCase
         $daopThree = UnitKerja::factory()->create(['code' => 'DAOP-3', 'name' => 'Daerah Operasi 3']);
         $level = AssetCategoryLevel::query()->where('position', 1)->firstOrFail();
 
-        $this->actingAs($pusat)->post('/admin/asset-category-nodes', [
-            'asset_category_level_id' => $level->id,
-            'unit_kerja_id' => $daopOne->id,
-            'name' => '6. DAYA SATU',
-            'sort_order' => 6,
-        ])->assertSessionDoesntHaveErrors();
+        $this->actingAs($pusat)
+            ->post('/admin/asset-category-nodes', [
+                'asset_category_level_id' => $level->id,
+                'unit_kerja_id' => $daopOne->id,
+                'name' => '6. DAYA SATU',
+                'sort_order' => 6,
+            ])
+            ->assertSessionDoesntHaveErrors();
 
         $this->assertDatabaseHas('asset_groups', [
             'unit_kerja_id' => $daopOne->id,
@@ -113,23 +122,35 @@ class AssetCategoryManagementTest extends TestCase
 
         $this->actingAs($pusat)
             ->get('/dashboard?area=DAOP1')
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('asset_categories', fn ($categories) => $categories->pluck('name')->contains('6. DAYA SATU')));
+            ->assertInertia(
+                fn (Assert $page) => $page->where(
+                    'asset_categories',
+                    fn ($categories) => $categories->pluck('name')->contains('6. DAYA SATU'),
+                ),
+            );
 
         $this->actingAs($pusat)
             ->get('/dashboard?area=DAOP3')
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('asset_categories', fn ($categories) => $categories->pluck('name')->doesntContain('6. DAYA SATU')));
+            ->assertInertia(
+                fn (Assert $page) => $page->where(
+                    'asset_categories',
+                    fn ($categories) => $categories->pluck('name')->doesntContain('6. DAYA SATU'),
+                ),
+            );
 
         $this->actingAs($pusat)
             ->get("/admin/asset-categories?unit_kerja_id={$daopThree->id}")
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('nodes', fn ($nodes) => $nodes->pluck('name')->doesntContain('6. DAYA SATU')));
+            ->assertInertia(
+                fn (Assert $page) => $page->where(
+                    'nodes',
+                    fn ($nodes) => $nodes->pluck('name')->doesntContain('6. DAYA SATU'),
+                ),
+            );
 
         $this->assertTrue($daopThree->exists);
     }
 
-    public function test_new_root_category_receives_the_next_order_for_its_unit_without_numbering_the_stored_name(): void
+    public function test_new_root_category_gets_next_unit_order_without_renaming(): void
     {
         $pusat = User::factory()->pusat()->create();
         $daopOne = UnitKerja::factory()->create(['code' => 'DAOP-1']);
@@ -149,11 +170,13 @@ class AssetCategoryManagementTest extends TestCase
             'sort_order' => 99,
         ]);
 
-        $this->actingAs($pusat)->post('/admin/asset-category-nodes', [
-            'asset_category_level_id' => $level->id,
-            'unit_kerja_id' => $daopOne->id,
-            'name' => 'DAYA SATU',
-        ])->assertSessionDoesntHaveErrors();
+        $this->actingAs($pusat)
+            ->post('/admin/asset-category-nodes', [
+                'asset_category_level_id' => $level->id,
+                'unit_kerja_id' => $daopOne->id,
+                'name' => 'DAYA SATU',
+            ])
+            ->assertSessionDoesntHaveErrors();
 
         $this->assertDatabaseHas('asset_groups', [
             'unit_kerja_id' => $daopOne->id,
@@ -167,43 +190,61 @@ class AssetCategoryManagementTest extends TestCase
     {
         $pusat = User::factory()->pusat()->create();
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
-        $second = AssetGroup::factory()->create(['unit_kerja_id' => $unit->id, 'name' => 'Zulu', 'sort_order' => 20, 'is_active' => false]);
+        $second = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => 'Zulu',
+            'sort_order' => 20,
+            'is_active' => false,
+        ]);
         $first = AssetGroup::factory()->create(['unit_kerja_id' => $unit->id, 'name' => 'Alpha', 'sort_order' => 10]);
-        $firstSystem = AssetSystem::factory()->for($first)->create(['name' => 'First', 'sort_order' => 10, 'is_active' => false]);
-        $secondSystem = AssetSystem::factory()->for($first)->create(['name' => 'Second', 'sort_order' => 20]);
-        $subsystem = AssetSubsystem::factory()->for($firstSystem)->create(['name' => 'Child', 'is_active' => false]);
+        $firstSystem = AssetSystem::factory()
+            ->for($first)
+            ->create(['name' => 'First', 'sort_order' => 10, 'is_active' => false]);
+        $secondSystem = AssetSystem::factory()
+            ->for($first)
+            ->create(['name' => 'Second', 'sort_order' => 20]);
+        $subsystem = AssetSubsystem::factory()
+            ->for($firstSystem)
+            ->create(['name' => 'Child', 'is_active' => false]);
         Asset::factory()->for($unit, 'unitKerja')->for($subsystem)->create();
         AssetCategorySourceAlias::query()->create($this->aliasAttributes('group', $first->id, 'Alpha'));
         AssetCategorySourceAlias::query()->create($this->aliasAttributes('system', $firstSystem->id, 'Alpha|First'));
         $deleted = AssetGroup::factory()->create(['name' => 'Deleted']);
         $deleted->delete();
 
-        $this->actingAs($pusat)->get("/admin/asset-categories?unit_kerja_id={$unit->id}&group={$first->id}&system={$firstSystem->id}")
+        $this->actingAs($pusat)
+            ->get("/admin/asset-categories?unit_kerja_id={$unit->id}&group={$first->id}&system={$firstSystem->id}")
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('Admin/AssetCategories/Index', false)
-                ->has('groups', 2)
-                ->where('groups.0.id', $first->id)
-                ->where('groups.0.is_active', true)
-                ->where('groups.0.systems_count', 2)
-                ->where('groups.0.aliases_count', 1)
-                ->where('groups.0.systems.0.id', $firstSystem->id)
-                ->where('groups.0.systems.0.is_active', false)
-                ->where('groups.0.systems.0.subsystems_count', 1)
-                ->where('groups.0.systems.0.aliases_count', 1)
-                ->where('groups.0.systems.0.subsystems.0.id', $subsystem->id)
-                ->where('groups.0.systems.0.subsystems.0.assets_count', 1)
-                ->where('groups.1.id', $second->id)
-                ->where('selectedGroupId', $first->id)
-                ->where('selectedSystemId', $firstSystem->id)
-                ->where('capabilities.manage', true));
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->component('Admin/AssetCategories/Index', false)
+                    ->has('groups', 2)
+                    ->where('groups.0.id', $first->id)
+                    ->where('groups.0.is_active', true)
+                    ->where('groups.0.systems_count', 2)
+                    ->where('groups.0.aliases_count', 1)
+                    ->where('groups.0.systems.0.id', $firstSystem->id)
+                    ->where('groups.0.systems.0.is_active', false)
+                    ->where('groups.0.systems.0.subsystems_count', 1)
+                    ->where('groups.0.systems.0.aliases_count', 1)
+                    ->where('groups.0.systems.0.subsystems.0.id', $subsystem->id)
+                    ->where('groups.0.systems.0.subsystems.0.assets_count', 1)
+                    ->where('groups.1.id', $second->id)
+                    ->where('selectedGroupId', $first->id)
+                    ->where('selectedSystemId', $firstSystem->id)
+                    ->where('capabilities.manage', true),
+            );
 
-        $this->actingAs($pusat)->get("/admin/asset-categories?unit_kerja_id={$unit->id}&group=999999&system=999999")
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('selectedGroupId', $first->id)
-                ->where('selectedSystemId', $firstSystem->id));
+        $this->actingAs($pusat)
+            ->get("/admin/asset-categories?unit_kerja_id={$unit->id}&group=999999&system=999999")
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->where('selectedGroupId', $first->id)
+                    ->where('selectedSystemId', $firstSystem->id),
+            );
 
-        $this->actingAs($pusat)->get("/admin/asset-categories?unit_kerja_id={$unit->id}&group={$first->id}&system={$secondSystem->id}")
+        $this->actingAs($pusat)
+            ->get("/admin/asset-categories?unit_kerja_id={$unit->id}&group={$first->id}&system={$secondSystem->id}")
             ->assertInertia(fn (Assert $page) => $page->where('selectedSystemId', $secondSystem->id));
     }
 
@@ -212,12 +253,14 @@ class AssetCategoryManagementTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
 
-        $this->actingAs($pusat)->post('/admin/asset-groups', [
-            'unit_kerja_id' => $unit->id,
-            'name' => "  Peralatan\u{00A0}\tDalam   Sinyal  ",
-            'normalized_name' => 'malicious',
-            'sort_order' => null,
-        ])->assertRedirect('/admin/asset-categories?unit_kerja_id='.$unit->id);
+        $this->actingAs($pusat)
+            ->post('/admin/asset-groups', [
+                'unit_kerja_id' => $unit->id,
+                'name' => "  Peralatan\u{00A0}\tDalam   Sinyal  ",
+                'normalized_name' => 'malicious',
+                'sort_order' => null,
+            ])
+            ->assertRedirect('/admin/asset-categories?unit_kerja_id='.$unit->id);
 
         $group = AssetGroup::query()->where('name', 'Peralatan Dalam Sinyal')->firstOrFail();
         $this->assertSame('peralatan dalam sinyal', $group->normalized_name);
@@ -233,55 +276,76 @@ class AssetCategoryManagementTest extends TestCase
         $this->assertSame($group->id, $createdAudit->new_values['id']);
         $this->assertSame('Peralatan Dalam Sinyal', $createdAudit->new_values['name']);
 
-        $this->actingAs($pusat)->post('/admin/asset-groups', [
-            'unit_kerja_id' => $unit->id,
-            'name' => ' PERALATAN   DALAM SINYAL ',
-            'normalized_name' => 'unique-lie',
-        ])->assertSessionHasErrors('normalized_name');
+        $this->actingAs($pusat)
+            ->post('/admin/asset-groups', [
+                'unit_kerja_id' => $unit->id,
+                'name' => ' PERALATAN   DALAM SINYAL ',
+                'normalized_name' => 'unique-lie',
+            ])
+            ->assertSessionHasErrors('normalized_name');
 
         $otherGroup = AssetGroup::factory()->create(['unit_kerja_id' => $unit->id, 'name' => 'Other Group']);
-        $this->actingAs($pusat)->post('/admin/asset-systems', [
-            'asset_group_id' => $group->id,
-            'name' => "  Interlocking\u{2003}Elektrik ",
-            'normalized_name' => 'malicious',
-        ])->assertRedirect("/admin/asset-categories?unit_kerja_id={$unit->id}&group={$group->id}");
-        $system = AssetSystem::query()->where('asset_group_id', $group->id)->where('name', 'Interlocking Elektrik')->firstOrFail();
+        $this->actingAs($pusat)
+            ->post('/admin/asset-systems', [
+                'asset_group_id' => $group->id,
+                'name' => "  Interlocking\u{2003}Elektrik ",
+                'normalized_name' => 'malicious',
+            ])
+            ->assertRedirect("/admin/asset-categories?unit_kerja_id={$unit->id}&group={$group->id}");
+        $system = AssetSystem::query()
+            ->where('asset_group_id', $group->id)
+            ->where('name', 'Interlocking Elektrik')
+            ->firstOrFail();
 
-        $this->actingAs($pusat)->post('/admin/asset-systems', [
-            'asset_group_id' => $group->id,
-            'name' => 'INTERLOCKING ELEKTRIK',
-        ])->assertSessionHasErrors('normalized_name');
-        $this->actingAs($pusat)->post('/admin/asset-systems', [
-            'asset_group_id' => $otherGroup->id,
-            'name' => 'INTERLOCKING ELEKTRIK',
-        ])->assertSessionDoesntHaveErrors();
+        $this->actingAs($pusat)
+            ->post('/admin/asset-systems', [
+                'asset_group_id' => $group->id,
+                'name' => 'INTERLOCKING ELEKTRIK',
+            ])
+            ->assertSessionHasErrors('normalized_name');
+        $this->actingAs($pusat)
+            ->post('/admin/asset-systems', [
+                'asset_group_id' => $otherGroup->id,
+                'name' => 'INTERLOCKING ELEKTRIK',
+            ])
+            ->assertSessionDoesntHaveErrors();
 
         $otherSystem = AssetSystem::query()->where('asset_group_id', $otherGroup->id)->firstOrFail();
-        $this->actingAs($pusat)->post('/admin/asset-subsystems', [
-            'asset_system_id' => $system->id,
-            'name' => "  Local\n Control   Panel ",
-        ])->assertRedirect("/admin/asset-categories?unit_kerja_id={$unit->id}&group={$group->id}&system={$system->id}");
+        $this->actingAs($pusat)
+            ->post('/admin/asset-subsystems', [
+                'asset_system_id' => $system->id,
+                'name' => "  Local\n Control   Panel ",
+            ])
+            ->assertRedirect(
+                "/admin/asset-categories?unit_kerja_id={$unit->id}&group={$group->id}&system={$system->id}",
+            );
         $this->assertDatabaseHas('asset_subsystems', [
             'asset_system_id' => $system->id,
             'name' => 'Local Control Panel',
             'normalized_name' => 'local control panel',
             'sort_order' => 0,
         ]);
-        $this->actingAs($pusat)->post('/admin/asset-subsystems', [
-            'asset_system_id' => $otherSystem->id,
-            'name' => 'LOCAL CONTROL PANEL',
-        ])->assertSessionDoesntHaveErrors();
+        $this->actingAs($pusat)
+            ->post('/admin/asset-subsystems', [
+                'asset_system_id' => $otherSystem->id,
+                'name' => 'LOCAL CONTROL PANEL',
+            ])
+            ->assertSessionDoesntHaveErrors();
 
         $group->update(['is_active' => false]);
-        $this->actingAs($pusat)->post('/admin/asset-systems', [
-            'asset_group_id' => $group->id,
-            'name' => 'Rejected',
-        ])->assertSessionHasErrors('asset_group_id');
+        $this->actingAs($pusat)
+            ->post('/admin/asset-systems', [
+                'asset_group_id' => $group->id,
+                'name' => 'Rejected',
+            ])
+            ->assertSessionHasErrors('asset_group_id');
         $system->update(['is_active' => false]);
-        $this->actingAs($pusat)->post('/admin/asset-subsystems', [
-            'asset_system_id' => $system->id,
-            'name' => 'Rejected',
-        ])->assertSessionHasErrors('asset_system_id');
+        $this->actingAs($pusat)
+            ->post('/admin/asset-subsystems', [
+                'asset_system_id' => $system->id,
+                'name' => 'Rejected',
+            ])
+            ->assertSessionHasErrors('asset_system_id');
     }
 
     public function test_pusat_can_override_and_reset_dashboard_color_with_hex_validation(): void
@@ -292,25 +356,31 @@ class AssetCategoryManagementTest extends TestCase
             'dashboard_color_source' => 'excel',
         ]);
 
-        $this->actingAs($pusat)->put("/admin/asset-groups/{$group->id}", [
-            'name' => $group->name,
-            'sort_order' => $group->sort_order,
-            'dashboard_color' => '#12abef',
-        ])->assertSessionDoesntHaveErrors();
+        $this->actingAs($pusat)
+            ->put("/admin/asset-groups/{$group->id}", [
+                'name' => $group->name,
+                'sort_order' => $group->sort_order,
+                'dashboard_color' => '#12abef',
+            ])
+            ->assertSessionDoesntHaveErrors();
         $this->assertSame('#12ABEF', $group->fresh()->dashboard_color);
         $this->assertSame('manual', $group->fresh()->dashboard_color_source);
 
-        $this->actingAs($pusat)->put("/admin/asset-groups/{$group->id}", [
-            'name' => $group->name,
-            'sort_order' => $group->sort_order,
-            'dashboard_color' => 'merah',
-        ])->assertSessionHasErrors('dashboard_color');
+        $this->actingAs($pusat)
+            ->put("/admin/asset-groups/{$group->id}", [
+                'name' => $group->name,
+                'sort_order' => $group->sort_order,
+                'dashboard_color' => 'merah',
+            ])
+            ->assertSessionHasErrors('dashboard_color');
 
-        $this->actingAs($pusat)->put("/admin/asset-groups/{$group->id}", [
-            'name' => $group->name,
-            'sort_order' => $group->sort_order,
-            'dashboard_color' => '',
-        ])->assertSessionDoesntHaveErrors();
+        $this->actingAs($pusat)
+            ->put("/admin/asset-groups/{$group->id}", [
+                'name' => $group->name,
+                'sort_order' => $group->sort_order,
+                'dashboard_color' => '',
+            ])
+            ->assertSessionDoesntHaveErrors();
         $this->assertNull($group->fresh()->dashboard_color);
         $this->assertNull($group->fresh()->dashboard_color_source);
     }
@@ -320,9 +390,13 @@ class AssetCategoryManagementTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $group = AssetGroup::factory()->create(['name' => 'Old Group', 'sort_order' => 1]);
         $otherGroup = AssetGroup::factory()->create();
-        $system = AssetSystem::factory()->for($group)->create(['name' => 'Old System', 'sort_order' => 2]);
+        $system = AssetSystem::factory()
+            ->for($group)
+            ->create(['name' => 'Old System', 'sort_order' => 2]);
         $otherSystem = AssetSystem::factory()->for($otherGroup)->create();
-        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Old Subsystem', 'sort_order' => 3]);
+        $subsystem = AssetSubsystem::factory()
+            ->for($system)
+            ->create(['name' => 'Old Subsystem', 'sort_order' => 3]);
         $asset = Asset::factory()->for($subsystem)->create();
         foreach ([['group', $group->id], ['system', $system->id], ['subsystem', $subsystem->id]] as [$type, $id]) {
             AssetCategorySourceAlias::query()->create($this->aliasAttributes($type, $id, "Alias {$type}"));
@@ -330,10 +404,14 @@ class AssetCategoryManagementTest extends TestCase
 
         $this->actingAs($pusat)->put("/admin/asset-groups/{$group->id}", ['name' => 'New Group', 'sort_order' => 11]);
         $this->actingAs($pusat)->put("/admin/asset-systems/{$system->id}", [
-            'name' => 'New System', 'sort_order' => 12, 'asset_group_id' => $otherGroup->id,
+            'name' => 'New System',
+            'sort_order' => 12,
+            'asset_group_id' => $otherGroup->id,
         ]);
         $this->actingAs($pusat)->put("/admin/asset-subsystems/{$subsystem->id}", [
-            'name' => 'New Subsystem', 'sort_order' => 13, 'asset_system_id' => $otherSystem->id,
+            'name' => 'New Subsystem',
+            'sort_order' => 13,
+            'asset_system_id' => $otherSystem->id,
         ]);
 
         $this->assertSame($group->id, $system->fresh()->asset_group_id);
@@ -342,9 +420,19 @@ class AssetCategoryManagementTest extends TestCase
         $this->assertSame(3, AssetCategorySourceAlias::query()->count());
         $this->assertDatabaseHas('asset_groups', ['id' => $group->id, 'name' => 'New Group', 'sort_order' => 11]);
         $this->assertDatabaseHas('asset_systems', ['id' => $system->id, 'name' => 'New System', 'sort_order' => 12]);
-        $this->assertDatabaseHas('asset_subsystems', ['id' => $subsystem->id, 'name' => 'New Subsystem', 'sort_order' => 13]);
+        $this->assertDatabaseHas('asset_subsystems', [
+            'id' => $subsystem->id,
+            'name' => 'New Subsystem',
+            'sort_order' => 13,
+        ]);
 
-        foreach ([['group', $group, 'Old Group', 'New Group'], ['system', $system, 'Old System', 'New System'], ['subsystem', $subsystem, 'Old Subsystem', 'New Subsystem']] as [$level, $model, $oldName, $newName]) {
+        foreach (
+            [
+                ['group', $group, 'Old Group', 'New Group'],
+                ['system', $system, 'Old System', 'New System'],
+                ['subsystem', $subsystem, 'Old Subsystem', 'New Subsystem'],
+            ] as [$level, $model, $oldName, $newName]
+        ) {
             $audit = AuditLog::query()
                 ->where('action', 'asset_category.updated')
                 ->where('auditable_type', $model->getMorphClass())
@@ -364,10 +452,22 @@ class AssetCategoryManagementTest extends TestCase
         $system = AssetSystem::factory()->for($group)->create();
         $subsystem = AssetSubsystem::factory()->for($system)->create();
 
-        foreach ([['asset-groups', 'group', $group], ['asset-systems', 'system', $system], ['asset-subsystems', 'subsystem', $subsystem]] as [$uri, $level, $model]) {
-            $this->actingAs($pusat)->patch("/admin/{$uri}/{$model->id}/status", ['is_active' => false])->assertSessionDoesntHaveErrors();
+        foreach (
+            [
+                ['asset-groups', 'group', $group],
+                ['asset-systems', 'system', $system],
+                ['asset-subsystems', 'subsystem', $subsystem],
+            ] as [$uri, $level, $model]
+        ) {
+            $this->actingAs($pusat)
+                ->patch("/admin/{$uri}/{$model->id}/status", ['is_active' => false])
+                ->assertSessionDoesntHaveErrors();
             $this->assertFalse($model->fresh()->is_active);
-            $audit = AuditLog::query()->where('action', 'asset_category.status_changed')->where('auditable_type', $model->getMorphClass())->where('auditable_id', $model->id)->firstOrFail();
+            $audit = AuditLog::query()
+                ->where('action', 'asset_category.status_changed')
+                ->where('auditable_type', $model->getMorphClass())
+                ->where('auditable_id', $model->id)
+                ->firstOrFail();
             $this->assertSame($level, $audit->old_values['level']);
             $this->assertTrue($audit->old_values['is_active']);
             $this->assertFalse($audit->new_values['is_active']);
@@ -382,24 +482,33 @@ class AssetCategoryManagementTest extends TestCase
     {
         $pusat = User::factory()->pusat()->create();
         $group = AssetGroup::factory()->create(['is_active' => true]);
-        $system = AssetSystem::factory()->for($group)->create(['is_active' => true]);
-        $subsystem = AssetSubsystem::factory()->for($system)->create(['is_active' => true]);
+        $system = AssetSystem::factory()
+            ->for($group)
+            ->create(['is_active' => true]);
+        $subsystem = AssetSubsystem::factory()
+            ->for($system)
+            ->create(['is_active' => true]);
 
-        foreach ([
-            ['asset-groups', $group, 'Status kelompok aset tidak berubah.'],
-            ['asset-systems', $system, 'Status sistem aset tidak berubah.'],
-            ['asset-subsystems', $subsystem, 'Status subsistem aset tidak berubah.'],
-        ] as [$uri, $model, $message]) {
+        foreach (
+            [
+                ['asset-groups', $group, 'Status kelompok aset tidak berubah.'],
+                ['asset-systems', $system, 'Status sistem aset tidak berubah.'],
+                ['asset-subsystems', $subsystem, 'Status subsistem aset tidak berubah.'],
+            ] as [$uri, $model, $message]
+        ) {
             $this->actingAs($pusat)
                 ->patch("/admin/{$uri}/{$model->id}/status", ['is_active' => true])
                 ->assertRedirect()
                 ->assertSessionHas('success', $message);
 
-            $this->assertSame(0, AuditLog::query()
-                ->where('action', 'asset_category.status_changed')
-                ->where('auditable_type', $model->getMorphClass())
-                ->where('auditable_id', $model->id)
-                ->count());
+            $this->assertSame(
+                0,
+                AuditLog::query()
+                    ->where('action', 'asset_category.status_changed')
+                    ->where('auditable_type', $model->getMorphClass())
+                    ->where('auditable_id', $model->id)
+                    ->count(),
+            );
         }
     }
 
@@ -408,22 +517,31 @@ class AssetCategoryManagementTest extends TestCase
         $pusat = User::factory()->pusat()->create();
         $sharedId = 987654;
         $group = AssetGroup::factory()->create(['id' => $sharedId]);
-        $system = AssetSystem::factory()->for($group)->create(['id' => $sharedId]);
-        $subsystem = AssetSubsystem::factory()->for($system)->create(['id' => $sharedId]);
+        $system = AssetSystem::factory()
+            ->for($group)
+            ->create(['id' => $sharedId]);
+        $subsystem = AssetSubsystem::factory()
+            ->for($system)
+            ->create(['id' => $sharedId]);
 
         $this->assertSame($group->id, $system->id);
         $this->assertSame($system->id, $subsystem->id);
 
-        foreach ([['asset-groups', $group], ['asset-systems', $system], ['asset-subsystems', $subsystem]] as [$uri, $model]) {
+        foreach (
+            [['asset-groups', $group], ['asset-systems', $system], ['asset-subsystems', $subsystem]] as [$uri, $model]
+        ) {
             $this->actingAs($pusat)
                 ->patch("/admin/{$uri}/{$model->id}/status", ['is_active' => false])
                 ->assertSessionDoesntHaveErrors();
 
-            $this->assertSame(1, AuditLog::query()
-                ->where('action', 'asset_category.status_changed')
-                ->where('auditable_type', $model->getMorphClass())
-                ->where('auditable_id', $model->id)
-                ->count());
+            $this->assertSame(
+                1,
+                AuditLog::query()
+                    ->where('action', 'asset_category.status_changed')
+                    ->where('auditable_type', $model->getMorphClass())
+                    ->where('auditable_id', $model->id)
+                    ->count(),
+            );
         }
     }
 
@@ -441,17 +559,25 @@ class AssetCategoryManagementTest extends TestCase
             }
         });
 
-        $this->actingAs($pusat)->post('/admin/asset-systems', [
-            'asset_group_id' => $group->id,
-            'name' => 'Locked Child System',
-        ])->assertSessionDoesntHaveErrors();
-        $this->actingAs($pusat)->post('/admin/asset-subsystems', [
-            'asset_system_id' => $system->id,
-            'name' => 'Locked Child Subsystem',
-        ])->assertSessionDoesntHaveErrors();
+        $this->actingAs($pusat)
+            ->post('/admin/asset-systems', [
+                'asset_group_id' => $group->id,
+                'name' => 'Locked Child System',
+            ])
+            ->assertSessionDoesntHaveErrors();
+        $this->actingAs($pusat)
+            ->post('/admin/asset-subsystems', [
+                'asset_system_id' => $system->id,
+                'name' => 'Locked Child Subsystem',
+            ])
+            ->assertSessionDoesntHaveErrors();
 
-        foreach ([['asset-groups', $group], ['asset-systems', $system], ['asset-subsystems', $subsystem]] as [$uri, $model]) {
-            $this->actingAs($pusat)->patch("/admin/{$uri}/{$model->id}/status", ['is_active' => false])->assertSessionDoesntHaveErrors();
+        foreach (
+            [['asset-groups', $group], ['asset-systems', $system], ['asset-subsystems', $subsystem]] as [$uri, $model]
+        ) {
+            $this->actingAs($pusat)
+                ->patch("/admin/{$uri}/{$model->id}/status", ['is_active' => false])
+                ->assertSessionDoesntHaveErrors();
             $this->actingAs($pusat)->delete("/admin/{$uri}/{$model->id}");
         }
 
@@ -476,7 +602,14 @@ class AssetCategoryManagementTest extends TestCase
             $setup = json_decode($setupProcess->getOutput(), true, 512, JSON_THROW_ON_ERROR);
 
             foreach ([['create-system', 'creator'], ['delete-group', 'deleter']] as [$action, $worker]) {
-                $process = $this->categoryMutationProcess([$action, (string) $setup['group_id'], (string) $setup['user_id'], $scope, $barrier, $worker]);
+                $process = $this->categoryMutationProcess([
+                    $action,
+                    (string) $setup['group_id'],
+                    (string) $setup['user_id'],
+                    $scope,
+                    $barrier,
+                    $worker,
+                ]);
                 $process->setTimeout(15);
                 $process->start();
                 $processes[$worker] = $process;
@@ -489,11 +622,14 @@ class AssetCategoryManagementTest extends TestCase
 
             $this->assertNotSame($results['creator']['success'], $results['deleter']['success']);
             $this->assertFalse($group->trashed() && $liveChildren > 0);
-            $this->assertSame($group->trashed() ? 1 : 0, AuditLog::query()
-                ->where('action', 'asset_category.deleted')
-                ->where('auditable_type', $group->getMorphClass())
-                ->where('auditable_id', $group->id)
-                ->count());
+            $this->assertSame(
+                $group->trashed() ? 1 : 0,
+                AuditLog::query()
+                    ->where('action', 'asset_category.deleted')
+                    ->where('auditable_type', $group->getMorphClass())
+                    ->where('auditable_id', $group->id)
+                    ->count(),
+            );
         } finally {
             $this->cleanupCategoryMutationRace($scope, $barrier, $processes);
         }
@@ -513,7 +649,14 @@ class AssetCategoryManagementTest extends TestCase
             $setup = json_decode($setupProcess->getOutput(), true, 512, JSON_THROW_ON_ERROR);
 
             foreach (['deleter-1', 'deleter-2'] as $worker) {
-                $process = $this->categoryMutationProcess(['delete-group', (string) $setup['group_id'], (string) $setup['user_id'], $scope, $barrier, $worker]);
+                $process = $this->categoryMutationProcess([
+                    'delete-group',
+                    (string) $setup['group_id'],
+                    (string) $setup['user_id'],
+                    $scope,
+                    $barrier,
+                    $worker,
+                ]);
                 $process->setTimeout(15);
                 $process->start();
                 $processes[$worker] = $process;
@@ -525,11 +668,14 @@ class AssetCategoryManagementTest extends TestCase
 
             $this->assertSame(1, collect($results)->where('success', true)->count());
             $this->assertTrue($group->trashed());
-            $this->assertSame(1, AuditLog::query()
-                ->where('action', 'asset_category.deleted')
-                ->where('auditable_type', $group->getMorphClass())
-                ->where('auditable_id', $group->id)
-                ->count());
+            $this->assertSame(
+                1,
+                AuditLog::query()
+                    ->where('action', 'asset_category.deleted')
+                    ->where('auditable_type', $group->getMorphClass())
+                    ->where('auditable_id', $group->id)
+                    ->count(),
+            );
         } finally {
             $this->cleanupCategoryMutationRace($scope, $barrier, $processes);
         }
@@ -542,13 +688,23 @@ class AssetCategoryManagementTest extends TestCase
         $system = AssetSystem::factory()->create();
         $subsystem = AssetSubsystem::factory()->create();
 
-        foreach ([['asset-subsystems', $subsystem], ['asset-systems', $system], ['asset-groups', $group]] as [$uri, $model]) {
-            $this->actingAs($pusat)->delete("/admin/{$uri}/{$model->id}")->assertSessionDoesntHaveErrors();
+        foreach (
+            [['asset-subsystems', $subsystem], ['asset-systems', $system], ['asset-groups', $group]] as [$uri, $model]
+        ) {
+            $this->actingAs($pusat)
+                ->delete("/admin/{$uri}/{$model->id}")
+                ->assertSessionDoesntHaveErrors();
             $this->assertNotNull($model->fresh()->deleted_at);
-            $audit = AuditLog::query()->where('action', 'asset_category.deleted')->where('auditable_type', $model->getMorphClass())->where('auditable_id', $model->id)->firstOrFail();
+            $audit = AuditLog::query()
+                ->where('action', 'asset_category.deleted')
+                ->where('auditable_type', $model->getMorphClass())
+                ->where('auditable_id', $model->id)
+                ->firstOrFail();
             $this->assertSame($pusat->id, $audit->actor_id);
             $this->assertSame([], $audit->new_values);
-            $this->actingAs($pusat)->patch("/admin/{$uri}/{$model->id}/status", ['is_active' => true])->assertNotFound();
+            $this->actingAs($pusat)
+                ->patch("/admin/{$uri}/{$model->id}/status", ['is_active' => true])
+                ->assertNotFound();
             $this->assertNotNull($model->fresh()->deleted_at);
         }
     }
@@ -561,8 +717,16 @@ class AssetCategoryManagementTest extends TestCase
         $subsystem = AssetSubsystem::factory()->for($system)->create();
         Asset::factory()->for($subsystem)->create();
 
-        foreach ([['asset-groups', $group, 'sistem'], ['asset-systems', $system, 'subsistem'], ['asset-subsystems', $subsystem, 'aset']] as [$uri, $model, $blocker]) {
-            $response = $this->actingAs($pusat)->from('/admin/asset-categories')->delete("/admin/{$uri}/{$model->id}");
+        foreach (
+            [
+                ['asset-groups', $group, 'sistem'],
+                ['asset-systems', $system, 'subsistem'],
+                ['asset-subsystems', $subsystem, 'aset'],
+            ] as [$uri, $model, $blocker]
+        ) {
+            $response = $this->actingAs($pusat)
+                ->from('/admin/asset-categories')
+                ->delete("/admin/{$uri}/{$model->id}");
             $response->assertRedirect('/admin/asset-categories')->assertSessionHasErrors('category');
             $message = mb_strtolower($response->getSession()->get('errors')->first('category'));
             $this->assertStringContainsString($blocker, $message);
@@ -570,7 +734,13 @@ class AssetCategoryManagementTest extends TestCase
             $this->assertNull($model->fresh()->deleted_at);
         }
 
-        foreach ([['asset-groups', 'group', AssetGroup::factory()->create()], ['asset-systems', 'system', AssetSystem::factory()->create()], ['asset-subsystems', 'subsystem', AssetSubsystem::factory()->create()]] as [$uri, $type, $model]) {
+        foreach (
+            [
+                ['asset-groups', 'group', AssetGroup::factory()->create()],
+                ['asset-systems', 'system', AssetSystem::factory()->create()],
+                ['asset-subsystems', 'subsystem', AssetSubsystem::factory()->create()],
+            ] as [$uri, $type, $model]
+        ) {
             AssetCategorySourceAlias::query()->create($this->aliasAttributes($type, $model->id, "Only {$type}"));
             $response = $this->actingAs($pusat)->delete("/admin/{$uri}/{$model->id}");
             $response->assertSessionHasErrors('category');
@@ -581,11 +751,14 @@ class AssetCategoryManagementTest extends TestCase
         }
 
         foreach ([$group, $system, $subsystem] as $model) {
-            $this->assertSame(0, AuditLog::query()
-                ->where('action', 'asset_category.deleted')
-                ->where('auditable_type', $model->getMorphClass())
-                ->where('auditable_id', $model->id)
-                ->count());
+            $this->assertSame(
+                0,
+                AuditLog::query()
+                    ->where('action', 'asset_category.deleted')
+                    ->where('auditable_type', $model->getMorphClass())
+                    ->where('auditable_id', $model->id)
+                    ->count(),
+            );
         }
     }
 
@@ -595,17 +768,23 @@ class AssetCategoryManagementTest extends TestCase
         $group = AssetGroup::factory()->create();
         $system = AssetSystem::factory()->for($group)->create();
         $system->delete();
-        $this->actingAs($pusat)->delete("/admin/asset-groups/{$group->id}")->assertSessionHasErrors('category');
+        $this->actingAs($pusat)
+            ->delete("/admin/asset-groups/{$group->id}")
+            ->assertSessionHasErrors('category');
 
         $liveSystem = AssetSystem::factory()->create();
         $subsystem = AssetSubsystem::factory()->for($liveSystem)->create();
         $subsystem->delete();
-        $this->actingAs($pusat)->delete("/admin/asset-systems/{$liveSystem->id}")->assertSessionHasErrors('category');
+        $this->actingAs($pusat)
+            ->delete("/admin/asset-systems/{$liveSystem->id}")
+            ->assertSessionHasErrors('category');
 
         $liveSubsystem = AssetSubsystem::factory()->create();
         $asset = Asset::factory()->for($liveSubsystem)->create();
         $asset->delete();
-        $this->actingAs($pusat)->delete("/admin/asset-subsystems/{$liveSubsystem->id}")->assertSessionHasErrors('category');
+        $this->actingAs($pusat)
+            ->delete("/admin/asset-subsystems/{$liveSubsystem->id}")
+            ->assertSessionHasErrors('category');
     }
 
     public function test_duplicate_update_returns_validation_errors_instead_of_a_database_exception(): void
@@ -614,10 +793,12 @@ class AssetCategoryManagementTest extends TestCase
         AssetGroup::factory()->create(['name' => 'Duplicate']);
         $target = AssetGroup::factory()->create(['name' => 'Target']);
 
-        $this->actingAs($pusat)->put("/admin/asset-groups/{$target->id}", [
-            'name' => " DUPLICATE\t",
-            'normalized_name' => 'safe-looking-value',
-        ])->assertSessionHasErrors('normalized_name');
+        $this->actingAs($pusat)
+            ->put("/admin/asset-groups/{$target->id}", [
+                'name' => " DUPLICATE\t",
+                'normalized_name' => 'safe-looking-value',
+            ])
+            ->assertSessionHasErrors('normalized_name');
 
         $this->assertSame('Target', $target->fresh()->name);
     }
@@ -626,7 +807,11 @@ class AssetCategoryManagementTest extends TestCase
     {
         $pusat = User::factory()->pusat()->create();
         $unit = User::factory()->unit()->create();
-        $models = [AssetGroup::factory()->create(), AssetSystem::factory()->create(), AssetSubsystem::factory()->create()];
+        $models = [
+            AssetGroup::factory()->create(),
+            AssetSystem::factory()->create(),
+            AssetSubsystem::factory()->create(),
+        ];
 
         foreach ($models as $model) {
             foreach (['view', 'update', 'delete', 'status'] as $ability) {
@@ -678,7 +863,10 @@ class AssetCategoryManagementTest extends TestCase
         foreach (array_keys($processes) as $worker) {
             while (! File::exists("{$barrier}.{$worker}.ready")) {
                 if ($processes[$worker]->isTerminated()) {
-                    $this->fail("Category mutation worker {$worker} exited before the barrier: ".$processes[$worker]->getErrorOutput());
+                    $this->fail(
+                        "Category mutation worker {$worker} exited before the barrier: ".
+                            $processes[$worker]->getErrorOutput(),
+                    );
                 }
                 if (microtime(true) >= $deadline) {
                     $this->fail('Timed out waiting for category mutation workers.');
@@ -719,9 +907,13 @@ class AssetCategoryManagementTest extends TestCase
         $cleanup->setTimeout(15);
         $cleanup->mustRun();
 
-        File::delete(array_merge(
-            ["{$barrier}.go"],
-            collect(array_keys($processes))->map(fn (string $worker): string => "{$barrier}.{$worker}.ready")->all(),
-        ));
+        File::delete(
+            array_merge(
+                ["{$barrier}.go"],
+                collect(array_keys($processes))
+                    ->map(fn (string $worker): string => "{$barrier}.{$worker}.ready")
+                    ->all(),
+            ),
+        );
     }
 }

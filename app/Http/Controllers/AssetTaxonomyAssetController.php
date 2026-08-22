@@ -20,14 +20,26 @@ class AssetTaxonomyAssetController extends Controller
     public function store(StoreTaxonomyAssetRequest $request): RedirectResponse
     {
         DB::transaction(function () use ($request): void {
-            $node = AssetCategoryNode::query()->with('level')->lockForUpdate()
+            $node = AssetCategoryNode::query()
+                ->with('level')
+                ->lockForUpdate()
                 ->findOrFail($request->integer('asset_category_node_id'));
             $path = $this->taxonomy->path($node)->each->loadMissing('level')->all();
             $asset = Asset::query()->create($request->assetData($node, $path));
-            $this->auditLogger->record('asset.created', $asset, [], $asset->only([
-                'id', 'unit_kerja_id', 'asset_category_node_id', 'asset_subsystem_id',
-                'nama_aset', 'jumlah_unit', 'status',
-            ]));
+            $this->auditLogger->record(
+                'asset.created',
+                $asset,
+                [],
+                $asset->only([
+                    'id',
+                    'unit_kerja_id',
+                    'asset_category_node_id',
+                    'asset_subsystem_id',
+                    'nama_aset',
+                    'jumlah_unit',
+                    'status',
+                ]),
+            );
         });
 
         return back()->with('success', 'Aset wilayah berhasil ditambahkan.');

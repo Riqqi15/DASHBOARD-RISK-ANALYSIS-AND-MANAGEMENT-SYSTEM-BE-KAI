@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Asset;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +23,7 @@ return new class extends Migration
                 $rows = $assets->map(fn ($asset): array => [
                     'actor_id' => null,
                     'action' => 'asset.location_archived',
-                    'auditable_type' => App\Models\Asset::class,
+                    'auditable_type' => Asset::class,
                     'auditable_id' => $asset->id,
                     'unit_kerja_id' => $asset->unit_kerja_id,
                     'old_values' => json_encode(['lokasi' => $asset->lokasi], JSON_THROW_ON_ERROR),

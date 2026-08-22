@@ -53,33 +53,53 @@ final class RamsReportExportService
         $stocks = InventoryStock::query()
             ->visibleTo($user)
             ->when($unit, fn (Builder $query): Builder => $query->where('unit_kerja_id', $unit->id))
-            ->with(['unitKerja:id,code,name', 'sparePart.assetSubsystem.assetSystem.assetGroup', 'sparePart.unitPolicies'])
+            ->with([
+                'unitKerja:id,code,name',
+                'sparePart.assetSubsystem.assetSystem.assetGroup',
+                'sparePart.unitPolicies',
+            ])
             ->orderBy('unit_kerja_id')
             ->get();
 
-        return ['Inventori', [
-            'Unit', 'Kode', 'Kelompok', 'System', 'Subsystem', 'Suku Cadang',
-            'Stok Saat Ini', 'Safety Stock', 'Reorder Point', 'Proposal Pembelian', 'Jumlah Proposal',
-        ], $stocks->map(function (InventoryStock $stock): array {
-            $part = $stock->sparePart;
-            $policy = $part->unitPolicies->firstWhere('unit_kerja_id', $stock->unit_kerja_id);
-            $reorderPoint = (int) ($policy?->reorder_point ?? $part->reorder_point ?? 0);
-            $proposal = max(0, $reorderPoint - $stock->quantity);
+        return [
+            'Inventori',
+            [
+                'Unit',
+                'Kode',
+                'Kelompok',
+                'System',
+                'Subsystem',
+                'Suku Cadang',
+                'Stok Saat Ini',
+                'Safety Stock',
+                'Reorder Point',
+                'Proposal Pembelian',
+                'Jumlah Proposal',
+            ],
+            $stocks
+                ->map(function (InventoryStock $stock): array {
+                    $part = $stock->sparePart;
+                    $policy = $part->unitPolicies->firstWhere('unit_kerja_id', $stock->unit_kerja_id);
+                    $reorderPoint = (int) ($policy?->reorder_point ?? ($part->reorder_point ?? 0));
+                    $proposal = max(0, $reorderPoint - $stock->quantity);
 
-            return [
-                $stock->unitKerja?->code,
-                $part->code,
-                $part->assetSubsystem?->assetSystem?->assetGroup?->name,
-                $part->assetSubsystem?->assetSystem?->name,
-                $part->assetSubsystem?->name,
-                $part->detail_equipment,
-                $stock->quantity,
-                (int) ($policy?->safety_stock ?? $part->safety_stock ?? 0),
-                $reorderPoint,
-                $proposal > 0 ? 'Beli' : 'Tidak Beli',
-                $proposal,
-            ];
-        })->values()->all()];
+                    return [
+                        $stock->unitKerja?->code,
+                        $part->code,
+                        $part->assetSubsystem?->assetSystem?->assetGroup?->name,
+                        $part->assetSubsystem?->assetSystem?->name,
+                        $part->assetSubsystem?->name,
+                        $part->detail_equipment,
+                        $stock->quantity,
+                        (int) ($policy?->safety_stock ?? ($part->safety_stock ?? 0)),
+                        $reorderPoint,
+                        $proposal > 0 ? 'Beli' : 'Tidak Beli',
+                        $proposal,
+                    ];
+                })
+                ->values()
+                ->all(),
+        ];
     }
 
     /** @return array{string, list<string>, list<list<mixed>>} */
@@ -87,30 +107,61 @@ final class RamsReportExportService
     {
         $logs = FailureLog::query()
             ->visibleTo($user)
-            ->when($unit, fn (Builder $query): Builder => $query->whereHas('asset', fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id)))
-            ->with(['asset.unitKerja:id,code,name', 'asset.assetSubsystem:id,name', 'sparePart:id,code,detail_equipment'])
+            ->when(
+                $unit,
+                fn (Builder $query): Builder => $query->whereHas(
+                    'asset',
+                    fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id),
+                ),
+            )
+            ->with([
+                'asset.unitKerja:id,code,name',
+                'asset.assetSubsystem:id,name',
+                'sparePart:id,code,detail_equipment',
+            ])
             ->latest('started_at')
             ->get();
 
-        return ['Trouble Report', [
-            'Unit', 'Subsystem', 'Lokasi', 'Resor', 'QC', 'Failure Event', 'Penyebab', 'Tindakan',
-            'Mulai', 'Selesai', 'Downtime (menit)', 'Penggantian Sparepart', 'Suku Cadang', 'Vandalisme',
-        ], $logs->map(fn (FailureLog $log): array => [
-            $log->asset->unitKerja?->code,
-            $log->asset->assetSubsystem?->name,
-            $log->location,
-            $log->resort,
-            $log->qc,
-            $log->failure_event,
-            $log->cause,
-            $log->action_taken,
-            $log->started_at?->format('Y-m-d H:i'),
-            $log->resolved_at?->format('Y-m-d H:i'),
-            $log->downtime_minutes,
-            $log->spare_part_replaced ? 'Ya' : 'Tidak',
-            $log->sparePart?->detail_equipment,
-            $log->vandalism ? 'Ya' : 'Tidak',
-        ])->values()->all()];
+        return [
+            'Trouble Report',
+            [
+                'Unit',
+                'Subsystem',
+                'Lokasi',
+                'Resor',
+                'QC',
+                'Failure Event',
+                'Penyebab',
+                'Tindakan',
+                'Mulai',
+                'Selesai',
+                'Downtime (menit)',
+                'Penggantian Sparepart',
+                'Suku Cadang',
+                'Vandalisme',
+            ],
+            $logs
+                ->map(
+                    fn (FailureLog $log): array => [
+                        $log->asset->unitKerja?->code,
+                        $log->asset->assetSubsystem?->name,
+                        $log->location,
+                        $log->resort,
+                        $log->qc,
+                        $log->failure_event,
+                        $log->cause,
+                        $log->action_taken,
+                        $log->started_at?->format('Y-m-d H:i'),
+                        $log->resolved_at?->format('Y-m-d H:i'),
+                        $log->downtime_minutes,
+                        $log->spare_part_replaced ? 'Ya' : 'Tidak',
+                        $log->sparePart?->detail_equipment,
+                        $log->vandalism ? 'Ya' : 'Tidak',
+                    ],
+                )
+                ->values()
+                ->all(),
+        ];
     }
 
     /** @return array{string, list<string>, list<list<mixed>>} */
@@ -118,29 +169,55 @@ final class RamsReportExportService
     {
         $registers = RiskRegister::query()
             ->visibleTo($user)
-            ->when($unit, fn (Builder $query): Builder => $query->whereHas('asset', fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id)))
+            ->when(
+                $unit,
+                fn (Builder $query): Builder => $query->whereHas(
+                    'asset',
+                    fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id),
+                ),
+            )
             ->with(['asset.unitKerja:id,code,name', 'asset.assetSubsystem:id,name'])
             ->latest('updated_at')
             ->get();
 
-        return ['Risk Register', [
-            'Unit', 'Aset', 'Subsystem', 'Part Number', 'Peristiwa Risiko', 'Penyebab', 'Dampak',
-            'Rekomendasi', 'Likelihood', 'Consequence', 'Rating', 'Status', 'Sumber',
-        ], $registers->map(fn (RiskRegister $risk): array => [
-            $risk->asset->unitKerja?->code,
-            $risk->asset->nama_aset,
-            $risk->asset->assetSubsystem?->name,
-            $risk->part_number,
-            $risk->risk_event,
-            $risk->risk_cause,
-            $risk->impact,
-            $risk->recommendation,
-            $risk->likelihood,
-            $risk->consequence,
-            $risk->rating,
-            $risk->status->value,
-            $risk->source_key ? 'Excel LxC' : 'Manual',
-        ])->values()->all()];
+        return [
+            'Risk Register',
+            [
+                'Unit',
+                'Aset',
+                'Subsystem',
+                'Part Number',
+                'Peristiwa Risiko',
+                'Penyebab',
+                'Dampak',
+                'Rekomendasi',
+                'Likelihood',
+                'Consequence',
+                'Rating',
+                'Status',
+                'Sumber',
+            ],
+            $registers
+                ->map(
+                    fn (RiskRegister $risk): array => [
+                        $risk->asset->unitKerja?->code,
+                        $risk->asset->nama_aset,
+                        $risk->asset->assetSubsystem?->name,
+                        $risk->part_number,
+                        $risk->risk_event,
+                        $risk->risk_cause,
+                        $risk->impact,
+                        $risk->recommendation,
+                        $risk->likelihood,
+                        $risk->consequence,
+                        $risk->rating,
+                        $risk->status->value,
+                        $risk->source_key ? 'Excel LxC' : 'Manual',
+                    ],
+                )
+                ->values()
+                ->all(),
+        ];
     }
 
     /** @return array{string, list<string>, list<list<mixed>>} */
@@ -148,31 +225,59 @@ final class RamsReportExportService
     {
         $summaries = ReliabilitySummary::query()
             ->visibleTo($user)
-            ->when($unit, fn (Builder $query): Builder => $query->whereHas('asset', fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id)))
+            ->when(
+                $unit,
+                fn (Builder $query): Builder => $query->whereHas(
+                    'asset',
+                    fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id),
+                ),
+            )
             ->with(['asset.unitKerja:id,code,name', 'asset.assetSubsystem:id,name'])
             ->latest('period')
             ->get();
 
-        return ['Reliability', [
-            'Unit', 'Aset', 'Subsystem', 'Periode', 'Jumlah Unit', 'Operating Hours', 'Downtime',
-            'Failure', 'MTTF', 'MTBF', 'MTTR', 'Failure Rate', 'Reliability', 'Availability', 'Parity',
-        ], $summaries->map(fn (ReliabilitySummary $summary): array => [
-            $summary->asset->unitKerja?->code,
-            $summary->asset->nama_aset,
-            $summary->asset->assetSubsystem?->name,
-            $summary->period?->format('Y-m'),
-            $summary->unit_count,
-            $summary->operating_hours,
-            $summary->downtime_value,
-            $summary->failure_count,
-            $summary->mttf_hours,
-            $summary->mtbf_hours,
-            $summary->mttr_hours,
-            $summary->failure_rate,
-            $summary->reliability,
-            $summary->availability,
-            $summary->parity_status,
-        ])->values()->all()];
+        return [
+            'Reliability',
+            [
+                'Unit',
+                'Aset',
+                'Subsystem',
+                'Periode',
+                'Jumlah Unit',
+                'Operating Hours',
+                'Downtime',
+                'Failure',
+                'MTTF',
+                'MTBF',
+                'MTTR',
+                'Failure Rate',
+                'Reliability',
+                'Availability',
+                'Parity',
+            ],
+            $summaries
+                ->map(
+                    fn (ReliabilitySummary $summary): array => [
+                        $summary->asset->unitKerja?->code,
+                        $summary->asset->nama_aset,
+                        $summary->asset->assetSubsystem?->name,
+                        $summary->period?->format('Y-m'),
+                        $summary->unit_count,
+                        $summary->operating_hours,
+                        $summary->downtime_value,
+                        $summary->failure_count,
+                        $summary->mttf_hours,
+                        $summary->mtbf_hours,
+                        $summary->mttr_hours,
+                        $summary->failure_rate,
+                        $summary->reliability,
+                        $summary->availability,
+                        $summary->parity_status,
+                    ],
+                )
+                ->values()
+                ->all(),
+        ];
     }
 
     private function format(Worksheet $sheet, int $columnCount, int $lastRow): void

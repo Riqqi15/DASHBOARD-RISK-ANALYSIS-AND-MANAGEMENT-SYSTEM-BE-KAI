@@ -58,10 +58,22 @@ return new class extends Migration
             $table->index(['asset_id', 'calculated_at']);
         });
 
-        DB::statement('ALTER TABLE predictive_asset_snapshots ADD CONSTRAINT chk_predictive_function CHECK (function_criterion BETWEEN 1 AND 3)');
-        DB::statement('ALTER TABLE predictive_asset_snapshots ADD CONSTRAINT chk_predictive_impact CHECK (production_impact BETWEEN 0 AND 3)');
-        DB::statement('ALTER TABLE predictive_asset_snapshots ADD CONSTRAINT chk_predictive_likelihood CHECK (likelihood IS NULL OR likelihood BETWEEN 1 AND 4)');
-        DB::statement('ALTER TABLE predictive_asset_snapshots ADD CONSTRAINT chk_predictive_consequence CHECK (consequence IS NULL OR consequence BETWEEN 1 AND 4)');
+        DB::statement(
+            'ALTER TABLE predictive_asset_snapshots ADD CONSTRAINT '
+                .'chk_predictive_function CHECK (function_criterion BETWEEN 1 AND 3)',
+        );
+        DB::statement(
+            'ALTER TABLE predictive_asset_snapshots ADD CONSTRAINT '
+                .'chk_predictive_impact CHECK (production_impact BETWEEN 0 AND 3)',
+        );
+        DB::statement(
+            'ALTER TABLE predictive_asset_snapshots ADD CONSTRAINT '
+                .'chk_predictive_likelihood CHECK (likelihood IS NULL OR likelihood BETWEEN 1 AND 4)',
+        );
+        DB::statement(
+            'ALTER TABLE predictive_asset_snapshots ADD CONSTRAINT '
+                .'chk_predictive_consequence CHECK (consequence IS NULL OR consequence BETWEEN 1 AND 4)',
+        );
     }
 
     public function down(): void

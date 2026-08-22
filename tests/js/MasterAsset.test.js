@@ -149,7 +149,7 @@ describe('MasterAsset', () => {
     const wrapper = mountPage()
     await wrapper.get('[aria-label="Hapus aset Track Circuit Backend"]').trigger('click')
 
-    expect(wrapper.get('[role="dialog"]').text()).toContain('Track Circuit Backend')
+    expect(wrapper.get('dialog').text()).toContain('Track Circuit Backend')
     const confirmButton = wrapper.findAll('button').find((button) => button.text() === 'Hapus aset')
     await confirmButton.trigger('click')
 

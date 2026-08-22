@@ -31,10 +31,7 @@ final class ImportFailureLogsRequest extends FormRequest
 
         return [
             'unit_kerja_id' => $unitRules,
-            'workbook' => [
-                'required',
-                File::types(['xlsx', 'xlsm'])->max(50 * 1024),
-            ],
+            'workbook' => ['required', File::types(['xlsx', 'xlsm'])->max(50 * 1024)],
             'dry_run' => ['nullable', 'boolean'],
         ];
     }
@@ -42,38 +39,58 @@ final class ImportFailureLogsRequest extends FormRequest
     /** @return array<int, callable(Validator): void> */
     public function after(): array
     {
-        return [function (Validator $validator): void {
-            $workbook = $this->file('workbook');
-            if ($workbook === null || ! $workbook->isValid()) {
-                return;
-            }
-
-            $detectedCode = app(RamsUnitDetector::class)->detectCode($workbook->getClientOriginalName());
-            $detectedUnit = $detectedCode === null
-                ? null
-                : UnitKerja::query()->where('code', $detectedCode)->where('is_active', true)->first();
-            $user = $this->user();
-
-            if ($user?->isUnit()) {
-                $assignedCode = $user->unitKerja()->value('code');
-                if ($detectedCode !== null && $detectedCode !== $assignedCode) {
-                    $validator->errors()->add('workbook', "Workbook terdeteksi untuk {$detectedCode}, bukan unit akun {$assignedCode}.");
+        return [
+            function (Validator $validator): void {
+                $workbook = $this->file('workbook');
+                if ($workbook === null || ! $workbook->isValid()) {
+                    return;
                 }
 
-                return;
-            }
+                $detectedCode = app(RamsUnitDetector::class)->detectCode($workbook->getClientOriginalName());
+                $detectedUnit =
+                    $detectedCode === null
+                        ? null
+                        : UnitKerja::query()->where('code', $detectedCode)->where('is_active', true)->first();
+                $user = $this->user();
 
-            $selectedId = $this->integer('unit_kerja_id');
-            if ($detectedUnit !== null && $selectedId > 0 && $selectedId !== $detectedUnit->id) {
-                $validator->errors()->add('unit_kerja_id', "Nama workbook terdeteksi sebagai {$detectedCode}; unit tujuan harus sama.");
-            }
-            if ($detectedUnit === null && $selectedId < 1) {
-                $validator->errors()->add('unit_kerja_id', 'Nama workbook tidak memuat DAOP/DIVRE yang dikenali. Pilih unit tujuan secara manual.');
-            }
-            if ($detectedCode !== null && $detectedUnit === null) {
-                $validator->errors()->add('unit_kerja_id', "Unit {$detectedCode} tidak aktif atau tidak ditemukan.");
-            }
-        }];
+                if ($user?->isUnit()) {
+                    $assignedCode = $user->unitKerja()->value('code');
+                    if ($detectedCode !== null && $detectedCode !== $assignedCode) {
+                        $validator
+                            ->errors()
+                            ->add(
+                                'workbook',
+                                "Workbook terdeteksi untuk {$detectedCode}, bukan unit akun {$assignedCode}.",
+                            );
+                    }
+
+                    return;
+                }
+
+                $selectedId = $this->integer('unit_kerja_id');
+                if ($detectedUnit !== null && $selectedId > 0 && $selectedId !== $detectedUnit->id) {
+                    $validator
+                        ->errors()
+                        ->add(
+                            'unit_kerja_id',
+                            "Nama workbook terdeteksi sebagai {$detectedCode}; unit tujuan harus sama.",
+                        );
+                }
+                if ($detectedUnit === null && $selectedId < 1) {
+                    $validator
+                        ->errors()
+                        ->add(
+                            'unit_kerja_id',
+                            'Nama workbook tidak memuat DAOP/DIVRE yang dikenali. Pilih unit tujuan secara manual.',
+                        );
+                }
+                if ($detectedCode !== null && $detectedUnit === null) {
+                    $validator
+                        ->errors()
+                        ->add('unit_kerja_id', "Unit {$detectedCode} tidak aktif atau tidak ditemukan.");
+                }
+            },
+        ];
     }
 
     public function selectedUnit(RamsUnitDetector $detector): UnitKerja
@@ -81,19 +98,13 @@ final class ImportFailureLogsRequest extends FormRequest
         $user = $this->user();
 
         if ($user?->isUnit()) {
-            return UnitKerja::query()
-                ->whereKey($user->unit_kerja_id)
-                ->where('is_active', true)
-                ->firstOrFail();
+            return UnitKerja::query()->whereKey($user->unit_kerja_id)->where('is_active', true)->firstOrFail();
         }
 
         $workbook = $this->file('workbook');
         $detectedCode = $workbook === null ? null : $detector->detectCode($workbook->getClientOriginalName());
         if ($detectedCode !== null) {
-            return UnitKerja::query()
-                ->where('code', $detectedCode)
-                ->where('is_active', true)
-                ->firstOrFail();
+            return UnitKerja::query()->where('code', $detectedCode)->where('is_active', true)->firstOrFail();
         }
 
         return UnitKerja::query()
