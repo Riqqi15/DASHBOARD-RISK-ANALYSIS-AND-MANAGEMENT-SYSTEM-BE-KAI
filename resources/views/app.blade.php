@@ -8,7 +8,7 @@
         <title inertia>RAMS Dashboard</title>
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
-        <x-inertia::head />
+        @inertiaHead
     </head>
     <body>
         <x-inertia::app />
