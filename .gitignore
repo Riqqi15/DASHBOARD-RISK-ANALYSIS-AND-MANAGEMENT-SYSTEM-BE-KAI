@@ -10,8 +10,11 @@
 /public/build
 /public/fonts-manifest.dev.json
 /public/hot
+/playwright-report
+/test-results
 /public/storage
 /ai-docs
+/docs/superpowers/plans/post-launch/
 
 # Runtime and cache artifacts
 *.log
