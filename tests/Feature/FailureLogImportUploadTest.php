@@ -8,6 +8,7 @@ use App\Models\Asset;
 use App\Models\AssetGroup;
 use App\Models\AssetSubsystem;
 use App\Models\AssetSystem;
+use App\Models\FailureLog;
 use App\Models\RamsImportBatch;
 use App\Models\RamsImportIssue;
 use App\Models\ReliabilitySummary;
@@ -21,6 +22,7 @@ use Illuminate\Http\UploadedFile;
 use Inertia\Testing\AssertableInertia as Assert;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
 
@@ -197,6 +199,84 @@ final class FailureLogImportUploadTest extends TestCase
         $this->assertDatabaseCount('spare_parts', 1);
     }
 
+    public function test_import_counts_empty_rows_and_reports_malformed_failure_sheets(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
+        $group = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => '1. Peralatan Dalam Sinyal Elektrik',
+        ]);
+        $system = AssetSystem::factory()->for($group)->create(['name' => 'Interlocking Elektrik']);
+        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Interlocking Elektrik']);
+        Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create(['jumlah_unit' => 2]);
+        $user = User::factory()->unit($unit)->create();
+        $workbook = $this->uploadedWorkbook(
+            configure: function (Spreadsheet $spreadsheet, Worksheet $sheet): void {
+                $sheet->setCellValue('C12', 'Jakk');
+                $sheet->setCellValue('G12', 'Modul rusak tanpa Failure Event');
+                $sheet->setCellValue('H12', 'Diperiksa');
+                $sheet->setCellValue('K12', '10/03/2020');
+                $sheet->setCellValue('L12', '10/03/2020');
+                $sheet->setCellValue('M12', '08:00');
+                $sheet->setCellValue('N12', '08:15');
+
+                $malformed = $spreadsheet->createSheet();
+                $malformed->setTitle('Trouble Tanpa Header Lengkap');
+                $malformed->setCellValue('A1', 'Failure Event');
+                $malformed->setCellValue('B1', 'Penyebab');
+                $malformed->setCellValue('A2', 'Gangguan tanpa lokasi dan waktu');
+            },
+        );
+
+        $result = app(FailureLogImportService::class)->import($workbook, $unit, false, $user);
+
+        $this->assertSame(1, $result['empty_rows']);
+        $this->assertSame(1, $result['invalid_rows']);
+        $this->assertSame(1, $result['unrecognized_sheets']);
+        $this->assertSame(2, $result['skipped']);
+        $this->assertTrue(collect($result['issues'])->contains(
+            fn (array $issue): bool => ($issue['sheet_name'] ?? null) === 'Interlocking Elektrik'
+                && ($issue['source_row'] ?? null) === 12
+                && ($issue['source_column'] ?? null) === 'Failure Event',
+        ));
+        $this->assertTrue(collect($result['issues'])->contains(
+            fn (array $issue): bool => ($issue['sheet_name'] ?? null) === 'Trouble Tanpa Header Lengkap'
+                && ($issue['source_column'] ?? null) === 'Header',
+        ));
+    }
+
+    public function test_import_prefers_raw_date_time_when_combined_timestamp_conflicts(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
+        $group = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => '1. Peralatan Dalam Sinyal Elektrik',
+        ]);
+        $system = AssetSystem::factory()->for($group)->create(['name' => 'Interlocking Elektrik']);
+        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'Interlocking Elektrik']);
+        Asset::factory()->for($unit)->for($subsystem, 'assetSubsystem')->create(['jumlah_unit' => 2]);
+        $user = User::factory()->unit($unit)->create();
+        $workbook = $this->uploadedWorkbook(
+            configure: function (Spreadsheet $_spreadsheet, Worksheet $sheet): void {
+                $sheet->setCellValue('O9', 'Tanggal Jam Kejadian');
+                $sheet->setCellValue('P9', 'Tanggal Jam Penanganan');
+                $sheet->setCellValue('O10', '08/03/2020 13:15');
+                $sheet->setCellValue('P10', '08/03/2020 14:50');
+            },
+        );
+
+        $result = app(FailureLogImportService::class)->import($workbook, $unit, false, $user);
+
+        $this->assertSame(2, $result['timestamp_conflicts']);
+        $this->assertSame('2020-03-09 13:15:00', FailureLog::query()->sole()->started_at->format('Y-m-d H:i:s'));
+        $this->assertSame('2020-03-09 14:50:00', FailureLog::query()->sole()->resolved_at->format('Y-m-d H:i:s'));
+        $this->assertTrue(collect($result['issues'])->contains(
+            fn (array $issue): bool => ($issue['source_row'] ?? null) === 10
+                && ($issue['source_column'] ?? null) === 'Tanggal Jam Kejadian'
+                && ($issue['severity'] ?? null) === 'warning',
+        ));
+    }
+
     public function test_web_import_does_not_create_taxonomy_from_reorder_only_paths(): void
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
@@ -224,21 +304,105 @@ final class FailureLogImportUploadTest extends TestCase
         );
 
         $this->assertSame('succeeded', $result['status']);
-        $this->assertSame(1, $result['spare_parts_created']);
-        $this->assertSame(1, $result['spare_parts_skipped']);
-        $this->assertDatabaseCount('spare_parts', 1);
+        $this->assertSame(2, $result['spare_parts_created']);
+        $this->assertSame(0, $result['spare_parts_skipped']);
+        $this->assertDatabaseCount('spare_parts', 2);
         $this->assertFalse(AssetSystem::query()->where('name', 'Panel Pelayanan')->exists());
-        $this->assertTrue(
+        $this->assertFalse(
             collect($result['issues'])->contains(
                 fn (array $issue): bool => ($issue['sheet_name'] ?? null) === 'Reorder Stock' &&
-                    ($issue['source_row'] ?? null) === 3 &&
-                    str_contains($issue['message'], 'tidak ditemukan pada master Predictive Data Asset'),
+                    str_contains((string) ($issue['message'] ?? ''), 'tidak ditemukan pada master Predictive Data Asset'),
             ),
         );
     }
 
-    private function uploadedWorkbook(bool $includeUnmatchedReorderPath = false): UploadedFile
+    public function test_web_import_skips_ambiguous_reorder_hierarchy_without_anchor(): void
     {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
+        $group = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => '1. Peralatan Dalam Sinyal Elektrik',
+        ]);
+        $systemA = AssetSystem::factory()->for($group)->create(['name' => 'System A']);
+        $systemB = AssetSystem::factory()->for($group)->create(['name' => 'System B']);
+        AssetSubsystem::factory()->for($systemA)->create(['name' => 'Candidate A']);
+        AssetSubsystem::factory()->for($systemB)->create(['name' => 'Candidate B']);
+        $user = User::factory()->unit($unit)->create();
+
+        $path = tempnam(sys_get_temp_dir(), 'rams-ambiguous-').'.xlsx';
+        $this->temporaryFiles[] = $path;
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getActiveSheet()->setTitle('Dashboard');
+        $reorder = $spreadsheet->createSheet();
+        $reorder->setTitle('Reorder Stock');
+        $reorder->fromArray(
+            [
+                'System',
+                'Sub-System',
+                'Equipment',
+                'Detail Equipment',
+                'Max yearly Failure',
+                'Average Yearly Failure',
+                'Max Lead Time (Month)',
+                'Average Lead Time (Month)',
+                'Safety Stock',
+                'Lead Time Demand',
+                'Reorder Point',
+                'Severity Equipment',
+            ],
+            null,
+            'A1',
+        );
+        $reorder->fromArray(
+            [
+                'Peralatan Dalam Sinyal Elektrik',
+                'Unknown Sub System',
+                'Unknown Equipment',
+                'Detail Ambiguous',
+                1,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                'Medium',
+            ],
+            null,
+            'A2',
+        );
+        (new Xlsx($spreadsheet))->save($path);
+        $spreadsheet->disconnectWorksheets();
+
+        $result = app(FailureLogImportService::class)->import(
+            new UploadedFile(
+                $path,
+                'ambiguous-reorder.xlsx',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                null,
+                true,
+            ),
+            $unit,
+            false,
+            $user,
+        );
+
+        $this->assertSame('succeeded', $result['status']);
+        $this->assertSame(0, $result['spare_parts_created']);
+        $this->assertSame(1, $result['spare_parts_skipped']);
+        $this->assertDatabaseCount('spare_parts', 0);
+        $this->assertTrue(
+            collect($result['issues'])->contains(
+                fn (array $issue): bool => ($issue['sheet_name'] ?? null) === 'Reorder Stock' &&
+                    str_contains((string) ($issue['message'] ?? ''), 'tidak ditemukan pada master Predictive Data Asset'),
+            ),
+        );
+    }
+
+    private function uploadedWorkbook(
+        bool $includeUnmatchedReorderPath = false,
+        ?callable $configure = null,
+    ): UploadedFile {
         $path = tempnam(sys_get_temp_dir(), 'rams-upload-').'.xlsx';
         $this->temporaryFiles[] = $path;
         $spreadsheet = new Spreadsheet;
@@ -401,7 +565,7 @@ final class FailureLogImportUploadTest extends TestCase
         if ($includeUnmatchedReorderPath) {
             $reorder->fromArray(
                 [
-                    'Peralatan Dalam Sinyal Elektrik',
+                    '',
                     'Panel Pelayanan',
                     'Panel Pelayanan LCP',
                     'Modul panel',
@@ -417,6 +581,10 @@ final class FailureLogImportUploadTest extends TestCase
                 null,
                 'A3',
             );
+        }
+
+        if ($configure) {
+            $configure($spreadsheet, $sheet);
         }
 
         (new Xlsx($spreadsheet))->save($path);

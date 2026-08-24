@@ -62,6 +62,7 @@ final class FailureLogImportService
         $summary['issues'] = $batch->issues
             ->map(
                 fn ($issue): array => [
+                    'workbook_name' => $batch->workbook_name,
                     'sheet_name' => $issue->sheet_name,
                     'source_row' => $issue->source_row,
                     'source_column' => $issue->source_column,
@@ -362,6 +363,10 @@ final class FailureLogImportService
             'duplicates_skipped' => (int) ($summary['duplicates_skipped'] ?? 0),
             'duplicate_locations' => array_values($summary['duplicate_locations'] ?? []),
             'skipped' => (int) ($summary['skipped'] ?? 0),
+            'invalid_rows' => (int) ($summary['invalid_rows'] ?? 0),
+            'empty_rows' => (int) ($summary['empty_rows'] ?? 0),
+            'unrecognized_sheets' => (int) ($summary['unrecognized_sheets'] ?? 0),
+            'timestamp_conflicts' => (int) ($summary['timestamp_conflicts'] ?? 0),
             'sheets' => (int) ($summary['sheets'] ?? 0),
             'snapshots' => (int) ($summary['snapshots'] ?? 0),
             'risk_registers_created' => (int) ($summary['risk_registers_created'] ?? 0),
@@ -384,6 +389,7 @@ final class FailureLogImportService
             ],
             'issues' => array_map(
                 fn (array $issue): array => [
+                    'workbook_name' => $issue['workbook_name'] ?? $batch->workbook_name,
                     'sheet_name' => $issue['sheet_name'] ?? null,
                     'source_row' => $issue['source_row'] ?? null,
                     'source_column' => $issue['source_column'] ?? null,

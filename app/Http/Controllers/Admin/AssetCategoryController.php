@@ -173,10 +173,7 @@ class AssetCategoryController extends Controller
             ];
         });
         $requestedNode = $nodes->firstWhere('id', $request->integer('node'));
-        $selectedNode =
-            $requestedNode ??
-            ($nodes->firstWhere('id', $activeAssets->first()?->asset_category_node_id) ??
-                ($request->user()->isPusat() ? $nodes->first() : null));
+        $selectedNode = $requestedNode ?? $nodes->firstWhere('parent_id', null);
         $assetQuery = Asset::query()
             ->with(['unitKerja:id,code,name', 'assetCategoryNode.level:id,name,position'])
             ->when($unitId, fn (Builder $query): Builder => $query->where('unit_kerja_id', $unitId));

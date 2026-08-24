@@ -41,16 +41,12 @@ final class RamsReportController extends Controller
         ReliabilityWorkbookExportService $reliabilityExporter,
     ): StreamedResponse {
         abort_unless(in_array($report, RamsReportExportService::REPORTS, true), 404);
-        if ($report === 'reliability' && $request->user()->isPusat() && ! $request->filled('area')) {
-            abort(422, 'Pilih DAOP/DIVRE sebelum export Reliability');
-        }
-
-        $unit = $request->selectedUnit();
+        $unit = $request->selectedUnit() ?? abort(422, 'Unit kerja tidak tersedia untuk export laporan');
         $workbook =
             $report === 'reliability'
                 ? $reliabilityExporter->workbook(
                     $request->user(),
-                    $unit ?? abort(422, 'Unit kerja tidak tersedia untuk export Reliability'),
+                    $unit,
                 )
                 : $exporter->workbook($report, $request->user(), $unit);
         $scope = $unit?->code ?? 'NASIONAL';
@@ -76,7 +72,7 @@ final class RamsReportController extends Controller
         RamsReportExportService $exporter,
     ): HttpResponse {
         abort_unless(in_array($report, RamsReportExportService::REPORTS, true), 404);
-        $unit = $request->selectedUnit();
+        $unit = $request->selectedUnit() ?? abort(422, 'Unit kerja tidak tersedia untuk export laporan');
         [$title, $headers, $rows] = $exporter->dataset($report, $request->user(), $unit);
         $scope = $unit?->code ?? 'NASIONAL';
         $generatedAt = now();

@@ -58,6 +58,46 @@ class AssetTaxonomyRegionalAssetTest extends TestCase
             );
     }
 
+    public function test_category_menu_starts_at_level_one_but_explicit_node_links_stay_specific(): void
+    {
+        $pusat = User::factory()->pusat()->create();
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $root = AssetCategoryNode::factory()->create([
+            'asset_category_level_id' => AssetCategoryLevel::query()->where('position', 1)->value('id'),
+            'parent_id' => null,
+            'name' => 'PERALATAN DALAM SINYAL ELEKTRIK',
+        ]);
+        $system = AssetCategoryNode::factory()->create([
+            'asset_category_level_id' => AssetCategoryLevel::query()->where('position', 2)->value('id'),
+            'parent_id' => $root->id,
+            'name' => 'INTERLOCKING ELEKTRIK',
+        ]);
+        $subsystem = AssetCategoryNode::factory()->create([
+            'asset_category_level_id' => AssetCategoryLevel::query()->where('position', 3)->value('id'),
+            'parent_id' => $system->id,
+            'name' => 'INTERLOCKING ELEKTRIK',
+        ]);
+        Asset::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'asset_subsystem_id' => null,
+            'asset_category_node_id' => $subsystem->id,
+        ]);
+
+        $this->actingAs($pusat)
+            ->get("/admin/asset-categories?unit_kerja_id={$unit->id}")
+            ->assertOk()
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->where('selectedNodeId', $root->id)
+                    ->where('assets.data.0.asset_category_node_id', $subsystem->id),
+            );
+
+        $this->actingAs($pusat)
+            ->get("/admin/asset-categories?unit_kerja_id={$unit->id}&node={$subsystem->id}")
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('selectedNodeId', $subsystem->id));
+    }
+
     public function test_regional_asset_creation_is_locked_to_its_own_unit_and_accepts_any_level(): void
     {
         $unit = UnitKerja::factory()->create();
@@ -94,6 +134,57 @@ class AssetTaxonomyRegionalAssetTest extends TestCase
             'asset_subsystem_id' => null,
             'aset_prasarana_sintel' => 'Peralatan Sintel',
         ]);
+    }
+
+    public function test_new_root_asset_appears_in_its_category_and_dashboard_group(): void
+    {
+        $pusat = User::factory()->pusat()->create(['is_active' => true]);
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
+        $node = AssetCategoryNode::factory()->create([
+            'asset_category_level_id' => AssetCategoryLevel::query()->where('position', 1)->value('id'),
+            'parent_id' => null,
+            'name' => '1. PERALATAN DALAM SINYAL ELEKTRIK',
+            'sort_order' => 1,
+            'dashboard_color' => '#FFFF00',
+        ]);
+
+        $this->actingAs($pusat)
+            ->post('/admin/asset-category-assets', [
+                'unit_kerja_id' => $unit->id,
+                'asset_category_node_id' => $node->id,
+                'nama_aset' => 'INTERLOCKING ELEKTRIK',
+                'jumlah_unit' => 2,
+                'status' => AssetStatus::Aktif->value,
+            ])
+            ->assertRedirect(route('admin.asset-categories.index', [
+                'unit_kerja_id' => $unit->id,
+                'node' => $node->id,
+            ]));
+
+        $this->actingAs($pusat)
+            ->get(route('admin.asset-categories.index', [
+                'unit_kerja_id' => $unit->id,
+                'node' => $node->id,
+            ]))
+            ->assertOk()
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->where('selectedNodeId', $node->id)
+                    ->where('nodes.0.subtree_assets_count', 1)
+                    ->where('assets.data.0.nama_aset', 'INTERLOCKING ELEKTRIK'),
+            );
+
+        $this->actingAs($pusat)
+            ->get('/dashboard?area=DAOP1')
+            ->assertOk()
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->has('assets', 1)
+                    ->where('assets.0.aset_prasarana_sintel', '1. PERALATAN DALAM SINYAL ELEKTRIK')
+                    ->has('summary.reliabilityGroups', 1)
+                    ->where('summary.reliabilityGroups.0.code', 'PDSE')
+                    ->where('summary.reliabilityGroups.0.asset_count', 1),
+            );
     }
 
     public function test_subtree_archive_only_affects_selected_region_and_preserves_history(): void

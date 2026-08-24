@@ -54,6 +54,10 @@ Route::middleware(['auth', 'active'])->group(function (): void {
     Route::post('/trouble-report', [FailureLogController::class, 'store'])->name('failure-logs.store');
     Route::put('/trouble-report/{log}', [FailureLogController::class, 'update'])->name('failure-logs.update');
     Route::delete('/trouble-report/{log}', [FailureLogController::class, 'destroy'])->name('failure-logs.destroy');
+    Route::patch('/master-asset/{asset}/installation-date', [
+        MasterAssetController::class,
+        'updateInstallationDate',
+    ])->name('master-assets.installation-date.update');
     Route::resource('master-asset', MasterAssetController::class)
         ->parameters(['master-asset' => 'asset'])
         ->except(['show'])

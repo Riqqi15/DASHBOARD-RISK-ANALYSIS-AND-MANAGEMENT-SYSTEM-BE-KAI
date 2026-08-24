@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\StockDirection;
 use App\Enums\StockMovementType;
 use App\Models\StockMovement;
+use App\Services\RamsUnitContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -16,8 +17,10 @@ class CorrectStockMovementRequest extends FormRequest
 
     public function authorize(): bool
     {
+        $unitId = app(RamsUnitContext::class)->resolve($this)?->id;
         $this->sourceMovement = StockMovement::query()
             ->visibleTo($this->user())
+            ->where('unit_kerja_id', $unitId ?? 0)
             ->findOrFail($this->route('movement'));
 
         return Gate::forUser($this->user())->allows('correct', $this->sourceMovement);

@@ -12,6 +12,7 @@ use App\Models\SparePart;
 use App\Models\StockMovement;
 use App\Models\UnitKerja;
 use App\Services\InventoryReconciliationService;
+use App\Services\RamsUnitContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -37,6 +38,8 @@ class InventoryController extends Controller
     ];
 
     private const MAX_PAGE = 1_000_000;
+
+    public function __construct(private readonly RamsUnitContext $unitContext) {}
 
     public function __invoke(Request $request, InventoryReconciliationService $reconciliationService): Response
     {
@@ -111,7 +114,7 @@ class InventoryController extends Controller
                         ],
                     ],
             'spareParts' => $this->spareParts($request, $filters),
-            'categories' => $this->categories(),
+            'categories' => $this->categories($filters),
             'units' => $request->user()->isPusat() ? $this->activeUnits() : [],
             'filters' => $filters,
             'can' => [
@@ -348,6 +351,14 @@ class InventoryController extends Controller
             ->when(! $request->user()->isPusat(), fn (Builder $query): Builder => $query->active())
             ->with('assetSubsystem.assetSystem.assetGroup')
             ->when(
+                $filters['unit_kerja_id'] !== '',
+                fn (Builder $query): Builder => $query->whereHas(
+                    'assetSubsystem.assetSystem.assetGroup',
+                    fn (Builder $group): Builder => $group->forUnit((int) $filters['unit_kerja_id']),
+                ),
+                fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+            )
+            ->when(
                 $filters['asset_group_id'] !== '',
                 fn (Builder $query): Builder => $query->whereHas(
                     'assetSubsystem.assetSystem',
@@ -494,9 +505,15 @@ class InventoryController extends Controller
         return $unit->only(['id', 'code', 'name']);
     }
 
-    private function categories(): array
+    /** @param array<string, string> $filters */
+    private function categories(array $filters): array
     {
         return AssetGroup::query()
+            ->when(
+                $filters['unit_kerja_id'] !== '',
+                fn (Builder $query): Builder => $query->forUnit((int) $filters['unit_kerja_id']),
+                fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+            )
             ->where('is_active', true)
             ->with([
                 'systems' => fn ($systems) => $systems
@@ -535,19 +552,7 @@ class InventoryController extends Controller
 
     private function activeUnitId(Request $request): ?int
     {
-        if ($request->user()->isUnit()) {
-            return UnitKerja::query()
-                ->whereKey($request->user()->unit_kerja_id)
-                ->where('is_active', true)
-                ->value('id');
-        }
-
-        $value = $this->scalarString($request->input('unit_kerja_id'));
-        $selected = ctype_digit($value)
-            ? UnitKerja::query()->where('is_active', true)->whereKey((int) $value)->value('id')
-            : null;
-
-        return $selected ?? UnitKerja::query()->where('is_active', true)->orderBy('code')->value('id');
+        return $this->unitContext->resolve($request)?->id;
     }
 
     private function activeGroupId(mixed $value): ?int

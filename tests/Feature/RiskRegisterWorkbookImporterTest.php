@@ -99,6 +99,22 @@ final class RiskRegisterWorkbookImporterTest extends TestCase
         $this->assertDatabaseCount('risk_registers', 0);
     }
 
+    public function test_asset_without_legacy_subsystem_does_not_break_standard_asset_matching(): void
+    {
+        [$unit] = $this->assetContext();
+        Asset::factory()->for($unit)->create([
+            'asset_subsystem_id' => null,
+            'nama_aset' => 'testing',
+            'subsystem' => '',
+        ]);
+        $path = $this->workbook([$this->validRow()]);
+
+        $result = app(RiskRegisterWorkbookImporter::class)->import($path, $unit);
+
+        $this->assertSame(1, $result['created']);
+        $this->assertDatabaseCount('risk_registers', 1);
+    }
+
     /** @return array{UnitKerja, Asset} */
     private function assetContext(): array
     {

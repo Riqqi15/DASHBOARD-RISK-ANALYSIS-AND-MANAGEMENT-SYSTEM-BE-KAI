@@ -107,9 +107,16 @@ final class RamsImportRollbackService
 
     private function firstConflict(RamsImportBatch $batch): ?string
     {
+        $changes = $batch->changes()->orderBy('id')->get();
+        $currentRows = [];
+        foreach ($changes->groupBy('table_name') as $table => $tableChanges) {
+            $ids = $tableChanges->pluck('row_id')->map(fn (mixed $id): int => (int) $id)->unique()->values();
+            $currentRows[$table] = DB::table($table)->whereIn('id', $ids)->get()->keyBy('id');
+        }
+
         /** @var RamsImportChange $change */
-        foreach ($batch->changes()->orderBy('id')->cursor() as $change) {
-            $current = DB::table($change->table_name)->where('id', $change->row_id)->first();
+        foreach ($changes as $change) {
+            $current = $currentRows[$change->table_name]->get($change->row_id);
             if ($change->after_values === null) {
                 if ($current !== null) {
                     return "Data {$change->table_name} #{$change->row_id} berubah setelah import.";

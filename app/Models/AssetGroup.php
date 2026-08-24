@@ -47,9 +47,24 @@ class AssetGroup extends Model
                 ->orWhere(
                     fn (Builder $legacy): Builder => $legacy
                         ->whereNull('unit_kerja_id')
-                        ->whereHas(
-                            'systems.subsystems.assets',
-                            fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unitId),
+                        ->where(
+                            fn (Builder $usage): Builder => $usage
+                                ->whereHas(
+                                    'systems.subsystems.assets',
+                                    fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unitId),
+                                )
+                                ->orWhereHas(
+                                    'systems.subsystems.spareParts.inventoryStocks',
+                                    fn (Builder $stocks): Builder => $stocks->where('unit_kerja_id', $unitId),
+                                )
+                                ->orWhereHas(
+                                    'systems.subsystems.spareParts.stockMovements',
+                                    fn (Builder $movements): Builder => $movements->where('unit_kerja_id', $unitId),
+                                )
+                                ->orWhereHas(
+                                    'systems.subsystems.spareParts.unitPolicies',
+                                    fn (Builder $policies): Builder => $policies->where('unit_kerja_id', $unitId),
+                                ),
                         ),
                 ),
         );

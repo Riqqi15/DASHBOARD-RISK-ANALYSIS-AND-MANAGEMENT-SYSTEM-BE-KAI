@@ -243,6 +243,7 @@ class RiskRegisterWorkbookImporter
         $comparable = $this->comparable($label);
         $matches = Asset::query()
             ->where('unit_kerja_id', $unit->id)
+            ->whereNotNull('asset_subsystem_id')
             ->with('assetSubsystem')
             ->get()
             ->filter(fn (Asset $asset): bool => $this->comparable($asset->assetSubsystem->name) === $comparable);

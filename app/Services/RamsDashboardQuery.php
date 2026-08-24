@@ -66,6 +66,7 @@ class RamsDashboardQuery
                         'asset',
                         fn (Builder $assets): Builder => $assets->where('unit_kerja_id', $unit->id),
                     ),
+                    fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
                 )
                 ->with('asset.assetSubsystem.assetSystem.assetGroup')
                 ->get()
@@ -91,7 +92,11 @@ class RamsDashboardQuery
     {
         $stocks = InventoryStock::query()
             ->visibleTo($user)
-            ->when($unit, fn (Builder $query): Builder => $query->where('unit_kerja_id', $unit->id))
+            ->when(
+                $unit,
+                fn (Builder $query): Builder => $query->where('unit_kerja_id', $unit->id),
+                fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+            )
             ->whereHas('sparePart', fn (Builder $query): Builder => $query->where('is_active', true))
             ->with([
                 'unitKerja:id,code,name',
@@ -189,7 +194,7 @@ class RamsDashboardQuery
         $risks = RiskMatrix::query()->whereIn('asset_id', $assetIds)->get();
         $latestReliability = ReliabilitySummary::query()
             ->whereIn('asset_id', $assetIds)
-            ->with('asset.assetSubsystem.assetSystem.assetGroup')
+            ->with(['asset.assetSubsystem.assetSystem.assetGroup', 'asset.assetCategoryNode'])
             ->orderByDesc('period')
             ->orderByDesc('id')
             ->get()
@@ -240,7 +245,7 @@ class RamsDashboardQuery
                     ->startOfDay()
                     ->diffInDays(now()->startOfDay())
                 : null,
-            'reliabilityGroups' => $this->reliabilityGroups($latestReliability, $unit),
+            'reliabilityGroups' => $this->reliabilityGroups($latestReliability, $assetIds),
             'latestImport' => $this->latestImport($unit),
             'totalFailure' => FailureLog::query()->whereIn('asset_id', $assetIds)->count(),
             'totalProposalReorder' => $latestPredictive
@@ -261,7 +266,12 @@ class RamsDashboardQuery
     private function dashboardAssetModels(User $user, ?UnitKerja $unit): Collection
     {
         return $this->assetQuery($user, $unit)
-            ->with(['unitKerja:id,code,name', 'assetSubsystem.assetSystem.assetGroup', 'latestPredictiveAssetSnapshot'])
+            ->with([
+                'unitKerja:id,code,name',
+                'assetSubsystem.assetSystem.assetGroup',
+                'assetCategoryNode',
+                'latestPredictiveAssetSnapshot',
+            ])
             ->orderBy('id')
             ->get();
     }
@@ -283,7 +293,13 @@ class RamsDashboardQuery
         return AssetGroup::query()
             ->when($unit, fn (Builder $query): Builder => $query->forUnit($unit))
             ->with([
-                'systems.subsystems' => fn ($query) => $query->withCount('assets'),
+                'systems.subsystems' => fn ($query) => $query->withCount([
+                    'assets' => fn (Builder $assets): Builder => $assets->when(
+                        $unit,
+                        fn (Builder $scoped): Builder => $scoped->where('unit_kerja_id', $unit->id),
+                        fn (Builder $scoped): Builder => $scoped->whereRaw('1 = 0'),
+                    ),
+                ]),
             ])
             ->orderBy('sort_order')
             ->orderBy('name')
@@ -404,7 +420,11 @@ class RamsDashboardQuery
     {
         return Asset::query()
             ->visibleTo($user)
-            ->when($unit, fn (Builder $query): Builder => $query->where('unit_kerja_id', $unit->id));
+            ->when(
+                $unit,
+                fn (Builder $query): Builder => $query->where('unit_kerja_id', $unit->id),
+                fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+            );
     }
 
     /** @return array<string, mixed> */
@@ -413,15 +433,21 @@ class RamsDashboardQuery
         $asset->loadMissing([
             'unitKerja:id,code,name',
             'assetSubsystem.assetSystem.assetGroup',
+            'assetCategoryNode',
             'latestPredictiveAssetSnapshot',
         ]);
 
+        $subsystem = $asset->assetSubsystem;
+        $system = $subsystem?->assetSystem;
+        $group = $system?->assetGroup;
+
         return [
             'id' => $asset->id,
+            'nama_aset' => $asset->nama_aset,
             'unit_kerja_id' => $this->frontendUnitCode($asset->unitKerja->code),
-            'aset_prasarana_sintel' => $asset->assetSubsystem->assetSystem->assetGroup->name,
-            'system' => $asset->assetSubsystem->assetSystem->name,
-            'subsystem' => $asset->assetSubsystem->name,
+            'aset_prasarana_sintel' => $group?->name ?: $asset->aset_prasarana_sintel,
+            'system' => $system?->name ?: $asset->system,
+            'subsystem' => $subsystem?->name ?: $asset->subsystem,
             'jumlah_unit' => $asset->jumlah_unit,
             'tahun_pemasangan' => $asset->tanggal_pemasangan?->toDateString(),
             'status' => $asset->status->label(),
@@ -507,15 +533,18 @@ class RamsDashboardQuery
             'formula_version' => $summary->formula_version,
             'parity_status' => $summary->parity_status,
             'parity_differences' => $summary->parity_differences,
+            'baseline_date' => $summary->calculation_profile['interval_baseline_date']
+                ?? $summary->baseline_date?->toDateString(),
             'calculated_at' => $summary->calculated_at?->toIso8601String(),
         ];
     }
 
     /**
      * @param  Collection<int, ReliabilitySummary>  $summaries
+     * @param  Collection<int, int>  $assetIds
      * @return array<int, array<string, int|float|string>>
      */
-    private function reliabilityGroups($summaries, ?UnitKerja $unit): array
+    private function reliabilityGroups(Collection $summaries, Collection $assetIds): array
     {
         $standardLabels = [
             'PDSM' => 'Peralatan Dalam Sinyal Mekanik',
@@ -533,32 +562,46 @@ class RamsDashboardQuery
         ];
         $grouped = $summaries->groupBy(
             fn (ReliabilitySummary $summary): string => mb_strtolower(
-                $this->assetGroupLabel($summary->asset->assetSubsystem->assetSystem->assetGroup->name),
+                $this->assetGroupLabel($this->assetGroupName($summary->asset)),
             ),
         );
-        $groups = AssetGroup::query()
-            ->when($unit, fn (Builder $query): Builder => $query->forUnit($unit))
-            ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->orderBy('name')
+        $groups = Asset::query()
+            ->whereIn('id', $assetIds)
+            ->with(['assetSubsystem.assetSystem.assetGroup', 'assetCategoryNode'])
+            ->orderBy('id')
             ->get()
-            ->groupBy(fn (AssetGroup $group): string => mb_strtolower($this->assetGroupLabel($group->name)))
-            ->map(fn (Collection $duplicates): AssetGroup => $duplicates->first())
-            ->values();
+            ->groupBy(
+                fn (Asset $asset): string => mb_strtolower(
+                    $this->assetGroupLabel($this->assetGroupName($asset)),
+                ),
+            )
+            ->sortBy(function (Collection $assets): string {
+                $asset = $assets->first();
+                $sortOrder = $asset->assetSubsystem?->assetSystem?->assetGroup?->sort_order
+                    ?? $asset->assetCategoryNode?->sort_order
+                    ?? 0;
+
+                return sprintf('%010d|%s', $sortOrder, mb_strtolower($this->assetGroupName($asset)));
+            });
 
         return $groups
-            ->map(function (AssetGroup $group) use ($grouped, $standardLabels, $standardColors): array {
-                $code = $this->assetGroupCode($group->name);
-                $items = $grouped->get(mb_strtolower($this->assetGroupLabel($group->name)), collect());
+            ->map(function (Collection $assets, string $groupKey) use ($grouped, $standardLabels, $standardColors): array {
+                $asset = $assets->first();
+                $group = $asset->assetSubsystem?->assetSystem?->assetGroup;
+                $groupName = $this->assetGroupName($asset);
+                $code = $this->assetGroupCode($groupName);
+                $items = $grouped->get($groupKey, collect());
                 $reliabilityItems = $items->whereNotNull('reliability');
                 $availabilityItems = $items->whereNotNull('availability');
 
                 return [
-                    'id' => $group->id,
+                    'id' => $group?->id ?? $asset->asset_category_node_id ?? $asset->id,
                     'code' => $code,
-                    'name' => $standardLabels[$code] ?? $this->assetGroupLabel($group->name),
-                    'color' => $group->dashboard_color ?? ($standardColors[$code] ?? '#64748B'),
-                    'asset_count' => $items->count(),
+                    'name' => $standardLabels[$code] ?? $this->assetGroupLabel($groupName),
+                    'color' => $group?->dashboard_color
+                        ?? $asset->assetCategoryNode?->dashboard_color
+                        ?? ($standardColors[$code] ?? '#64748B'),
+                    'asset_count' => $assets->count(),
                     'reliability' => $reliabilityItems->isEmpty()
                         ? null
                         : $reliabilityItems->reduce(
@@ -577,6 +620,14 @@ class RamsDashboardQuery
             })
             ->values()
             ->all();
+    }
+
+    private function assetGroupName(Asset $asset): string
+    {
+        return $asset->assetSubsystem?->assetSystem?->assetGroup?->name
+            ?: $asset->aset_prasarana_sintel
+            ?: $asset->assetCategoryNode?->name
+            ?: 'Tanpa kategori';
     }
 
     /** @return array{date: string, groupCodes: list<string>}|null */

@@ -59,6 +59,10 @@ class FailureLogWorkbookImporter
             'duplicates_skipped' => 0,
             'duplicate_locations' => [],
             'skipped' => 0,
+            'invalid_rows' => 0,
+            'empty_rows' => 0,
+            'unrecognized_sheets' => 0,
+            'timestamp_conflicts' => 0,
             'sheets' => 0,
             'summaries' => 0,
             'issues' => [],
@@ -89,17 +93,32 @@ class FailureLogWorkbookImporter
                     if ($headers === null) {
                         continue;
                     }
+                    if (! $headers['complete']) {
+                        $result['unrecognized_sheets']++;
+                        $result['issues'][] = [
+                            'workbook_name' => $workbookName,
+                            'sheet_name' => $sheetName,
+                            'source_row' => $headers['row'],
+                            'source_column' => 'Header',
+                            'message' => 'Sheet terlihat berisi Trouble Report, tetapi header wajib tidak lengkap; sheet dilewati.',
+                            'severity' => 'warning',
+                        ];
+
+                        continue;
+                    }
                     $result['sheets']++;
                     try {
                         $asset = $this->resolveAsset($sheet, $unit, $sheetName);
                         if ($asset === null) {
                             $result['skipped']++;
                             $result['issues'][] = [
+                                'workbook_name' => $workbookName,
                                 'sheet_name' => $sheetName,
                                 'source_row' => null,
                                 'source_column' => null,
                                 'message' => 'Aset (AssetGroup/System/Subsystem) untuk sheet '
                                     ."{$sheetName} tidak ditemukan atau ambigu.",
+                                'severity' => 'warning',
                             ];
 
                             continue;
@@ -118,10 +137,12 @@ class FailureLogWorkbookImporter
                     } catch (RuntimeException $exception) {
                         $result['skipped']++;
                         $result['issues'][] = [
+                            'workbook_name' => $workbookName,
                             'sheet_name' => $sheetName,
                             'source_row' => null,
                             'source_column' => null,
                             'message' => $exception->getMessage(),
+                            'severity' => 'warning',
                         ];
                     }
                 } finally {
@@ -134,9 +155,11 @@ class FailureLogWorkbookImporter
         return $result;
     }
 
-    /** @return array{row: int, columns: array<string, int>}|null */
+    /** @return array{row: int, columns: array<string, int>, complete: bool}|null */
     private function failureHeaders(Worksheet $sheet): ?array
     {
+        $candidate = null;
+
         for ($row = 1; $row <= min(30, $sheet->getHighestDataRow()); $row++) {
             $columns = [];
             $highestColumn = Coordinate::columnIndexFromString($sheet->getHighestDataColumn($row));
@@ -148,11 +171,14 @@ class FailureLogWorkbookImporter
             }
             $hasStartedAt = isset($columns['started_at']) || isset($columns['event_date'], $columns['start_time']);
             if (isset($columns['location'], $columns['failure_event']) && $hasStartedAt) {
-                return ['row' => $row, 'columns' => $columns];
+                return ['row' => $row, 'columns' => $columns, 'complete' => true];
+            }
+            if (isset($columns['failure_event']) && ($candidate === null || count($columns) > count($candidate['columns']))) {
+                $candidate = ['row' => $row, 'columns' => $columns, 'complete' => false];
             }
         }
 
-        return null;
+        return $candidate;
     }
 
     /** @param array<string, int> $columns
@@ -186,6 +212,7 @@ class FailureLogWorkbookImporter
                 $result['duplicates_skipped']++;
                 $result['duplicate_locations'][] = $this->sourceLocation($sheetName, $row);
                 $result['issues'][] = [
+                    'workbook_name' => $workbookName,
                     'sheet_name' => $sheetName,
                     'source_row' => $row,
                     'source_column' => 'Baris Utuh',
@@ -200,6 +227,19 @@ class FailureLogWorkbookImporter
         for ($row = $headerRow + 1; $row <= $sheet->getHighestDataRow(); $row++) {
             $event = $this->text($this->cellValue($sheet, $columns['failure_event'], $row));
             if ($event === '') {
+                if ($this->hasOperationalInput($sheet, $columns, $row)) {
+                    $result['skipped']++;
+                    $result['empty_rows']++;
+                    $result['issues'][] = [
+                        'workbook_name' => $workbookName,
+                        'sheet_name' => $sheetName,
+                        'source_row' => $row,
+                        'source_column' => 'Failure Event',
+                        'message' => 'Baris berisi data operasional tetapi Failure Event kosong; baris dilewati.',
+                        'severity' => 'warning',
+                    ];
+                }
+
                 continue;
             }
             if (isset($conflictingRows[$row])) {
@@ -208,6 +248,7 @@ class FailureLogWorkbookImporter
             $cause = $this->importText($this->cellValue($sheet, $columns['cause'], $row));
             $action = $this->importText($this->cellValue($sheet, $columns['action_taken'], $row));
             try {
+                $startedConflict = null;
                 $startedAt = $this->rowDateTime(
                     $sheet,
                     $columns,
@@ -216,7 +257,9 @@ class FailureLogWorkbookImporter
                     'event_date',
                     'start_time',
                     $sheetName,
+                    $startedConflict,
                 );
+                $resolvedConflict = null;
                 $resolvedAt = $this->rowDateTime(
                     $sheet,
                     $columns,
@@ -225,10 +268,13 @@ class FailureLogWorkbookImporter
                     'handled_date',
                     'end_time',
                     $sheetName,
+                    $resolvedConflict,
                 );
             } catch (RuntimeException $exception) {
                 $result['skipped']++;
+                $result['invalid_rows']++;
                 $result['issues'][] = [
+                    'workbook_name' => $workbookName,
                     'sheet_name' => $sheetName,
                     'source_row' => $row,
                     'source_column' => 'Tanggal/Waktu',
@@ -238,11 +284,32 @@ class FailureLogWorkbookImporter
 
                 continue;
             }
+            foreach (
+                [
+                    'Tanggal Jam Kejadian' => $startedConflict,
+                    'Tanggal Jam Penanganan' => $resolvedConflict,
+                ] as $sourceColumn => $conflict
+            ) {
+                if ($conflict === null) {
+                    continue;
+                }
+                $result['timestamp_conflicts']++;
+                $result['issues'][] = [
+                    'workbook_name' => $workbookName,
+                    'sheet_name' => $sheetName,
+                    'source_row' => $row,
+                    'source_column' => $sourceColumn,
+                    'message' => "Timestamp formula {$conflict['combined']} berbeda dengan nilai pada kolom tanggal/waktu "
+                        ."{$conflict['raw']}; nilai pada kolom tanggal/waktu digunakan.",
+                    'severity' => 'warning',
+                ];
+            }
             if ($resolvedAt->lessThan($startedAt) && $resolvedAt->isSameDay($startedAt)) {
                 $resolvedAt = $resolvedAt->addDay();
             }
             if ($resolvedAt->lessThan($startedAt)) {
                 $result['issues'][] = [
+                    'workbook_name' => $workbookName,
                     'sheet_name' => $sheetName,
                     'source_row' => $row,
                     'source_column' => 'Tanggal Jam Penanganan',
@@ -310,6 +377,7 @@ class FailureLogWorkbookImporter
                 $result['duplicates_skipped']++;
                 $result['duplicate_locations'][] = $this->sourceLocation($sheetName, $row);
                 $result['issues'][] = [
+                    'workbook_name' => $workbookName,
                     'sheet_name' => $sheetName,
                     'source_row' => $row,
                     'source_column' => 'Baris Utuh',
@@ -383,6 +451,38 @@ class FailureLogWorkbookImporter
         return $text === '' ? '-' : $text;
     }
 
+    /** @param array<string, int> $columns */
+    private function hasOperationalInput(Worksheet $sheet, array $columns, int $row): bool
+    {
+        $keys = [
+            'location',
+            'resort',
+            'qc',
+            'cause',
+            'action_taken',
+            'spare_part_replaced',
+            'vandalism',
+            'event_date',
+            'handled_date',
+            'start_time',
+            'end_time',
+        ];
+        if (! isset($columns['event_date'], $columns['start_time'])) {
+            $keys[] = 'started_at';
+        }
+        if (! isset($columns['handled_date'], $columns['end_time'])) {
+            $keys[] = 'resolved_at';
+        }
+
+        foreach ($keys as $key) {
+            if (isset($columns[$key]) && $this->text($this->cellValue($sheet, $columns[$key], $row)) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function sourceLocation(string $sheetName, int $row): string
     {
         return "{$sheetName}!{$row}";
@@ -418,24 +518,42 @@ class FailureLogWorkbookImporter
         string $dateKey,
         string $timeKey,
         string $sheetName,
+        ?array &$conflict = null,
     ): CarbonImmutable {
+        $combinedAt = null;
         if (isset($columns[$combinedKey])) {
             $combined = $this->cellValue($sheet, $columns[$combinedKey], $row);
             if ($combined !== null && $this->text($combined) !== '') {
-                return $this->dateTimeValue($combined, $sheetName, $row);
+                $combinedAt = $this->dateTimeValue($combined, $sheetName, $row);
             }
+        }
+
+        if (isset($columns[$dateKey], $columns[$timeKey])) {
+            $rawAt = $this->dateTime(
+                $this->cellValue($sheet, $columns[$dateKey], $row),
+                $this->cellValue($sheet, $columns[$timeKey], $row),
+                $sheetName,
+                $row,
+            );
+            if ($combinedAt && ! $combinedAt->equalTo($rawAt)) {
+                $conflict = [
+                    'combined' => $combinedAt->format('Y-m-d H:i:s'),
+                    'raw' => $rawAt->format('Y-m-d H:i:s'),
+                ];
+            }
+
+            return $rawAt;
+        }
+
+        if ($combinedAt) {
+            return $combinedAt;
         }
 
         if (! isset($columns[$dateKey], $columns[$timeKey])) {
             throw new RuntimeException("Tanggal/waktu tidak lengkap pada sheet {$sheetName}, row {$row}.");
         }
 
-        return $this->dateTime(
-            $this->cellValue($sheet, $columns[$dateKey], $row),
-            $this->cellValue($sheet, $columns[$timeKey], $row),
-            $sheetName,
-            $row,
-        );
+        throw new RuntimeException("Tanggal/waktu tidak valid pada sheet {$sheetName}, row {$row}.");
     }
 
     private function dateTimeValue(mixed $value, string $sheet, int $row): CarbonImmutable

@@ -52,6 +52,38 @@ class MasterAssetWorkbookImporter
         'consequences' => 'consequence',
     ];
 
+    /** @var array<string, array<string, string>> */
+    private const KAI_SYSTEM_BY_SUBSYSTEM = [
+        'peralatan dalam sinyal elektrik' => [
+            'interlocking elektrik' => 'INTERLOCKING ELEKTRIK',
+        ],
+        'peralatan luar sinyal elektrik' => [
+            'peraga sinyal elektrik utama' => 'PERAGA SINYAL ELEKTRIK',
+            'peraga sinyal elektrik pembantu' => 'PERAGA SINYAL ELEKTRIK',
+            'peraga sinyal elektrik pelengkap' => 'PERAGA SINYAL ELEKTRIK',
+            'penggerak wesel elektrik' => 'PENGGERAK WESEL ELEKTRIK',
+            'pengaman wesel setempat elektrik' => 'PENGAMAN WESEL SETEMPAT ELEKTRIK',
+            'track ciruit' => 'DETEKSI SARANA PERKERETAAPIAN',
+            'track circuit' => 'DETEKSI SARANA PERKERETAAPIAN',
+            'axle counter' => 'DETEKSI SARANA PERKERETAAPIAN',
+        ],
+        'peralatan dalam sinyal mekanik' => [
+            'interlocking mekanik' => 'INTERLOCKING MEKANIK',
+        ],
+        'peralatan luar sinyal mekanik' => [
+            'peraga sinyal mekanik utama' => 'PERAGA SINYAL MEKANIK',
+            'peraga sinyal mekanik pembantu' => 'PERAGA SINYAL MEKANIK',
+            'peraga sinyal mekanik pelengkap' => 'PERAGA SINYAL MEKANIK',
+            'penggerak wesel mekanik' => 'PENGGERAK WESEL MEKANIK',
+            'pengontrol dan petunjuk kedudukan wesel mekanik' => 'PENGONTROL DAN PETUNJUK KEDUDUKAN WESEL MEKANIK',
+            'pengaman wesel setempat mekanik' => 'PENGAMAN WESEL SETEMPAT MEKANIK',
+            'kontak deteksi' => 'PENDETEKSI SARANA PERKERETAAPIAN',
+        ],
+        'catu daya sintel' => [
+            'catu daya sinyal' => 'CATU DAYA SINYAL',
+        ],
+    ];
+
     /** @var array<string, string> */
     private const EXCEL_OUTPUT_HEADERS = [
         'criticality' => 'criticality',
@@ -73,6 +105,7 @@ class MasterAssetWorkbookImporter
     public function __construct(
         private readonly AuditLogger $auditLogger,
         private readonly AssetCategoryResolver $categoryResolver,
+        private readonly AssetTaxonomyService $assetTaxonomy,
         private readonly PredictiveInventoryCalculator $predictiveInventoryCalculator,
         private readonly RiskAssessmentCalculator $riskAssessmentCalculator,
     ) {}
@@ -220,15 +253,26 @@ class MasterAssetWorkbookImporter
                 continue;
             }
 
-            $categories = $this->categoryResolver->resolve(
+            $resolvedSystem = $this->kaiSystemForSubsystem($currentGroup, $currentSystem, $subsystem);
+            $this->rehomeExistingKaiSubsystem(
+                $unit,
                 $currentGroup,
                 $currentSystem,
+                $resolvedSystem,
+                $subsystem,
+            );
+
+            $categories = $this->categoryResolver->resolve(
+                $currentGroup,
+                $resolvedSystem,
                 $subsystem,
                 $workbookName,
                 self::SHEET,
                 $row,
                 $unit->id,
             );
+            $this->retireEmptyLegacyKaiPath($categories, $currentSystem, $resolvedSystem, $subsystem);
+            $this->inheritKaiDashboardColor($categories, $currentSystem, $resolvedSystem);
             $this->lockAndRevalidateCategories(
                 $categories['group'],
                 $categories['system'],
@@ -267,7 +311,7 @@ class MasterAssetWorkbookImporter
                 'unit_kerja_id' => $unit->getKey(),
                 'asset_subsystem_id' => $categories['subsystem']->id,
                 'aset_prasarana_sintel' => $currentGroup,
-                'system' => $currentSystem,
+                'system' => $resolvedSystem,
                 'subsystem' => $subsystem,
                 'jumlah_unit' => $this->quantity(
                     $sheet->getCell([$columns['total'], $row])->getCalculatedValue(),
@@ -321,21 +365,23 @@ class MasterAssetWorkbookImporter
                 throw new RuntimeException(
                     "Konflik kandidat aset impor pada workbook {$workbookName}, sheet ".
                         self::SHEET.
-                        ", row {$row}, path {$currentGroup}|{$currentSystem}|{$subsystem}: ".
+                        ", row {$row}, path {$currentGroup}|{$resolvedSystem}|{$subsystem}: ".
                         $matchingAssets->count().
                         ' kandidat ditemukan.',
                 );
             }
 
-            if ($matchingAssets->contains(fn (Asset $candidate): bool => $candidate->trashed())) {
-                $result['skipped']++;
-
-                continue;
-            }
-
             /** @var Asset|null $asset */
             $asset = $matchingAssets->first();
             $previousSubsystemId = $asset?->asset_subsystem_id;
+
+            if ($asset?->trashed()) {
+                $result['skipped']++;
+                $result['duplicates_skipped']++;
+                $result['duplicate_locations'][] = self::SHEET.'!'.$row;
+
+                continue;
+            }
 
             if ($asset) {
                 $before = $this->auditValues($asset);
@@ -386,6 +432,147 @@ class MasterAssetWorkbookImporter
         }
 
         return $result;
+    }
+
+    private function kaiSystemForSubsystem(string $group, string $system, string $subsystem): string
+    {
+        $normalizedGroup = $this->categoryResolver->normalize($group);
+        $normalizedSubsystem = $this->categoryResolver->normalize($subsystem);
+
+        foreach (self::KAI_SYSTEM_BY_SUBSYSTEM as $groupName => $systems) {
+            if (str_contains($normalizedGroup, $groupName) && isset($systems[$normalizedSubsystem])) {
+                return $systems[$normalizedSubsystem];
+            }
+        }
+
+        return $system;
+    }
+
+    private function rehomeExistingKaiSubsystem(
+        UnitKerja $unit,
+        string $groupName,
+        string $sourceSystemName,
+        string $resolvedSystemName,
+        string $subsystemName,
+    ): void {
+        if ($this->categoryResolver->normalize($sourceSystemName) === $this->categoryResolver->normalize($resolvedSystemName)) {
+            return;
+        }
+
+        $group = AssetGroup::query()
+            ->where('unit_kerja_id', $unit->id)
+            ->where('normalized_name', $this->categoryResolver->normalize($groupName))
+            ->lockForUpdate()
+            ->first();
+        if (! $group) {
+            return;
+        }
+
+        $sourceSystem = AssetSystem::query()
+            ->where('asset_group_id', $group->id)
+            ->where('normalized_name', $this->categoryResolver->normalize($sourceSystemName))
+            ->lockForUpdate()
+            ->first();
+        $sourceSubsystem = $sourceSystem?->subsystems()
+            ->where('normalized_name', $this->categoryResolver->normalize($subsystemName))
+            ->lockForUpdate()
+            ->first();
+        if (! $sourceSystem || ! $sourceSubsystem) {
+            return;
+        }
+
+        $targetSystem = AssetSystem::query()->firstOrCreate(
+            [
+                'asset_group_id' => $group->id,
+                'normalized_name' => $this->categoryResolver->normalize($resolvedSystemName),
+            ],
+            [
+                'name' => $resolvedSystemName,
+                'sort_order' => $sourceSystem->sort_order,
+                'dashboard_color' => $sourceSystem->dashboard_color ?? $group->dashboard_color,
+                'dashboard_color_source' => $sourceSystem->dashboard_color_source ?? $group->dashboard_color_source,
+                'is_active' => true,
+            ],
+        );
+
+        $duplicate = $targetSystem->subsystems()
+            ->where('normalized_name', $this->categoryResolver->normalize($subsystemName))
+            ->lockForUpdate()
+            ->first();
+        if ($duplicate && $duplicate->id !== $sourceSubsystem->id) {
+            return;
+        }
+
+        $sourceSubsystem->asset_system_id = $targetSystem->id;
+        $sourceSubsystem->save();
+        $this->assetTaxonomy->syncLegacyPath($group, $targetSystem, $sourceSubsystem);
+    }
+
+    /** @param array{group: AssetGroup, system: AssetSystem, subsystem: AssetSubsystem} $categories */
+    private function retireEmptyLegacyKaiPath(
+        array $categories,
+        string $sourceSystemName,
+        string $resolvedSystemName,
+        string $subsystemName,
+    ): void {
+        if ($this->categoryResolver->normalize($sourceSystemName) === $this->categoryResolver->normalize($resolvedSystemName)) {
+            return;
+        }
+
+        $sourceSystem = AssetSystem::query()
+            ->where('asset_group_id', $categories['group']->id)
+            ->where('normalized_name', $this->categoryResolver->normalize($sourceSystemName))
+            ->lockForUpdate()
+            ->first();
+        $sourceSubsystem = $sourceSystem?->subsystems()
+            ->where('normalized_name', $this->categoryResolver->normalize($subsystemName))
+            ->lockForUpdate()
+            ->first();
+
+        if ($sourceSubsystem && $sourceSubsystem->id !== $categories['subsystem']->id) {
+            $node = $this->assetTaxonomy->nodeForLegacy('subsystem', $sourceSubsystem->id);
+            $unused = ! $sourceSubsystem->assets()->withTrashed()->exists()
+                && ! $sourceSubsystem->openings()->exists()
+                && ! $sourceSubsystem->spareParts()->exists()
+                && ! $node?->children()->exists();
+
+            if ($unused) {
+                $sourceSubsystem->delete();
+                $node?->delete();
+            }
+        }
+
+        if ($sourceSystem && $sourceSystem->subsystems()->doesntExist()) {
+            $node = $this->assetTaxonomy->nodeForLegacy('system', $sourceSystem->id);
+            if (! $node?->children()->exists()) {
+                $sourceSystem->delete();
+                $node?->delete();
+            }
+        }
+    }
+
+    /** @param array{group: AssetGroup, system: AssetSystem, subsystem: AssetSubsystem} $categories */
+    private function inheritKaiDashboardColor(array $categories, string $sourceSystemName, string $resolvedSystemName): void
+    {
+        if ($this->categoryResolver->normalize($sourceSystemName) === $this->categoryResolver->normalize($resolvedSystemName)) {
+            return;
+        }
+
+        $color = $categories['group']->dashboard_color;
+        if (! $color) {
+            return;
+        }
+
+        foreach ([$categories['system'], $categories['subsystem']] as $category) {
+            if (! $category->dashboard_color) {
+                $category->forceFill([
+                    'dashboard_color' => $color,
+                    'dashboard_color_source' => $categories['group']->dashboard_color_source,
+                ])->save();
+            }
+        }
+
+        $this->assetTaxonomy->syncLegacyPath($categories['group'], $categories['system'], $categories['subsystem']);
     }
 
     /**

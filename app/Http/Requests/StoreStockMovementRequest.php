@@ -6,6 +6,7 @@ use App\Enums\StockDirection;
 use App\Enums\StockMovementType;
 use App\Models\InventoryStock;
 use App\Models\SparePart;
+use App\Services\RamsUnitContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -58,6 +59,20 @@ class StoreStockMovementRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
+                $unitId = app(RamsUnitContext::class)->resolve($this)?->id;
+                if (! $unitId) {
+                    $validator->errors()->add('unit_kerja_id', 'Wilayah RAMS aktif tidak tersedia.');
+
+                    return;
+                }
+
+                if ($this->user()->isPusat() && $this->integer('unit_kerja_id') !== $unitId) {
+                    $validator->errors()->add(
+                        'unit_kerja_id',
+                        'Unit kerja harus sama dengan wilayah RAMS yang sedang aktif.',
+                    );
+                }
+
                 $type = StockMovementType::tryFrom($this->string('type')->toString());
                 $direction = StockDirection::tryFrom($this->string('direction')->toString());
                 if (! $type || ! $direction || $type === StockMovementType::Correction) {

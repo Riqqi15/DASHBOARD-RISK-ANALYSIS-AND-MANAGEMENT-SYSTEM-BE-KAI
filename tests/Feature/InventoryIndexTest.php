@@ -74,8 +74,7 @@ class InventoryIndexTest extends TestCase
                     ->where('can.choose_unit', false)
                     ->where('can.manage_master', false)
                     ->where('can.record_movement', true)
-                    ->has('spareParts', 1)
-                    ->where('spareParts.0.code', 'SP-OTHER')
+                    ->has('spareParts', 0)
                     ->has('categories')
                     ->has('units', 0),
             );

@@ -12,6 +12,7 @@ use App\Models\AssetSystem;
 use App\Models\UnitKerja;
 use App\Queries\AssetHierarchyQuery;
 use App\Services\AuditLogger;
+use App\Services\RamsUnitContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,7 @@ class MasterAssetController extends Controller
     public function __construct(
         private readonly AuditLogger $auditLogger,
         private readonly AssetHierarchyQuery $assetHierarchyQuery,
+        private readonly RamsUnitContext $unitContext,
     ) {}
 
     public function index(Request $request): Response
@@ -34,7 +36,7 @@ class MasterAssetController extends Controller
 
         $search = $request->string('search')->trim()->toString();
         $status = $request->string('status')->toString();
-        $unitId = $this->selectedUnitId($request);
+        $unitId = $this->unitContext->resolve($request)?->id;
         $query = $this->filteredQuery($request, $search, $status, $unitId);
         $hierarchyProps = $this->hierarchyProps($request, $query, $unitId);
 
@@ -71,7 +73,7 @@ class MasterAssetController extends Controller
         return Inertia::render('master-data/assets/MasterAsset', [
             'assets' => $assets,
             ...$hierarchyProps,
-            'assetCategories' => $this->activeCategories(),
+            'assetCategories' => $this->activeCategories(unitId: $unitId),
             'stats' => $stats,
             'filters' => [
                 'search' => $search,
@@ -94,7 +96,8 @@ class MasterAssetController extends Controller
     public function store(StoreAssetRequest $request): RedirectResponse
     {
         DB::transaction(function () use ($request): void {
-            $subsystem = $this->lockedCategoryPath($request->integer('asset_subsystem_id'), false);
+            $unitId = $this->unitContext->resolve($request)?->id ?? abort(404);
+            $subsystem = $this->lockedCategoryPath($request->integer('asset_subsystem_id'), $unitId, false);
             $asset = Asset::query()->create($request->assetData($subsystem));
             $asset->setRelation('assetSubsystem', $subsystem);
             $this->auditLogger->record('asset.created', $asset, [], $this->auditValues($asset));
@@ -119,13 +122,16 @@ class MasterAssetController extends Controller
         $this->visibleAsset($request, $asset);
 
         DB::transaction(function () use ($request, $asset): void {
+            $unitId = $this->unitContext->resolve($request)?->id ?? abort(404);
             $lockedAsset = Asset::query()
                 ->visibleTo($request->user())
+                ->where('unit_kerja_id', $unitId)
                 ->with('assetSubsystem.assetSystem.assetGroup')
                 ->lockForUpdate()
                 ->findOrFail($asset);
             $subsystem = $this->lockedCategoryPath(
                 $request->integer('asset_subsystem_id'),
+                $unitId,
                 $lockedAsset->asset_subsystem_id === $request->integer('asset_subsystem_id'),
             );
             $before = $this->auditValues($lockedAsset);
@@ -135,6 +141,30 @@ class MasterAssetController extends Controller
         });
 
         return redirect()->route('master-assets.index')->with('success', 'Aset berhasil diperbarui.');
+    }
+
+    public function updateInstallationDate(Request $request, int $asset): RedirectResponse
+    {
+        $visibleAsset = $this->visibleAsset($request, $asset);
+        Gate::authorize('update', $visibleAsset);
+        $validated = $request->validate([
+            'tanggal_pemasangan' => ['nullable', 'date', 'before_or_equal:today'],
+        ]);
+
+        DB::transaction(function () use ($request, $asset, $validated): void {
+            $unitId = $this->unitContext->resolve($request)?->id ?? abort(404);
+            $lockedAsset = Asset::query()
+                ->visibleTo($request->user())
+                ->where('unit_kerja_id', $unitId)
+                ->lockForUpdate()
+                ->findOrFail($asset);
+            $before = ['tanggal_pemasangan' => $lockedAsset->tanggal_pemasangan?->toDateString()];
+            $lockedAsset->update($validated);
+            $after = ['tanggal_pemasangan' => $lockedAsset->tanggal_pemasangan?->toDateString()];
+            $this->auditLogger->record('asset.installation_date.updated', $lockedAsset, $before, $after);
+        });
+
+        return back()->with('success', 'Tanggal pemasangan equipment berhasil diperbarui.');
     }
 
     public function destroy(Request $request, int $asset): RedirectResponse
@@ -148,7 +178,7 @@ class MasterAssetController extends Controller
             $this->auditLogger->record('asset.deleted', $asset, $before, []);
         });
 
-        return redirect()->route('master-assets.index')->with('success', 'Aset berhasil dihapus.');
+        return back()->with('success', 'Aset berhasil dihapus.');
     }
 
     private function filteredQuery(Request $request, string $search, string $status, ?int $unitId): Builder
@@ -206,17 +236,22 @@ class MasterAssetController extends Controller
 
     private function visibleAsset(Request $request, int $id, bool $withCategory = false): Asset
     {
+        $unitId = $this->unitContext->resolve($request)?->id;
+
         return Asset::query()
             ->visibleTo($request->user())
+            ->where('unit_kerja_id', $unitId ?? 0)
             ->when($withCategory, fn (Builder $query): Builder => $query->with('assetSubsystem.assetSystem.assetGroup'))
             ->findOrFail($id);
     }
 
     private function formProps(Request $request, ?AssetSubsystem $currentSubsystem = null): array
     {
+        $unitId = $this->unitContext->resolve($request)?->id;
+
         return [
             'units' => $request->user()->isPusat() ? $this->activeUnits() : [],
-            'categories' => $this->activeCategories($currentSubsystem),
+            'categories' => $this->activeCategories($currentSubsystem, $unitId),
             'statusOptions' => $this->statusOptions(),
             'can' => ['choose_unit' => $request->user()->isPusat()],
         ];
@@ -228,25 +263,6 @@ class MasterAssetController extends Controller
             ->where('is_active', true)
             ->orderBy('code')
             ->get(['id', 'code', 'name']);
-    }
-
-    private function selectedUnitId(Request $request): ?int
-    {
-        if ($request->user()->isUnit()) {
-            return UnitKerja::query()
-                ->whereKey($request->user()->unit_kerja_id)
-                ->where('is_active', true)
-                ->value('id');
-        }
-
-        $unitId = filter_var($request->input('unit_kerja_id'), FILTER_VALIDATE_INT, [
-            'options' => ['min_range' => 1],
-        ]);
-
-        $selected =
-            $unitId === false ? null : UnitKerja::query()->where('is_active', true)->whereKey($unitId)->value('id');
-
-        return $selected ?? UnitKerja::query()->where('is_active', true)->orderBy('code')->value('id');
     }
 
     private function statusOptions(): array
@@ -291,9 +307,14 @@ class MasterAssetController extends Controller
         return $this->assetPayload($asset);
     }
 
-    private function activeCategories(?AssetSubsystem $currentSubsystem = null): array
+    private function activeCategories(?AssetSubsystem $currentSubsystem = null, ?int $unitId = null): array
     {
         $categories = AssetGroup::query()
+            ->when(
+                $unitId,
+                fn (Builder $query): Builder => $query->forUnit($unitId),
+                fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+            )
             ->where('is_active', true)
             ->with([
                 'systems' => fn ($systems) => $systems
@@ -424,7 +445,7 @@ class MasterAssetController extends Controller
         ];
     }
 
-    private function lockedCategoryPath(int $subsystemId, bool $allowInactive): AssetSubsystem
+    private function lockedCategoryPath(int $subsystemId, int $unitId, bool $allowInactive): AssetSubsystem
     {
         $identity = AssetSubsystem::query()->with('assetSystem:id,asset_group_id')->find($subsystemId);
 
@@ -434,7 +455,12 @@ class MasterAssetController extends Controller
             ]);
         }
 
-        $group = AssetGroup::query()->lockForUpdate()->find($identity->assetSystem->asset_group_id);
+        $group = AssetGroup::query()
+            ->where(fn (Builder $query): Builder => $query
+                ->whereNull('unit_kerja_id')
+                ->orWhere('unit_kerja_id', $unitId))
+            ->lockForUpdate()
+            ->find($identity->assetSystem->asset_group_id);
         $system = AssetSystem::query()
             ->where('asset_group_id', $group?->id)
             ->lockForUpdate()

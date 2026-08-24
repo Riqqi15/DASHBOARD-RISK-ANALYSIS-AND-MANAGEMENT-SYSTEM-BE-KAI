@@ -63,10 +63,10 @@ final class FailureLogWorkbookImporterTest extends TestCase
         $result = app(FailureLogWorkbookImporter::class)->import($path, $unit);
 
         $this->assertSame(1, $result['created']);
-        $this->assertSame(2, $result['skipped']);
-        $this->assertCount(2, $result['issues']);
+        $this->assertSame(3, $result['skipped']);
+        $this->assertCount(3, $result['issues']);
         $this->assertSame(
-            ['Interlocking Elektrik', 'Subsystem Tidak Terdaftar'],
+            ['Interlocking Elektrik', 'Interlocking Elektrik', 'Subsystem Tidak Terdaftar'],
             array_column($result['issues'], 'sheet_name'),
         );
         $this->assertDatabaseCount('failure_logs', 1);

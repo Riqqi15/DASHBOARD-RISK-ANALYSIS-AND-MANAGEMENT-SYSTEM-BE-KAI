@@ -125,6 +125,87 @@ class SparePartImportTest extends TestCase
         $this->assertDatabaseCount('spare_parts', 0);
     }
 
+    public function test_maps_reorder_sub_system_to_unique_master_subsystem_within_group(): void
+    {
+        $group = AssetGroup::factory()->create(['name' => '2. PERALATAN LUAR SINYAL ELEKTRIK']);
+        $system = AssetSystem::factory()->for($group)->create(['name' => 'PERAGA SINYAL ELEKTRIK']);
+        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'PERAGA SINYAL ELEKTRIK UTAMA']);
+        $path = $this->workbook([
+            [
+                'Peralatan Luar Sinyal Elektrik',
+                'Peraga Sinyal Elektrik Utama',
+                'Sinyal Langsir',
+                'Pondasi',
+                null, null, null, null, null, null, null, null,
+            ],
+        ]);
+
+        $result = app(SparePartWorkbookImporter::class)->import(
+            $path,
+            bootstrapCategories: false,
+            unit: null,
+            skipUnmatchedCategories: true,
+        );
+
+        $this->assertSame(1, $result['created']);
+        $this->assertSame(0, $result['skipped']);
+        $this->assertSame([], $result['issues']);
+        $this->assertDatabaseHas('spare_parts', [
+            'asset_subsystem_id' => $subsystem->id,
+            'equipment' => 'Sinyal Langsir',
+            'detail_equipment' => 'Pondasi',
+            'reorder_calculation_status' => 'insufficient_data',
+        ]);
+    }
+
+    public function test_reuses_proven_group_anchor_for_forward_filled_deeper_hierarchy(): void
+    {
+        $group = AssetGroup::factory()->create(['name' => '1. PERALATAN DALAM SINYAL ELEKTRIK']);
+        $system = AssetSystem::factory()->for($group)->create(['name' => 'INTERLOCKING ELEKTRIK']);
+        $subsystem = AssetSubsystem::factory()->for($system)->create(['name' => 'INTERLOCKING ELEKTRIK']);
+        $path = $this->workbook([
+            ['Peralatan Dalam Sinyal Elektrik', 'Interlocking Electric', 'Interlocking Electric', 'Modul Interlocking', 1, 1, 1, 1, 1, 1, 2, 'High'],
+            ['', 'Panel Pelayanan', 'Panel Pelayanan LCP', 'Meja Pelayanan LCP', null, null, null, null, null, null, null, null],
+            ['', 'Terminal Peralatan', 'Data Logger', 'PC Based', null, null, null, null, null, null, null, null],
+        ]);
+
+        $result = app(SparePartWorkbookImporter::class)->import(
+            $path,
+            bootstrapCategories: false,
+            unit: null,
+            skipUnmatchedCategories: true,
+        );
+
+        $this->assertSame(3, $result['created']);
+        $this->assertSame(0, $result['skipped']);
+        $this->assertSame([$subsystem->id], SparePart::query()->distinct()->pluck('asset_subsystem_id')->all());
+    }
+
+    public function test_repeated_detail_equipment_under_different_equipment_creates_distinct_parts(): void
+    {
+        $group = AssetGroup::factory()->create(['name' => '2. PERALATAN LUAR SINYAL ELEKTRIK']);
+        $system = AssetSystem::factory()->for($group)->create(['name' => 'PERAGA SINYAL ELEKTRIK']);
+        AssetSubsystem::factory()->for($system)->create(['name' => 'PERAGA SINYAL ELEKTRIK UTAMA']);
+        $path = $this->workbook([
+            ['Peralatan Luar Sinyal Elektrik', 'Peraga Sinyal Elektrik Utama', 'Sinyal Masuk', 'Tiang Sinyal', null, null, null, null, null, null, null, null],
+            ['', '', 'Sinyal Langsir', 'Tiang Sinyal', null, null, null, null, null, null, null, null],
+        ]);
+
+        $result = app(SparePartWorkbookImporter::class)->import(
+            $path,
+            bootstrapCategories: false,
+            unit: null,
+            skipUnmatchedCategories: true,
+        );
+
+        $this->assertSame(2, $result['created']);
+        $this->assertDatabaseCount('spare_parts', 2);
+        $this->assertEqualsCanonicalizing(
+            ['Sinyal Masuk', 'Sinyal Langsir'],
+            SparePart::query()->pluck('equipment')->all(),
+        );
+    }
+
     public function test_explicit_bootstrap_mode_creates_missing_reorder_hierarchy_and_aliases(): void
     {
         $path = $this->workbook([

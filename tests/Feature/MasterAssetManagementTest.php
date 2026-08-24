@@ -161,7 +161,8 @@ class MasterAssetManagementTest extends TestCase
     public function test_index_exposes_empty_asset_categories_without_master_assets(): void
     {
         $pusat = User::factory()->pusat()->create();
-        AssetGroup::factory()->create(['name' => '1234']);
+        $unit = UnitKerja::factory()->create();
+        AssetGroup::factory()->create(['unit_kerja_id' => $unit->id, 'name' => '1234']);
 
         $this->actingAs($pusat)
             ->get('/master-asset')
@@ -505,10 +506,26 @@ class MasterAssetManagementTest extends TestCase
     public function test_form_categories_include_only_active_ordered_hierarchies(): void
     {
         $pusat = User::factory()->pusat()->create();
-        $beta = AssetGroup::factory()->create(['name' => 'Beta Group', 'sort_order' => 2]);
-        $alpha = AssetGroup::factory()->create(['name' => 'Alpha Group', 'sort_order' => 1]);
-        $inactive = AssetGroup::factory()->create(['name' => 'Inactive Group', 'is_active' => false]);
-        $deleted = AssetGroup::factory()->create(['name' => 'Deleted Group']);
+        $unit = UnitKerja::factory()->create();
+        $beta = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => 'Beta Group',
+            'sort_order' => 2,
+        ]);
+        $alpha = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => 'Alpha Group',
+            'sort_order' => 1,
+        ]);
+        $inactive = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => 'Inactive Group',
+            'is_active' => false,
+        ]);
+        $deleted = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => 'Deleted Group',
+        ]);
         $deleted->delete();
         $betaSystem = AssetSystem::factory()
             ->for($beta)
@@ -844,9 +861,11 @@ class MasterAssetManagementTest extends TestCase
         $this->actingAs($pusat)
             ->put("/master-asset/{$asset->id}", $payload)
             ->assertRedirect('/master-asset');
+        $categoryUrl = "/admin/asset-categories?unit_kerja_id={$asset->unit_kerja_id}&node={$asset->asset_category_node_id}";
         $this->actingAs($pusat)
+            ->from($categoryUrl)
             ->delete("/master-asset/{$asset->id}")
-            ->assertRedirect('/master-asset');
+            ->assertRedirect($categoryUrl);
 
         $this->assertSoftDeleted('assets', ['id' => $asset->id]);
         $this->assertDatabaseHas('audit_logs', ['action' => 'asset.updated']);

@@ -24,9 +24,9 @@ class FailureLogService
     /**
      * @param  array<string, mixed>  $data
      */
-    public function record(array $data, User $actor): FailureLog
+    public function record(array $data, User $actor, ?int $unitId = null): FailureLog
     {
-        return DB::transaction(function () use ($data, $actor): FailureLog {
+        return DB::transaction(function () use ($data, $actor, $unitId): FailureLog {
             $authoritativeActor = User::query()
                 ->whereKey($actor->getKey())
                 ->where('is_active', true)
@@ -44,6 +44,7 @@ class FailureLogService
             if ($authoritativeActor->isUnit() && $authoritativeActor->unit_kerja_id !== $asset->unit_kerja_id) {
                 throw new AuthorizationException('Aset berada di luar unit kerja pengguna.');
             }
+            abort_if($unitId && $asset->unit_kerja_id !== $unitId, 404);
 
             $existing = FailureLog::query()->where('idempotency_key', $data['idempotency_key'])->first();
             if ($existing) {
@@ -146,9 +147,9 @@ class FailureLogService
         }
     }
 
-    public function update(FailureLog $failure, array $data, User $actor): FailureLog
+    public function update(FailureLog $failure, array $data, User $actor, ?int $unitId = null): FailureLog
     {
-        return DB::transaction(function () use ($failure, $data, $actor): FailureLog {
+        return DB::transaction(function () use ($failure, $data, $actor, $unitId): FailureLog {
             $authoritativeActor = User::query()
                 ->whereKey($actor->getKey())
                 ->where('is_active', true)
@@ -158,6 +159,14 @@ class FailureLogService
                 throw new AuthorizationException('Pengguna tidak aktif atau tidak ditemukan.');
             }
 
+            FailureLog::query()
+                ->whereKey($failure->id)
+                ->when(
+                    $unitId && $authoritativeActor->isPusat(),
+                    fn ($query) => $query->whereHas('asset', fn ($assets) => $assets->where('unit_kerja_id', $unitId)),
+                )
+                ->firstOrFail();
+
             $asset = Asset::query()
                 ->whereKey($data['asset_id'])
                 ->with('unitKerja')
@@ -166,6 +175,7 @@ class FailureLogService
             if ($authoritativeActor->isUnit() && $authoritativeActor->unit_kerja_id !== $asset->unit_kerja_id) {
                 throw new AuthorizationException('Aset berada di luar unit kerja pengguna.');
             }
+            abort_if($unitId && $asset->unit_kerja_id !== $unitId, 404);
 
             $part = $this->resolveSparePart($data, $asset);
             $startedAt = CarbonImmutable::parse($data['started_at']);
@@ -199,9 +209,9 @@ class FailureLogService
         }, 5);
     }
 
-    public function delete(FailureLog $failure, User $actor): void
+    public function delete(FailureLog $failure, User $actor, ?int $unitId = null): void
     {
-        DB::transaction(function () use ($failure, $actor): void {
+        DB::transaction(function () use ($failure, $actor, $unitId): void {
             $authoritativeActor = User::query()
                 ->whereKey($actor->getKey())
                 ->where('is_active', true)
@@ -211,7 +221,19 @@ class FailureLogService
                 throw new AuthorizationException('Pengguna tidak aktif atau tidak ditemukan.');
             }
 
+            FailureLog::query()
+                ->whereKey($failure->id)
+                ->when(
+                    $unitId && $authoritativeActor->isPusat(),
+                    fn ($query) => $query->whereHas('asset', fn ($assets) => $assets->where('unit_kerja_id', $unitId)),
+                )
+                ->firstOrFail();
+
             $asset = $failure->asset;
+            if ($authoritativeActor->isUnit() && $authoritativeActor->unit_kerja_id !== $asset->unit_kerja_id) {
+                throw new AuthorizationException('Aset berada di luar unit kerja pengguna.');
+            }
+            abort_if($unitId && $asset->unit_kerja_id !== $unitId, 404);
             $resolvedAt = CarbonImmutable::parse($failure->resolved_at);
 
             $failure->delete();

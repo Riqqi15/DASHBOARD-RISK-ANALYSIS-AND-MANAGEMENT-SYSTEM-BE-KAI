@@ -108,11 +108,17 @@ class RamsDashboardBackendTest extends TestCase
         $daopOne = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
         $daopFour = UnitKerja::factory()->create(['code' => 'DAOP-4', 'is_active' => true]);
 
-        AssetGroup::factory()->create([
+        $group = AssetGroup::factory()->create([
             'unit_kerja_id' => $daopOne->id,
             'name' => '6. DAYA SATU',
             'sort_order' => 6,
             'dashboard_color' => '#123ABC',
+        ]);
+        $system = AssetSystem::factory()->create(['asset_group_id' => $group->id]);
+        $subsystem = AssetSubsystem::factory()->create(['asset_system_id' => $system->id]);
+        Asset::factory()->create([
+            'unit_kerja_id' => $daopOne->id,
+            'asset_subsystem_id' => $subsystem->id,
         ]);
         AssetGroup::factory()->create([
             'unit_kerja_id' => $daopOne->id,
@@ -134,9 +140,33 @@ class RamsDashboardBackendTest extends TestCase
                     ->where('summary.reliabilityGroups.0.code', 'DS')
                     ->where('summary.reliabilityGroups.0.name', 'DAYA SATU')
                     ->where('summary.reliabilityGroups.0.color', '#123ABC')
-                    ->where('summary.reliabilityGroups.0.asset_count', 0)
+                    ->where('summary.reliabilityGroups.0.asset_count', 1)
                     ->where('summary.reliabilityGroups.0.reliability', null)
                     ->where('summary.reliabilityGroups.0.availability', null),
+            );
+    }
+
+    public function test_dashboard_hides_reliability_groups_when_selected_area_has_no_assets(): void
+    {
+        $pusat = User::factory()
+            ->pusat()
+            ->create(['is_active' => true]);
+        $emptyUnit = UnitKerja::factory()->create(['code' => 'DAOP-2', 'is_active' => true]);
+        $populatedUnit = UnitKerja::factory()->create(['code' => 'DAOP-1', 'is_active' => true]);
+
+        AssetGroup::factory()->create([
+            'unit_kerja_id' => $emptyUnit->id,
+            'name' => 'PERALATAN DALAM SINYAL ELEKTRIK',
+        ]);
+        $this->assetInGroup($populatedUnit, 'PERALATAN DALAM SINYAL ELEKTRIK');
+
+        $this->actingAs($pusat)
+            ->get('/dashboard?area=DAOP2')
+            ->assertOk()
+            ->assertInertia(
+                fn (Assert $page) => $page
+                    ->where('summary.totalAset', 0)
+                    ->has('summary.reliabilityGroups', 0),
             );
     }
 

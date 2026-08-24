@@ -10,15 +10,19 @@ use App\Http\Requests\UpdateRiskRegisterRequest;
 use App\Models\Asset;
 use App\Models\RiskRegister;
 use App\Models\UnitKerja;
+use App\Services\RamsUnitContext;
 use App\Services\RiskRegisterService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final class RiskRegisterController extends Controller
 {
+    public function __construct(private readonly RamsUnitContext $unitContext) {}
+
     public function index(RamsAreaRequest $request): Response
     {
         $user = $request->user();
@@ -128,9 +132,15 @@ final class RiskRegisterController extends Controller
 
     private function mutationUnit(StoreRiskRegisterRequest|UpdateRiskRegisterRequest $request): UnitKerja
     {
-        $unitId = $request->user()->isUnit() ? $request->user()->unit_kerja_id : $request->integer('unit_kerja_id');
+        $unit = $this->unitContext->resolve($request) ?? abort(404);
 
-        return UnitKerja::query()->where('is_active', true)->findOrFail($unitId);
+        if ($request->user()->isPusat() && $request->integer('unit_kerja_id') !== $unit->id) {
+            throw ValidationException::withMessages([
+                'unit_kerja_id' => 'Unit kerja harus sama dengan wilayah RAMS yang sedang aktif.',
+            ]);
+        }
+
+        return $unit;
     }
 
     private function scopedRedirect(Request $request, UnitKerja $unit): RedirectResponse

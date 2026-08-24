@@ -42,6 +42,9 @@ class AssetTaxonomyAssetController extends Controller
             );
         });
 
-        return back()->with('success', 'Aset wilayah berhasil ditambahkan.');
+        return to_route('admin.asset-categories.index', [
+            'unit_kerja_id' => $request->unitId(),
+            'node' => $request->integer('asset_category_node_id'),
+        ])->with('success', 'Aset wilayah berhasil ditambahkan.');
     }
 }

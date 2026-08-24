@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\RamsUnitContext;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -62,6 +63,11 @@ class HandleInertiaRequests extends Middleware
                     ];
                 },
             ],
+            'active_rams_unit' => function () use ($request): ?array {
+                $unit = app(RamsUnitContext::class)->resolve($request);
+
+                return $unit?->only(['id', 'code', 'name']);
+            },
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

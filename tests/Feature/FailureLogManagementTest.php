@@ -13,6 +13,7 @@ use App\Models\StockMovement;
 use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class FailureLogManagementTest extends TestCase
@@ -86,6 +87,57 @@ class FailureLogManagementTest extends TestCase
             ->assertSessionHasErrors('resolved_at');
 
         $this->assertDatabaseCount('failure_logs', 0);
+    }
+
+    public function test_regional_user_can_update_own_equipment_installation_date_from_trouble_report(): void
+    {
+        [$user, $asset] = $this->context(5);
+        $asset->update(['tanggal_pemasangan' => '2012-01-01']);
+
+        $this->actingAs($user)
+            ->patch("/master-asset/{$asset->id}/installation-date", [
+                'tanggal_pemasangan' => '2020-01-01',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame('2020-01-01', $asset->fresh()->tanggal_pemasangan?->toDateString());
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'asset.installation_date.updated',
+            'auditable_id' => $asset->id,
+        ]);
+    }
+
+    public function test_regional_user_cannot_update_another_units_equipment_installation_date(): void
+    {
+        [$user] = $this->context(5);
+        $otherAsset = Asset::factory()->for(UnitKerja::factory()->create())->create();
+
+        $this->actingAs($user)
+            ->patch("/master-asset/{$otherAsset->id}/installation-date", [
+                'tanggal_pemasangan' => '2020-01-01',
+            ])
+            ->assertNotFound();
+    }
+
+    public function test_trouble_report_exposes_equipment_date_and_excel_calculation_baseline(): void
+    {
+        [$user, $asset] = $this->context(5);
+        $asset->update(['tanggal_pemasangan' => '2012-01-01']);
+        $asset->assetSubsystem()->update(['name' => 'Interlocking Elektrik']);
+        ReliabilitySummary::factory()->for($asset)->create([
+            'period' => '2022-02-01',
+            'baseline_date' => '2020-01-01',
+            'calculation_profile' => ['interval_baseline_date' => '2020-01-01'],
+        ]);
+
+        $this->actingAs($user)
+            ->get('/trouble-report?subsystem=Interlocking%20Elektrik')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('assets.0.nama_aset', $asset->nama_aset)
+                ->where('assets.0.tahun_pemasangan', '2012-01-01')
+                ->where('reliability.0.baseline_date', '2020-01-01'));
     }
 
     /** @return array{User, Asset, SparePart, InventoryStock} */

@@ -8,6 +8,7 @@ use App\Models\RamsImportBatch;
 use App\Models\UnitKerja;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -79,6 +80,36 @@ final class RamsImportHistoryTest extends TestCase
 
         $this->actingAs($user)->getJson("/trouble-report/import/batch/{$other->id}")
             ->assertNotFound();
+    }
+
+    public function test_batch_detail_checks_many_changes_without_one_query_per_change(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DIVRE-IV']);
+        $user = User::factory()->pusat()->create();
+        $batch = $this->batch($unit, 'divre-iv.xlsx');
+        $batch->changes()->createMany(array_map(
+            fn (int $id): array => [
+                'table_name' => 'assets',
+                'row_id' => $id,
+                'operation' => 'deleted',
+                'before_values' => ['id' => $id],
+                'after_values' => null,
+                'after_hash' => null,
+            ],
+            range(1, 50),
+        ));
+
+        $queryCount = 0;
+        DB::listen(function () use (&$queryCount): void {
+            $queryCount++;
+        });
+
+        $this->actingAs($user)
+            ->getJson("/trouble-report/import/batch/{$batch->id}")
+            ->assertOk()
+            ->assertJsonPath('data.can_rollback', true);
+
+        $this->assertLessThan(20, $queryCount);
     }
 
     private function batch(UnitKerja $unit, string $workbook): RamsImportBatch

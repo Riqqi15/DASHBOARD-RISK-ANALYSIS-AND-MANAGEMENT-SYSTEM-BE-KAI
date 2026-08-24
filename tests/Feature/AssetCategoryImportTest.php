@@ -170,6 +170,115 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame(2, AuditLog::query()->where('action', 'unit_subsystem_opening.imported')->count());
     }
 
+    public function test_import_reconstructs_kai_systems_when_the_system_cells_are_visually_merged(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $path = $this->workbook([
+            ['2. PERALATAN LUAR SINYAL ELEKTRIK', 'PERAGA SINYAL ELEKTRIK', 'PERAGA SINYAL ELEKTRIK UTAMA', 1, 0, 0, 40909],
+            ['', '', 'PERAGA SINYAL ELEKTRIK PEMBANTU', 2, 0, 0, 40909],
+            ['', '', 'PENGGERAK WESEL ELEKTRIK', 3, 0, 0, 40909],
+            ['', '', 'Track Ciruit', 4, 0, 0, 40909],
+            ['', '', 'Axle Counter', 5, 0, 0, 40909],
+            ['', '', 'PENGAMAN WESEL SETEMPAT ELEKTRIK', 6, 0, 0, 40909],
+            ['4. PERALATAN LUAR SINYAL MEKANIK', 'KONTAK DETEKSI', 'KONTAK DETEKSI', 7, 0, 0, 40909],
+        ]);
+
+        app(MasterAssetWorkbookImporter::class)->import($path, $unit);
+
+        $electricGroup = AssetGroup::query()
+            ->where('unit_kerja_id', $unit->id)
+            ->where('name', '2. PERALATAN LUAR SINYAL ELEKTRIK')
+            ->sole();
+        $electricSystems = AssetSystem::query()
+            ->where('asset_group_id', $electricGroup->id)
+            ->orderBy('name')
+            ->get()
+            ->keyBy('name');
+
+        $this->assertSame(
+            [
+                'DETEKSI SARANA PERKERETAAPIAN',
+                'PENGAMAN WESEL SETEMPAT ELEKTRIK',
+                'PENGGERAK WESEL ELEKTRIK',
+                'PERAGA SINYAL ELEKTRIK',
+            ],
+            $electricSystems->keys()->all(),
+        );
+        $this->assertSame(
+            ['Axle Counter', 'Track Ciruit'],
+            AssetSubsystem::query()
+                ->where('asset_system_id', $electricSystems['DETEKSI SARANA PERKERETAAPIAN']->id)
+                ->orderBy('name')
+                ->pluck('name')
+                ->all(),
+        );
+        $this->assertSame(
+            ['PERAGA SINYAL ELEKTRIK PEMBANTU', 'PERAGA SINYAL ELEKTRIK UTAMA'],
+            AssetSubsystem::query()
+                ->where('asset_system_id', $electricSystems['PERAGA SINYAL ELEKTRIK']->id)
+                ->orderBy('name')
+                ->pluck('name')
+                ->all(),
+        );
+
+        $mechanicalGroup = AssetGroup::query()
+            ->where('unit_kerja_id', $unit->id)
+            ->where('name', '4. PERALATAN LUAR SINYAL MEKANIK')
+            ->sole();
+        $mechanicalSystem = AssetSystem::query()
+            ->where('asset_group_id', $mechanicalGroup->id)
+            ->sole();
+
+        $this->assertSame('PENDETEKSI SARANA PERKERETAAPIAN', $mechanicalSystem->name);
+        $this->assertSame('KONTAK DETEKSI', $mechanicalSystem->subsystems()->sole()->name);
+    }
+
+    public function test_corrected_kai_system_keeps_existing_asset_and_opening_relations(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $group = AssetGroup::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'name' => '2. PERALATAN LUAR SINYAL ELEKTRIK',
+            'dashboard_color' => '#FFC000',
+            'dashboard_color_source' => 'excel',
+        ]);
+        $peraga = AssetSystem::factory()->for($group)->create(['name' => 'PERAGA SINYAL ELEKTRIK']);
+        AssetSubsystem::factory()->for($peraga)->create(['name' => 'PERAGA SINYAL ELEKTRIK UTAMA']);
+        $misplaced = AssetSubsystem::factory()->for($peraga)->create(['name' => 'PENGGERAK WESEL ELEKTRIK']);
+        $asset = Asset::factory()->for($unit)->create([
+            'asset_subsystem_id' => $misplaced->id,
+            'aset_prasarana_sintel' => $group->name,
+            'system' => $peraga->name,
+            'subsystem' => $misplaced->name,
+            'source_key' => hash('sha256', 'legacy-misplaced-penggerak'),
+        ]);
+        $opening = UnitSubsystemOpening::factory()->create([
+            'unit_kerja_id' => $unit->id,
+            'asset_subsystem_id' => $misplaced->id,
+            'source_key' => hash('sha256', 'legacy-misplaced-penggerak-opening'),
+            'sparepart_in' => 4,
+            'sparepart_out' => 1,
+        ]);
+        $path = $this->workbook([
+            [$group->name, $peraga->name, $misplaced->name, 8, 4, 1, 40909],
+        ]);
+
+        app(MasterAssetWorkbookImporter::class)->import($path, $unit);
+
+        $canonicalSystem = AssetSystem::query()
+            ->where('asset_group_id', $group->id)
+            ->where('name', 'PENGGERAK WESEL ELEKTRIK')
+            ->sole();
+        $this->assertSame($misplaced->id, $canonicalSystem->subsystems()->sole()->id);
+        $this->assertSame($misplaced->id, $asset->refresh()->asset_subsystem_id);
+        $this->assertSame($misplaced->id, $opening->refresh()->asset_subsystem_id);
+        $this->assertSame('#FFC000', $canonicalSystem->dashboard_color);
+        $this->assertSame('#FFC000', $misplaced->refresh()->dashboard_color);
+        $this->assertSame(1, $peraga->subsystems()->count());
+        $this->assertDatabaseCount('assets', 1);
+        $this->assertDatabaseCount('unit_subsystem_openings', 1);
+    }
+
     public function test_unchanged_reimport_has_no_updates_duplicates_or_audits(): void
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
@@ -205,6 +314,24 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame(1, AuditLog::query()->where('action', 'asset.import_created')->count());
         $this->assertSame(0, AuditLog::query()->where('action', 'asset.import_updated')->count());
         $this->assertSame(1, AuditLog::query()->where('action', 'unit_subsystem_opening.imported')->count());
+    }
+
+    public function test_explicit_reimport_restores_a_soft_deleted_imported_asset(): void
+    {
+        $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
+        $path = $this->workbook([['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909]]);
+
+        app(MasterAssetWorkbookImporter::class)->import($path, $unit);
+        $asset = Asset::query()->sole();
+        $asset->delete();
+
+        $result = app(MasterAssetWorkbookImporter::class)->import($path, $unit);
+
+        $this->assertSame(0, $result['created']);
+        $this->assertSame(1, $result['updated']);
+        $this->assertFalse($asset->fresh()->trashed());
+        $this->assertDatabaseCount('assets', 1);
+        $this->assertSame(1, AuditLog::query()->where('action', 'asset.import_restored')->count());
     }
 
     public function test_missing_sparepart_header_aborts_before_any_workbook_write(): void

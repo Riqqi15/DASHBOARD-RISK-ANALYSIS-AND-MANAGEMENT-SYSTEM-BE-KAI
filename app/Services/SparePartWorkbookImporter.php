@@ -160,6 +160,8 @@ class SparePartWorkbookImporter
         $currentGroup = '';
         $currentSystem = '';
         $currentEquipment = '';
+        /** @var AssetSubsystem|null $resolvedGroupAnchor */
+        $resolvedGroupAnchor = null;
         /** @var array<string, int> $sourceRows */
         $sourceRows = [];
 
@@ -169,7 +171,12 @@ class SparePartWorkbookImporter
             $equipment = $this->cellText($sheet, 3, $row, $workbookName, self::HEADERS[2]);
             $detailEquipment = $this->cellText($sheet, 4, $row, $workbookName, self::HEADERS[3]);
 
-            $currentGroup = $group !== '' ? $group : $currentGroup;
+            $groupWasExplicit = $group !== '';
+            if ($groupWasExplicit) {
+                $resolvedGroupAnchor = null;
+            }
+
+            $currentGroup = $groupWasExplicit ? $group : $currentGroup;
             $currentSystem = $system !== '' ? $system : $currentSystem;
             $currentEquipment = $equipment !== '' ? $equipment : $currentEquipment;
 
@@ -214,6 +221,7 @@ class SparePartWorkbookImporter
                 $bootstrapCategories,
                 $unit?->id,
                 $skipUnmatchedCategories,
+                $groupWasExplicit ? null : $resolvedGroupAnchor,
             );
             if (! $subsystem) {
                 $result['skipped']++;
@@ -228,6 +236,7 @@ class SparePartWorkbookImporter
 
                 continue;
             }
+            $resolvedGroupAnchor = $subsystem;
             $reorderInputs = [
                 'max_yearly_failure' => $this->nullableDecimal($sheet, 5, $row, $workbookName, self::HEADERS[4]),
                 'average_yearly_failure' => $this->nullableDecimal($sheet, 6, $row, $workbookName, self::HEADERS[5]),
@@ -250,28 +259,36 @@ class SparePartWorkbookImporter
                 ),
             ];
 
-            $matchingParts = SparePart::withTrashed()
-                ->where(function ($query) use ($sourceKey, $subsystem, $detailEquipment): void {
-                    $query
-                        ->where('source_key', $sourceKey)
-                        ->orWhere(function ($legacy) use ($subsystem, $detailEquipment): void {
-                            $legacy
-                                ->where('asset_subsystem_id', $subsystem->id)
-                                ->where('detail_equipment', $detailEquipment);
-                        });
-                })
+            $part = SparePart::withTrashed()
+                ->where('source_key', $sourceKey)
                 ->lockForUpdate()
-                ->get();
-            if ($matchingParts->count() > 1) {
-                throw $this->rowError(
-                    $workbookName,
-                    $row,
-                    'Detail Equipment',
-                    'lebih dari satu master sparepart cocok; rekonsiliasi manual diperlukan.',
-                );
+                ->first();
+
+            if (! $part) {
+                $legacyMatches = SparePart::withTrashed()
+                    ->where(function ($query): void {
+                        $query->whereNull('source_key')->orWhere('source_key', '');
+                    })
+                    ->where('asset_subsystem_id', $subsystem->id)
+                    ->lockForUpdate()
+                    ->get()
+                    ->filter(
+                        fn (SparePart $candidate): bool => $this->normalize((string) $candidate->equipment) === $this->normalize($currentEquipment) &&
+                            $this->normalize((string) $candidate->detail_equipment) === $this->normalize($detailEquipment),
+                    )
+                    ->values();
+
+                if ($legacyMatches->count() > 1) {
+                    throw $this->rowError(
+                        $workbookName,
+                        $row,
+                        'Detail Equipment',
+                        'lebih dari satu master sparepart legacy cocok; rekonsiliasi manual diperlukan.',
+                    );
+                }
+
+                $part = $legacyMatches->first();
             }
-            /** @var SparePart|null $part */
-            $part = $matchingParts->first();
 
             if ($part?->trashed()) {
                 $result['skipped']++;
@@ -427,6 +444,7 @@ class SparePartWorkbookImporter
         bool $bootstrapCategories,
         ?int $unitKerjaId,
         bool $skipUnmatchedCategories,
+        ?AssetSubsystem $fallbackSubsystem = null,
     ): ?AssetSubsystem {
         $paths = $this->categoryPaths($groupName, $systemName, $subsystemName);
         $alias = AssetCategorySourceAlias::query()
@@ -464,6 +482,24 @@ class SparePartWorkbookImporter
             return $subsystem;
         }
 
+        $subsystem = $this->resolveSubsystemByWorkbookSystem($groupName, $systemName, $unitKerjaId);
+
+        if (! $subsystem && $fallbackSubsystem) {
+            $fallbackSubsystem->loadMissing('assetSystem.assetGroup');
+            $sameGroup = $fallbackSubsystem->assetSystem?->assetGroup
+                && $this->categoryNameMatches(
+                    $fallbackSubsystem->assetSystem->assetGroup->name,
+                    $groupName,
+                );
+            $subsystem = $sameGroup ? $fallbackSubsystem : null;
+        }
+
+        if ($subsystem) {
+            $this->persistCategoryAliases($subsystem, $paths, $workbookName, $row, $unitKerjaId);
+
+            return $subsystem;
+        }
+
         if ($skipUnmatchedCategories) {
             return null;
         }
@@ -492,6 +528,38 @@ class SparePartWorkbookImporter
         }
 
         return $subsystem;
+    }
+
+    private function resolveSubsystemByWorkbookSystem(
+        string $groupName,
+        string $systemName,
+        ?int $unitKerjaId,
+    ): ?AssetSubsystem {
+        $groups = AssetGroup::query()
+            ->where('is_active', true)
+            ->where('unit_kerja_id', $unitKerjaId)
+            ->with([
+                'systems' => fn ($query) => $query
+                    ->where('is_active', true)
+                    ->with(['subsystems' => fn ($subsystems) => $subsystems->where('is_active', true)]),
+            ])
+            ->get()
+            ->filter(fn (AssetGroup $group): bool => $this->categoryNameMatches($group->name, $groupName));
+
+        if ($groups->count() !== 1) {
+            return null;
+        }
+
+        /** @var AssetGroup $group */
+        $group = $groups->first();
+        $subsystems = $group->systems
+            ->flatMap(fn (AssetSystem $system) => $system->subsystems)
+            ->filter(
+                fn (AssetSubsystem $subsystem): bool => $this->categoryNameMatches($subsystem->name, $systemName),
+            )
+            ->values();
+
+        return $subsystems->count() === 1 ? $subsystems->first() : null;
     }
 
     private function resolveActiveNamePath(

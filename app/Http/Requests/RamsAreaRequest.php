@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\UnitKerja;
+use App\Services\RamsUnitContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -29,40 +30,6 @@ class RamsAreaRequest extends FormRequest
 
     public function selectedUnit(): ?UnitKerja
     {
-        $user = $this->user();
-        if ($user?->isUnit()) {
-            return $user->unitKerja()->where('is_active', true)->firstOrFail();
-        }
-
-        $area = $this->validated('area');
-        if (! $area) {
-            return UnitKerja::query()
-                ->where('is_active', true)
-                ->orderBy('code')
-                ->first();
-        }
-
-        return UnitKerja::query()
-            ->where('code', $this->databaseCode($area))
-            ->where('is_active', true)
-            ->firstOrFail();
-    }
-
-    private function databaseCode(string $area): string
-    {
-        $normalized = strtoupper(str_replace(['-', ' '], '', trim($area)));
-        if (preg_match('/^DAOP(\d+)$/', $normalized, $matches) === 1) {
-            return 'DAOP-'.$matches[1];
-        }
-
-        $roman = ['1' => 'I', '2' => 'II', '3' => 'III', '4' => 'IV'];
-        if (preg_match('/^DIVRE([1-4])$/', $normalized, $matches) === 1) {
-            return 'DIVRE-'.$roman[$matches[1]];
-        }
-        if (preg_match('/^DIVRE(I|II|III|IV)$/', $normalized, $matches) === 1) {
-            return 'DIVRE-'.$matches[1];
-        }
-
-        return strtoupper(trim($area));
+        return app(RamsUnitContext::class)->resolve($this);
     }
 }

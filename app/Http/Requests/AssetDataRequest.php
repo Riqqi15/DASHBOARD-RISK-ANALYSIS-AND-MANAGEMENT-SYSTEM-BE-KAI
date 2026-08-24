@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\AssetStatus;
 use App\Models\Asset;
 use App\Models\AssetSubsystem;
+use App\Services\RamsUnitContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
@@ -14,8 +15,13 @@ abstract class AssetDataRequest extends FormRequest
 {
     public function authorize(): bool
     {
+        $unitId = app(RamsUnitContext::class)->resolve($this)?->id;
+
         if ($this->route('asset')) {
-            $asset = Asset::query()->visibleTo($this->user())->find($this->route('asset'));
+            $asset = Asset::query()
+                ->visibleTo($this->user())
+                ->where('unit_kerja_id', $unitId ?? 0)
+                ->find($this->route('asset'));
 
             abort_unless($asset, 404);
 
@@ -27,14 +33,20 @@ abstract class AssetDataRequest extends FormRequest
 
     public function rules(): array
     {
+        $unitId = app(RamsUnitContext::class)->resolve($this)?->id;
         $currentSubsystemId = $this->route('asset')
-            ? Asset::query()->visibleTo($this->user())->whereKey($this->route('asset'))->value('asset_subsystem_id')
+            ? Asset::query()
+                ->visibleTo($this->user())
+                ->where('unit_kerja_id', $unitId ?? 0)
+                ->whereKey($this->route('asset'))
+                ->value('asset_subsystem_id')
             : null;
 
         return [
             'unit_kerja_id' => $this->user()->isPusat()
                 ? [
                     'required',
+                    Rule::in(array_filter([$unitId])),
                     Rule::exists('unit_kerjas', 'id')->where(
                         fn ($query) => $query->where('is_active', true)->whereNull('deleted_at'),
                     ),
@@ -44,7 +56,7 @@ abstract class AssetDataRequest extends FormRequest
                 'required',
                 'integer',
                 Rule::exists('asset_subsystems', 'id')->whereNull('deleted_at'),
-                function (string $attribute, mixed $value, \Closure $fail) use ($currentSubsystemId): void {
+                function (string $attribute, mixed $value, \Closure $fail) use ($currentSubsystemId, $unitId): void {
                     if ((int) $value === (int) $currentSubsystemId && $currentSubsystemId !== null) {
                         return;
                     }
@@ -58,7 +70,17 @@ abstract class AssetDataRequest extends FormRequest
                                 ->where('is_active', true)
                                 ->whereHas(
                                     'assetGroup',
-                                    fn (Builder $group): Builder => $group->where('is_active', true),
+                                    fn (Builder $group): Builder => $group
+                                        ->where('is_active', true)
+                                        ->when(
+                                            $unitId,
+                                            fn (Builder $query): Builder => $query->where(
+                                                fn (Builder $units): Builder => $units
+                                                    ->whereNull('unit_kerja_id')
+                                                    ->orWhere('unit_kerja_id', $unitId),
+                                            ),
+                                            fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+                                        ),
                                 ),
                         )
                         ->exists();
