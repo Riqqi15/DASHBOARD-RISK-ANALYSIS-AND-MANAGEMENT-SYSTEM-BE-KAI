@@ -6,8 +6,7 @@ import MainLayout from '@/layouts/MainLayout.vue'
 import CategoryDialog from './Partials/CategoryDialog.vue'
 import DeleteCategoryDialog from './Partials/DeleteCategoryDialog.vue'
 import LevelDialog from './Partials/LevelDialog.vue'
-import TaxonomyAssetDialog from './Partials/TaxonomyAssetDialog.vue'
-import ArchiveBranchAssetsDialog from './Partials/ArchiveBranchAssetsDialog.vue'
+import DeleteAssetDialog from '@/pages/master-data/assets/Partials/DeleteAssetDialog.vue'
 
 const props = defineProps({
   levels: { type: Array, required: true },
@@ -47,6 +46,7 @@ watch(() => props.selectedUnitId, (value) => {
 const selectedNode = computed(() => nodeById.value.get(activePath.value.at(-1)) ?? null)
 const activeUnit = computed(() => props.units.find((unit) => unit.id === selectedUnit.value) ?? page.props.auth.user.unit_kerja ?? null)
 const canManageTaxonomy = computed(() => props.capabilities.manage_taxonomy === true)
+const canManageAssets = computed(() => props.capabilities.manage_assets === true)
 const canChooseUnit = computed(() => props.capabilities.choose_unit === true)
 const nodeDisplayName = (node) => {
   const name = String(node?.name ?? '')
@@ -206,50 +206,20 @@ const submitDeleteNode = () => deleteNodeForm.value.delete(`/admin/asset-categor
   onSuccess: () => { deleteNode.value = null; deleteNodeForm.value = null },
 })
 
-const assetForm = ref(null)
-const openAsset = () => {
-  if (!selectedNode.value) return
-  assetForm.value = useForm({
-    unit_kerja_id: canChooseUnit.value ? selectedUnit.value : undefined,
-    asset_category_node_id: selectedNode.value.id,
-    nama_aset: selectedNode.value.name,
-    jumlah_unit: 1,
-    tanggal_pemasangan: '',
-    status: 'aktif',
-  })
-}
-const submitAsset = () => assetForm.value.post('/admin/asset-category-assets', {
-  preserveScroll: true,
-  onSuccess: () => { assetForm.value = null },
-})
+const assetToDelete = ref(null)
+const deletingAsset = ref(false)
+const confirmDeleteAsset = () => {
+  if (!assetToDelete.value || deletingAsset.value) return
 
-const archiveDialog = ref(false)
-const archiveLoading = ref(false)
-const archivePreview = ref(null)
-const archiveForm = ref(null)
-const openArchive = async () => {
-  if (!selectedNode.value) return
-  archiveDialog.value = true
-  archiveLoading.value = true
-  archivePreview.value = null
-  archiveForm.value = useForm({
-    unit_kerja_id: canChooseUnit.value ? selectedUnit.value : undefined,
-    confirmation: 'HAPUS ASET WILAYAH',
+  deletingAsset.value = true
+  router.delete(`/master-asset/${assetToDelete.value.id}`, {
+    preserveScroll: true,
+    onFinish: () => {
+      deletingAsset.value = false
+      assetToDelete.value = null
+    },
   })
-  const query = canChooseUnit.value ? `?unit_kerja_id=${selectedUnit.value}` : ''
-  try {
-    const response = await fetch(`/admin/asset-category-nodes/${selectedNode.value.id}/archive-preview${query}`, {
-      headers: { Accept: 'application/json' }, credentials: 'same-origin',
-    })
-    archivePreview.value = response.ok ? await response.json() : { assets_count: 0, historical_records_count: 0 }
-  } finally {
-    archiveLoading.value = false
-  }
 }
-const submitArchive = () => archiveForm.value.delete(`/admin/asset-category-nodes/${selectedNode.value.id}/assets`, {
-  preserveScroll: true,
-  onSuccess: () => { archiveDialog.value = false; archivePreview.value = null; archiveForm.value = null },
-})
 
 const formatDate = (value) => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(value)) : '—'
 const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_perbaikan: 'Dalam perbaikan' }[value] ?? value)
@@ -332,25 +302,23 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
         <section class="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="regional-assets-heading">
           <div v-if="selectedNode">
             <header class="border-b border-slate-200 p-5">
-              <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                <div class="min-w-0"><p class="text-xs font-semibold uppercase tracking-wide text-orange-600">Kategori terpilih</p><h3 class="mt-1 truncate text-xl font-semibold text-slate-950">{{ nodeDisplayName(selectedNode) }}</h3><p class="mt-2 text-sm text-slate-600">{{ selectedNode.subtree_assets_count ?? 0 }} aset · {{ selectedNode.subtree_units_count ?? 0 }} unit di {{ activeUnit?.code }}</p></div>
-                <div class="flex flex-wrap gap-2">
-                  <button v-if="canManageTaxonomy" type="button" class="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#171650]" @click="openEditNode(selectedNode)"><Pencil :size="16" aria-hidden="true" /> Ubah</button>
-                  <button v-if="canManageTaxonomy" type="button" class="inline-flex h-11 items-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-700" @click="openDeleteNode(selectedNode)"><Trash2 :size="16" aria-hidden="true" /> Hapus kategori</button>
-                  <button type="button" class="inline-flex h-11 items-center gap-2 rounded-lg bg-[#F15A24] px-4 text-sm font-semibold text-white hover:bg-orange-700 focus-visible:ring-2 focus-visible:ring-[#171650] focus-visible:ring-offset-2" @click="openAsset"><Plus :size="17" aria-hidden="true" /> Tambah aset</button>
+              <div class="grid gap-4">
+                <div class="min-w-0"><p class="text-xs font-semibold uppercase tracking-wide text-orange-600">Kategori terpilih</p><h3 data-selected-category-name class="mt-1 break-words text-xl font-semibold leading-7 text-slate-950">{{ nodeDisplayName(selectedNode) }}</h3><p class="mt-2 text-sm text-slate-600">{{ selectedNode.subtree_assets_count ?? 0 }} aset · {{ selectedNode.subtree_units_count ?? 0 }} unit di {{ activeUnit?.code }}</p></div>
+                <div data-category-actions class="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+                  <button v-if="canManageTaxonomy" type="button" class="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-[#171650]" @click="openEditNode(selectedNode)"><Pencil :size="16" aria-hidden="true" /> Ubah</button>
+                  <button v-if="canManageTaxonomy" type="button" class="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-700" @click="openDeleteNode(selectedNode)"><Trash2 :size="16" aria-hidden="true" /> Hapus kategori</button>
                 </div>
               </div>
             </header>
-            <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="border-b border-slate-200 px-5 py-4">
               <div><h3 id="regional-assets-heading" class="flex items-center gap-2 text-base font-semibold text-slate-950"><Boxes :size="18" aria-hidden="true" /> Aset wilayah</h3><p class="mt-1 text-xs text-slate-500">Peralatan nyata pada kategori ini dan seluruh turunannya.</p></div>
-              <button type="button" class="inline-flex h-10 items-center gap-2 self-start rounded-lg px-3 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-700" @click="openArchive"><Trash2 :size="15" aria-hidden="true" /> Hapus aset wilayah</button>
             </div>
             <div class="overflow-x-auto">
               <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
-                <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600"><tr><th class="px-4 py-3">Nama aset</th><th class="px-4 py-3">Kategori</th><th class="px-4 py-3 text-right">Unit</th><th class="px-4 py-3">Pemasangan</th><th class="px-4 py-3">Status</th></tr></thead>
+                <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600"><tr><th class="px-4 py-3">Nama aset</th><th class="px-4 py-3">Kategori</th><th class="px-4 py-3 text-right">Unit</th><th class="px-4 py-3">Pemasangan</th><th class="px-4 py-3">Status</th><th v-if="canManageAssets" class="px-4 py-3 text-right">Aksi</th></tr></thead>
                 <tbody class="divide-y divide-slate-100">
-                  <tr v-for="asset in assets.data" :key="asset.id" class="text-slate-700"><td class="px-4 py-3 font-semibold text-slate-950">{{ asset.nama_aset }}</td><td class="px-4 py-3">{{ asset.category_node?.name || asset.subsystem || '—' }}</td><td class="px-4 py-3 text-right tabular-nums">{{ asset.jumlah_unit }}</td><td class="whitespace-nowrap px-4 py-3">{{ formatDate(asset.tanggal_pemasangan) }}</td><td class="px-4 py-3"><span class="rounded-full px-2 py-1 text-xs font-medium" :class="asset.status === 'aktif' ? 'bg-emerald-50 text-emerald-700' : asset.status === 'dalam_perbaikan' ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600'">{{ statusLabel(asset.status) }}</span></td></tr>
-                  <tr v-if="!assets.data.length"><td colspan="5" class="px-6 py-16 text-center"><p class="font-semibold text-slate-700">Belum ada aset pada kategori ini</p><p class="mt-1 text-xs text-slate-500">Gunakan tombol Tambah aset untuk mulai mengisi data {{ activeUnit?.code }}.</p></td></tr>
+                  <tr v-for="asset in assets.data" :key="asset.id" class="text-slate-700"><td class="px-4 py-3 font-semibold text-slate-950">{{ asset.nama_aset }}</td><td class="px-4 py-3">{{ asset.category_node?.name || asset.subsystem || '—' }}</td><td class="px-4 py-3 text-right tabular-nums">{{ asset.jumlah_unit }}</td><td class="whitespace-nowrap px-4 py-3">{{ formatDate(asset.tanggal_pemasangan) }}</td><td class="px-4 py-3"><span class="rounded-full px-2 py-1 text-xs font-medium" :class="asset.status === 'aktif' ? 'bg-emerald-50 text-emerald-700' : asset.status === 'dalam_perbaikan' ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600'">{{ statusLabel(asset.status) }}</span></td><td v-if="canManageAssets" class="px-4 py-3 text-right"><button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-red-700" :aria-label="`Hapus aset ${asset.nama_aset}`" :title="`Hapus aset ${asset.nama_aset}`" @click="assetToDelete = asset"><Trash2 :size="17" aria-hidden="true" /></button></td></tr>
+                  <tr v-if="!assets.data.length"><td :colspan="canManageAssets ? 6 : 5" class="px-6 py-16 text-center"><p class="font-semibold text-slate-700">Belum ada aset pada kategori ini</p><p class="mt-1 text-xs text-slate-500">Tambahkan aset {{ activeUnit?.code }} melalui menu Master Aset.</p></td></tr>
                 </tbody>
               </table>
             </div>
@@ -358,42 +326,6 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
           </div>
           <div v-else class="flex min-h-[38rem] items-center justify-center px-8 text-center"><div><Boxes :size="34" class="mx-auto text-slate-300" aria-hidden="true" /><h3 class="mt-4 text-base font-semibold text-slate-800">Pilih kategori terlebih dahulu</h3><p class="mt-2 max-w-sm text-sm leading-6 text-slate-500">Aset, jumlah unit, tanggal pemasangan, dan status akan muncul di panel ini.</p></div></div>
         </section>
-      </div>
-    </section>
-
-    <section v-if="false" class="mt-8 border-t border-slate-200 pt-7" aria-labelledby="legacy-regional-assets-heading">
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 id="legacy-regional-assets-heading" class="flex items-center gap-2 text-lg font-semibold text-slate-950"><Boxes :size="20" aria-hidden="true" /> Aset wilayah</h2>
-          <p class="mt-1 text-sm text-slate-600">{{ selectedNode ? `Menampilkan ${selectedNode.name} beserta kategori turunannya.` : 'Pilih kategori untuk melihat aset.' }}</p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <button v-if="selectedNode" type="button" class="inline-flex h-11 items-center gap-2 rounded-lg border border-red-200 bg-white px-4 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-700" @click="openArchive"><Trash2 :size="17" aria-hidden="true" /> Hapus aset wilayah</button>
-          <button v-if="selectedNode" type="button" class="inline-flex h-11 items-center gap-2 rounded-lg bg-[#F15A24] px-4 text-sm font-semibold text-white hover:bg-orange-700 focus-visible:ring-2 focus-visible:ring-[#171650] focus-visible:ring-offset-2" @click="openAsset"><Plus :size="18" aria-hidden="true" /> Tambah aset</button>
-        </div>
-      </div>
-
-      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
-            <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
-              <tr><th class="px-4 py-3">Nama aset</th><th class="px-4 py-3">Kategori</th><th class="px-4 py-3 text-right">Jumlah unit</th><th class="px-4 py-3">Pemasangan</th><th class="px-4 py-3">Status</th></tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-              <tr v-for="asset in assets.data" :key="asset.id" class="text-slate-700">
-                <td class="px-4 py-3 font-semibold text-slate-950">{{ asset.nama_aset }}</td>
-                <td class="px-4 py-3">{{ asset.category_node?.name || asset.subsystem || '—' }}</td>
-                <td class="px-4 py-3 text-right tabular-nums">{{ asset.jumlah_unit }}</td>
-                <td class="px-4 py-3 whitespace-nowrap">{{ formatDate(asset.tanggal_pemasangan) }}</td>
-                <td class="px-4 py-3"><span class="rounded-full px-2 py-1 text-xs font-medium" :class="asset.status === 'aktif' ? 'bg-emerald-50 text-emerald-700' : asset.status === 'dalam_perbaikan' ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600'">{{ statusLabel(asset.status) }}</span></td>
-              </tr>
-              <tr v-if="!assets.data.length"><td colspan="6" class="px-6 py-12 text-center"><p class="font-semibold text-slate-700">Belum ada aset pada pilihan ini</p><p class="mt-1 text-xs text-slate-500">Tambahkan aset atau pilih kategori lain.</p></td></tr>
-            </tbody>
-          </table>
-        </div>
-        <nav v-if="assets.links?.length > 3" aria-label="Halaman aset" class="flex flex-wrap justify-end gap-1 border-t border-slate-200 p-3">
-          <Link v-for="link in assets.links" :key="link.label" :href="link.url || '#'" class="flex min-h-10 min-w-10 items-center justify-center rounded-lg px-3 text-sm" :class="link.active ? 'bg-[#171650] text-white' : link.url ? 'text-slate-700 hover:bg-slate-100' : 'pointer-events-none text-slate-400'" preserve-scroll v-html="link.label" />
-        </nav>
       </div>
     </section>
 
@@ -419,7 +351,6 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
       @update-field="updateFormField(nodeForm, $event)"
     />
     <DeleteCategoryDialog v-if="deleteNode && deleteNodeForm" :category="deleteNode" level-label="kategori" :form="deleteNodeForm" @close="deleteNode = null" @confirm="submitDeleteNode" />
-    <TaxonomyAssetDialog v-if="assetForm && selectedNode" :form="assetForm" :node-name="selectedNode.name" @close="assetForm = null" @submit="submitAsset" @update-field="updateFormField(assetForm, $event)" />
-    <ArchiveBranchAssetsDialog v-if="archiveDialog && archiveForm && selectedNode" :node-name="selectedNode.name" :preview="archivePreview" :loading="archiveLoading" :form="archiveForm" @close="archiveDialog = false" @confirm="submitArchive" />
+    <DeleteAssetDialog :asset="assetToDelete" :processing="deletingAsset" @close="assetToDelete = null" @confirm="confirmDeleteAsset" />
   </MainLayout>
 </template>

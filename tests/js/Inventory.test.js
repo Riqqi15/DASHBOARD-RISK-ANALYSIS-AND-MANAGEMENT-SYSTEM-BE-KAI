@@ -245,6 +245,29 @@ describe('Inventory', () => {
     expect(wrapper.find('[data-reset-filters]').exists()).toBe(true)
   })
 
+  it('switches unit immediately without carrying dependent filters', async () => {
+    const wrapper = mountPage({
+      units: [unit, { id: 8, code: 'DIVRE-III', name: 'Divisi Regional III' }],
+      filters: {
+        ...props.filters,
+        search: 'relay',
+        asset_group_id: '1',
+        asset_subsystem_id: '101',
+        stock_status: 'critical',
+      },
+    })
+
+    await wrapper.get('#inventory-unit').setValue('8')
+
+    expect(inertia.get).toHaveBeenCalledWith('/inventory', expect.objectContaining({
+      unit_kerja_id: '8',
+      search: '',
+      asset_group_id: '',
+      asset_subsystem_id: '',
+      stock_status: 'all',
+    }), expect.any(Object))
+  })
+
   it('switches tabs through Inertia and keeps backend pagination links', async () => {
     const wrapper = mountPage()
     expect(wrapper.get('[aria-label="Paginasi stok"]').text()).toContain('Berikutnya')

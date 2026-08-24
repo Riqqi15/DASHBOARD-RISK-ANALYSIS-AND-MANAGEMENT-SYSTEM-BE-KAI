@@ -145,6 +145,22 @@ describe('MasterAsset', () => {
     }, expect.objectContaining({ preserveState: true, replace: true }))
   })
 
+  it('switches unit immediately and clears filters from the previous unit', async () => {
+    const wrapper = mountPage({
+      filters: { search: 'track', status: 'aktif', unit_kerja_id: '1' },
+      units: [
+        ...props.units,
+        { id: 2, code: 'DAOP-2', name: 'Daerah Operasi 2 Bandung' },
+      ],
+    })
+
+    await wrapper.get('#asset-unit').setValue('2')
+
+    expect(inertia.get).toHaveBeenCalledWith('/master-asset', {
+      search: '', status: '', unit_kerja_id: '2',
+    }, { preserveState: false, replace: true })
+  })
+
   it('requires confirmation before deleting an asset', async () => {
     const wrapper = mountPage()
     await wrapper.get('[aria-label="Hapus aset Track Circuit Backend"]').trigger('click')

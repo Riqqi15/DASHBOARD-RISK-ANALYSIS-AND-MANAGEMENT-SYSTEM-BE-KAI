@@ -136,6 +136,10 @@ describe('TroubleReportImport', () => {
         duplicates_skipped: 4,
         duplicate_locations: ['Interlocking Elektrik!10', 'LxC!2'],
         skipped: 1,
+        invalid_rows: 1,
+        empty_rows: 2,
+        unrecognized_sheets: 1,
+        timestamp_conflicts: 1,
         sheets: 19,
         snapshots: 18,
         risk_registers_created: 5,
@@ -170,6 +174,10 @@ describe('TroubleReportImport', () => {
     expect(wrapper.get('[data-duplicate-locations]').text()).toContain('LxC!2')
     expect(wrapper.text()).toContain('Log Tetap')
     expect(wrapper.text()).toContain('Dilewati')
+    expect(wrapper.text()).toContain('Tanggal/waktu invalid')
+    expect(wrapper.text()).toContain('Failure Event kosong')
+    expect(wrapper.text()).toContain('Header tidak dikenali')
+    expect(wrapper.text()).toContain('Konflik timestamp')
     expect(wrapper.text()).toContain('Snapshot Excel')
     expect(wrapper.text()).toContain('Risk Register Baru')
     expect(wrapper.text()).toContain('Suku Cadang Baru')
@@ -182,6 +190,32 @@ describe('TroubleReportImport', () => {
 
     await wrapper.get('[data-counter-help="assets-created"]').trigger('click')
     expect(wrapper.text()).toContain('Jumlah aset baru yang berhasil ditambahkan dari workbook.')
+  })
+
+  it('formats parity issues as readable comparisons', () => {
+    const wrapper = mountPage({
+      result: {
+        status: 'succeeded',
+        issues: [{
+          sheet_name: 'Ringkasan Keandalan',
+          severity: 'warning',
+          message: 'Selisih parity pada aset INTERLOCKING ELEKTRIK. Detail: mttf_hours (Sistem: 2239.75, Excel: 4626.62222222222), availability (Sistem: , Excel: 1). Penyebab: Kemungkinan besar rumus formula keandalan (pembagian/eksponensial) di Excel keliru atau salah ketik.',
+        }],
+      },
+    })
+
+    const issue = wrapper.get('[data-parity-issue]')
+
+    expect(issue.text()).toContain('Selisih parity pada aset')
+    expect(issue.text()).toContain('INTERLOCKING ELEKTRIK')
+    expect(issue.text()).toContain('MTTF')
+    expect(issue.text()).toContain('Sistem')
+    expect(issue.text()).toContain('2.239,75')
+    expect(issue.text()).toContain('Excel')
+    expect(issue.text()).toContain('4.626,6222')
+    expect(issue.text()).toContain('Tidak tersedia')
+    expect(issue.text()).toContain('Penyebab')
+    expect(issue.text()).not.toContain('mttf_hours (Sistem:')
   })
 
   it('renders scoped import history', () => {
@@ -223,6 +257,10 @@ describe('TroubleReportImport', () => {
         data_unchanged: 3,
         duplicates_skipped: 3,
         duplicate_locations: ['Reorder Stock!2'],
+        invalid_rows: 1,
+        empty_rows: 2,
+        unrecognized_sheets: 1,
+        timestamp_conflicts: 1,
       },
       issues: [
         {
@@ -241,6 +279,12 @@ describe('TroubleReportImport', () => {
           severity: 'error',
           message: 'Nilai likelihood tidak ditemukan.',
         },
+        {
+          id: 103,
+          sheet_name: 'Ringkasan Keandalan',
+          severity: 'warning',
+          message: 'Selisih parity pada aset INTERLOCKING ELEKTRIK. Detail: mttf_hours (Sistem: 2239.75, Excel: 4626.62222222222). Penyebab: Kemungkinan besar rumus formula keandalan di Excel keliru.',
+        },
       ],
     }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -258,11 +302,18 @@ describe('TroubleReportImport', () => {
     expect(detail.text()).toContain('Interlocking Elektrik')
     expect(detail.text()).toContain('Baris 12')
     expect(detail.text()).toContain('Nilai likelihood tidak ditemukan.')
-    expect(detail.text()).toContain('Peringatan (1)')
+    expect(detail.text()).toContain('Selisih parity pada aset')
+    expect(detail.text()).toContain('2.239,75')
+    expect(detail.findAll('[data-parity-issue]')).toHaveLength(1)
+    expect(detail.text()).toContain('Peringatan (2)')
     expect(detail.text()).toContain('Error (1)')
     expect(detail.text()).toContain('Data diperbarui')
     expect(detail.text()).toContain('Tidak berubah')
     expect(detail.text()).toContain('Duplikat dilewati')
+    expect(detail.text()).toContain('Tanggal/waktu invalid')
+    expect(detail.text()).toContain('Failure Event kosong')
+    expect(detail.text()).toContain('Header tidak dikenali')
+    expect(detail.text()).toContain('Konflik timestamp')
     expect(detail.get('[data-batch-duplicate-locations="18"]').text()).toContain('Reorder Stock!2')
 
     await detail.get('[data-metric-help^="detail-colors-updated-"]').trigger('click')

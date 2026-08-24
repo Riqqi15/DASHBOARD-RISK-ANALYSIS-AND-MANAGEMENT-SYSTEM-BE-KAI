@@ -51,6 +51,15 @@ const clearFilters = () => {
   applyFilters()
 }
 
+const changeUnit = () => {
+  filters.search = ''
+  filters.status = ''
+  router.get('/master-asset', filters, {
+    preserveState: false,
+    replace: true,
+  })
+}
+
 const confirmDelete = () => {
   if (!assetToDelete.value || deleting.value) return
 
@@ -129,7 +138,7 @@ const paginationLabel = (label) => label
           <Search :size="17" class="pointer-events-none absolute left-3 top-3 text-slate-400" aria-hidden="true" />
           <input id="asset-search" v-model="filters.search" type="search" class="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-sm outline-none transition focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" placeholder="Cari nama, system, atau subsystem..." />
         </label>
-        <select v-if="can.choose_unit" id="asset-unit" v-model="filters.unit_kerja_id" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#2d2a70]" aria-label="Filter unit kerja">
+        <select v-if="can.choose_unit" id="asset-unit" v-model="filters.unit_kerja_id" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#2d2a70]" aria-label="Filter unit kerja" @change="changeUnit">
           <option v-for="unit in units" :key="unit.id" :value="String(unit.id)">{{ unit.code }} — {{ unit.name }}</option>
         </select>
         <select id="asset-status" v-model="filters.status" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#2d2a70]" aria-label="Filter status aset">

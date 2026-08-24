@@ -4,6 +4,7 @@ import TroubleReport from '@/pages/input-data/TroubleReport.vue'
 
 const router = vi.hoisted(() => ({
   get: vi.fn(),
+  patch: vi.fn(),
   post: vi.fn(),
 }))
 
@@ -15,7 +16,7 @@ const mountPage = (overrides = {}) => mount(TroubleReport, {
   props: {
     selected_area: 'DAOP1',
     subsystem: 'INTERLOCKING ELEKTRIK',
-    assets: [{ id: 1, jumlah_unit: 2, tahun_pemasangan: '2020-01-01' }],
+    assets: [{ id: 1, nama_aset: 'INTERLOCKING ELEKTRIK', jumlah_unit: 2, tahun_pemasangan: '2020-01-01' }],
     reliability: [],
     failure_logs: [],
     spare_parts: [],
@@ -34,7 +35,7 @@ describe('TroubleReport', () => {
   it('shows the subsystem installation date once in the report identity', () => {
     const wrapper = mountPage()
 
-    expect(wrapper.text()).toContain('Tanggal pemasangan subsystem')
+    expect(wrapper.text()).toContain('Tanggal pemasangan equipment')
     expect(wrapper.text()).toContain('1 Januari 2020')
     expect(wrapper.text()).toContain('DAOP1')
   })
@@ -54,7 +55,37 @@ describe('TroubleReport', () => {
     expect(inconsistent.text()).toContain('lebih dari satu tanggal')
   })
 
-  it('renders backend summary values and parity status without recalculating counts in the frontend', () => {
+  it('updates an equipment installation date from the report identity panel', async () => {
+    const wrapper = mountPage()
+
+    await wrapper.get('[data-edit-installation-date]').trigger('click')
+    await wrapper.get('[data-installation-date-input="1"]').setValue('2021-03-04')
+    await wrapper.get('[data-save-installation-date="1"]').trigger('click')
+
+    expect(router.patch).toHaveBeenCalledWith(
+      '/master-asset/1/installation-date',
+      { tanggal_pemasangan: '2021-03-04' },
+      expect.objectContaining({ preserveScroll: true }),
+    )
+  })
+
+  it('explains the Excel calculation baseline without treating a different equipment date as a conflict', () => {
+    const wrapper = mountPage({
+      assets: [{ id: 1, nama_aset: 'INTERLOCKING ELEKTRIK', jumlah_unit: 2, tahun_pemasangan: '2012-01-01' }],
+      reliability: [{ baseline_date: '2020-01-01' }],
+    })
+
+    const trigger = wrapper.get('[data-calculation-baseline-info]')
+    const tooltip = wrapper.get('[role="tooltip"]')
+
+    expect(trigger.attributes('aria-describedby')).toBe(tooltip.attributes('id'))
+    expect(wrapper.text()).not.toContain('Tanggal pemasangan equipment berbeda dari baseline perhitungan Excel')
+    expect(wrapper.text()).toContain('1 Januari 2012')
+    expect(wrapper.text()).toContain('1 Januari 2020')
+    expect(tooltip.text()).toContain('Tanggal pemasangan equipment hanya informasi aset')
+  })
+
+  it('renders backend summary values without exposing technical parity status', () => {
     const wrapper = mountPage({
       reliability: [{
         total_operating_hour: 115488,
@@ -86,12 +117,16 @@ describe('TroubleReport', () => {
       }],
     })
 
-    expect(wrapper.text()).toContain('Sesuai Excel')
+    expect(wrapper.text()).not.toContain('Sesuai Excel')
+    expect(wrapper.text()).not.toContain('Ada selisih')
     expect(wrapper.text()).toContain('115488')
     expect(wrapper.text()).toContain('138')
     expect(wrapper.text()).toContain('4626.62')
     expect(wrapper.text()).toContain('99.9974%')
     expect(wrapper.text()).toContain('99.8805%')
+    expect(wrapper.text()).toContain('09/03/2020 13:15')
+    expect(wrapper.text()).toContain('09/03/2020 14:50')
+    expect(wrapper.text()).not.toContain('2020-03-09 13:15:00')
   })
 
   it('shows Data belum ada for null formula outputs', () => {
@@ -112,7 +147,6 @@ describe('TroubleReport', () => {
       }],
     })
 
-    expect(wrapper.text()).toContain('Data Excel belum ada')
     expect(wrapper.text()).toContain('Data belum ada')
   })
 })

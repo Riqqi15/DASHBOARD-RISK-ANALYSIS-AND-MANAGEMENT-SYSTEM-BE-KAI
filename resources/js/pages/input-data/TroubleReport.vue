@@ -27,31 +27,81 @@
           <p class="mt-1 text-sm font-semibold tabular-nums text-slate-900">{{ formatNumber(totalUnits) }}</p>
         </div>
         <div>
-          <p class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            <CalendarDaysIcon class="h-3.5 w-3.5" aria-hidden="true" />
-            Tanggal pemasangan subsystem
-          </p>
-          <p class="mt-1 text-sm font-semibold text-slate-900">{{ installationDateLabel }}</p>
-          <p v-if="installationDates.length > 1" class="mt-1 text-xs leading-5 text-amber-700">Terdapat lebih dari satu tanggal pada aset di subsystem ini.</p>
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <CalendarDaysIcon class="h-3.5 w-3.5" aria-hidden="true" />
+                Tanggal pemasangan equipment
+                <span class="group relative inline-flex normal-case tracking-normal">
+                  <button
+                    type="button"
+                    data-calculation-baseline-info
+                    aria-label="Informasi dasar perhitungan RAMS"
+                    aria-describedby="calculation-baseline-tooltip"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                  >
+                    <InfoIcon class="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                  <span
+                    id="calculation-baseline-tooltip"
+                    role="tooltip"
+                    class="pointer-events-none invisible absolute right-0 top-full z-20 mt-2 w-72 max-w-[calc(100vw-3rem)] rounded-lg bg-slate-900 px-3 py-2.5 text-left text-xs font-normal leading-5 text-white opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+                  >
+                    Reliability dan availability memakai baseline wilayah dari Dashboard Excel: <strong>{{ calculationBaselineLabel }}</strong>. Tanggal pemasangan equipment hanya informasi aset.
+                  </span>
+                </span>
+              </p>
+              <p class="mt-1 text-sm font-semibold text-slate-900">{{ installationDateLabel }}</p>
+              <p v-if="installationDates.length > 1" class="mt-1 text-xs leading-5 text-amber-700">Terdapat lebih dari satu tanggal pada equipment di subsystem ini.</p>
+            </div>
+            <button
+              v-if="assets.length"
+              data-edit-installation-date
+              type="button"
+              class="shrink-0 text-xs font-semibold text-blue-700 hover:text-blue-900"
+              @click="openInstallationDateEditor"
+            >
+              Ubah tanggal
+            </button>
+          </div>
+
+          <div v-if="isInstallationDateEditorOpen" class="mt-3 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div v-for="asset in assets" :key="asset.id" class="space-y-1.5">
+              <label :for="`installation-date-${asset.id}`" class="block text-xs font-semibold text-slate-700">
+                {{ asset.nama_aset || subsystemName }}
+              </label>
+              <div class="flex flex-wrap gap-2">
+                <input
+                  :id="`installation-date-${asset.id}`"
+                  v-model="installationDateDrafts[asset.id]"
+                  :data-installation-date-input="asset.id"
+                  type="date"
+                  :max="today"
+                  class="h-10 min-w-44 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                >
+                <button
+                  type="button"
+                  :data-save-installation-date="asset.id"
+                  class="h-10 rounded-lg bg-[#171650] px-4 text-sm font-semibold text-white hover:bg-[#24236a]"
+                  @click="saveInstallationDate(asset)"
+                >
+                  Simpan
+                </button>
+              </div>
+              <p v-if="installationDateErrors[asset.id]" class="text-xs text-red-600" role="alert">{{ installationDateErrors[asset.id] }}</p>
+            </div>
+            <button type="button" class="text-xs font-semibold text-slate-600 hover:text-slate-900" @click="isInstallationDateEditorOpen = false">Batal</button>
+          </div>
         </div>
       </section>
 
       <!-- Tabel Ringkasan (Biru - Modern) -->
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="bg-gradient-to-r from-[#4A72B2] to-[#3a5a8f] px-4 py-3 border-b border-slate-200">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <h3 class="text-white font-bold text-sm flex items-center gap-2">
-              <ActivityIcon class="w-4 h-4 text-white/80" />
-              Ringkasan Keandalan (Reliability Data)
-            </h3>
-            <span
-              v-if="summaryData"
-              class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-              :class="parityBadgeClass(summaryData.parity_status)"
-            >
-              {{ parityLabel(summaryData.parity_status) }}
-            </span>
-          </div>
+          <h3 class="text-white font-bold text-sm flex items-center gap-2">
+            <ActivityIcon class="w-4 h-4 text-white/80" />
+            Ringkasan Keandalan (Reliability Data)
+          </h3>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-xs text-left">
@@ -158,8 +208,8 @@
                 </td>
                 <td class="p-3 text-center" :class="log.tindak_vandalisme === 'Y' || log.tindak_vandalisme === 'Ya' ? 'text-rose-600 font-bold' : ''">{{ log.tindak_vandalisme }}</td>
                 
-                <td class="p-3 whitespace-nowrap text-rose-600 font-medium">{{ log.tanggal_jam_kejadian || (log.tanggal_kejadian + ' ' + (log.mulai || '00:00')) }}</td>
-                <td class="p-3 whitespace-nowrap text-emerald-600 font-medium">{{ log.tanggal_jam_penanganan || (log.tanggal_penanganan + ' ' + (log.selesai || '00:00')) }}</td>
+                <td class="p-3 whitespace-nowrap text-rose-600 font-medium">{{ formatReportDateTime(log.tanggal_jam_kejadian || (log.tanggal_kejadian + ' ' + (log.mulai || '00:00'))) }}</td>
+                <td class="p-3 whitespace-nowrap text-emerald-600 font-medium">{{ formatReportDateTime(log.tanggal_jam_penanganan || (log.tanggal_penanganan + ' ' + (log.selesai || '00:00'))) }}</td>
                 
                 <td class="p-3 text-center font-bold">{{ log.downtime_jam !== undefined ? log.downtime_jam : '-' }}</td>
                 <td class="p-3 text-center text-slate-600">{{ log.downtime_menit !== undefined ? log.downtime_menit : '-' }}</td>
@@ -210,7 +260,7 @@
                 </td>
               </tr>
               <tr v-for="(log, idx) in sparepartLogs" :key="'sp-'+idx" class="hover:bg-amber-50/50 transition-colors">
-                <td class="p-3 font-medium text-slate-700">{{ log.tanggal_jam_kejadian }}</td>
+                <td class="p-3 font-medium text-slate-700">{{ formatReportDateTime(log.tanggal_jam_kejadian) }}</td>
                 <td class="p-3">{{ log.lokasi }} <br><span class="text-[10px] text-slate-500">{{ log.resor }}</span></td>
                 <td class="p-3">{{ log.failure_event }}</td>
                 <td class="p-3">{{ log.tindakan }}</td>
@@ -239,7 +289,7 @@ import { ref, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import MainLayout from '@/layouts/MainLayout.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
-import { ActivityIcon, AlertTriangleIcon, CalendarDaysIcon, PlusIcon, SettingsIcon, EditIcon, TrashIcon } from 'lucide-vue-next'
+import { ActivityIcon, AlertTriangleIcon, CalendarDaysIcon, InfoIcon, PlusIcon, SettingsIcon, EditIcon, TrashIcon } from 'lucide-vue-next'
 import TroubleReportModal from '@/components/trouble-report/TroubleReportModal.vue'
 
 const props = defineProps({
@@ -253,6 +303,10 @@ const props = defineProps({
 
 const isModalOpen = ref(false)
 const selectedLog = ref(null)
+const isInstallationDateEditorOpen = ref(false)
+const installationDateDrafts = ref({})
+const installationDateErrors = ref({})
+const today = new Date().toISOString().slice(0, 10)
 const subsystemName = computed(() => props.subsystem || 'Subsystem Tidak Diketahui')
 const failureLogs = computed(() => props.failure_logs)
 const totalUnits = computed(() => props.assets.reduce((total, asset) => total + Number(asset.jumlah_unit || 0), 0))
@@ -265,9 +319,18 @@ const formatDate = (value) => new Intl.DateTimeFormat('id-ID', {
   month: 'long',
   year: 'numeric',
 }).format(new Date(`${value}T00:00:00`))
+const formatReportDateTime = (value) => {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/)
+
+  return match ? `${match[3]}/${match[2]}/${match[1]} ${match[4]}:${match[5]}` : (value || '—')
+}
 const installationDateLabel = computed(() => installationDates.value.length
   ? installationDates.value.map(formatDate).join(' • ')
   : 'Belum tercatat')
+const excelBaselineDate = computed(() => props.reliability.find((summary) => summary.baseline_date)?.baseline_date || null)
+const calculationBaselineLabel = computed(() => excelBaselineDate.value
+  ? formatDate(excelBaselineDate.value)
+  : 'belum tersedia')
 const summaryData = computed(() => {
   const summary = props.reliability[0]
   if (!summary && props.assets.length === 0) return null
@@ -285,7 +348,6 @@ const summaryData = computed(() => {
     availability: summary?.availability ?? null,
     spare_part_replacement_count: summary?.spare_part_replacement_count ?? 0,
     vandalism_count: summary?.vandalism_count ?? 0,
-    parity_status: summary?.parity_status ?? 'not_compared',
   }
 })
 
@@ -296,20 +358,6 @@ const formatNumber = (num) => isMissing(num) ? 'Data belum ada' : trimTrailingZe
 const formatDecimal = (num) => isMissing(num) ? 'Data belum ada' : trimTrailingZeroes(Number(num).toFixed(10))
 const formatPercent = (num) => isMissing(num) ? 'Data belum ada' : (Number(num) * 100).toFixed(4) + '%'
 
-const parityLabel = (status) => ({
-  matched: 'Sesuai Excel',
-  mismatch: 'Ada selisih',
-  excel_data_missing: 'Data Excel belum ada',
-  not_compared: 'Belum dibandingkan',
-}[status] || 'Belum dibandingkan')
-
-const parityBadgeClass = (status) => ({
-  matched: 'bg-emerald-50 text-emerald-700',
-  mismatch: 'bg-amber-50 text-amber-700',
-  excel_data_missing: 'bg-slate-50 text-slate-700',
-  not_compared: 'bg-slate-50 text-slate-700',
-}[status] || 'bg-slate-50 text-slate-700')
-
 // Output Report: Filter only logs with Sparepart Replacements
 const sparepartLogs = computed(() => {
   return failureLogs.value.filter(log => log.penggantian_sparepart === 'Y')
@@ -318,6 +366,32 @@ const sparepartLogs = computed(() => {
 const openCreateModal = () => {
   selectedLog.value = null
   isModalOpen.value = true
+}
+
+const openInstallationDateEditor = () => {
+  installationDateDrafts.value = Object.fromEntries(
+    props.assets.map((asset) => [asset.id, asset.tahun_pemasangan || '']),
+  )
+  installationDateErrors.value = {}
+  isInstallationDateEditorOpen.value = true
+}
+
+const saveInstallationDate = (asset) => {
+  installationDateErrors.value = { ...installationDateErrors.value, [asset.id]: null }
+  router.patch(`/master-asset/${asset.id}/installation-date`, {
+    tanggal_pemasangan: installationDateDrafts.value[asset.id] || null,
+  }, {
+    preserveScroll: true,
+    onSuccess: () => {
+      if (props.assets.length === 1) isInstallationDateEditorOpen.value = false
+    },
+    onError: (errors) => {
+      installationDateErrors.value = {
+        ...installationDateErrors.value,
+        [asset.id]: errors.tanggal_pemasangan || 'Tanggal pemasangan tidak dapat disimpan.',
+      }
+    },
+  })
 }
 
 const openEditModal = (log) => {

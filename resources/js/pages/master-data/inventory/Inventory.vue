@@ -102,6 +102,12 @@ const resetMasterPage = () => {
 }
 const changeFilter = ({ key, value }) => {
   filterState[key] = value
+  if (key === 'unit_kerja_id') {
+    Object.assign(filterState, {
+      search: '', asset_group_id: '', asset_subsystem_id: '', stock_status: 'all',
+      movement_type: '', date_from: '', date_to: '', reconciliation_status: 'all',
+    })
+  }
   if (key === 'asset_group_id') filterState.asset_subsystem_id = ''
   resetMasterPage()
   if (key === 'search') {

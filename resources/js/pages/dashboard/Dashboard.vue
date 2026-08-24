@@ -66,12 +66,46 @@
               Singkatan dan warna mengikuti standar Aset Prasarana Sintel pada Excel KAI.
             </p>
           </div>
-          <span class="hidden text-xs font-semibold uppercase tracking-wider text-slate-500 sm:inline">
-            Reliability · Availability
-          </span>
+          <div class="family-metrics__heading-actions">
+            <span class="hidden text-xs font-semibold uppercase tracking-wider text-slate-500 sm:inline">
+              Reliability · Availability
+            </span>
+            <div v-if="isFamilyCarousel" class="family-metrics__navigation" aria-label="Navigasi kelompok aset">
+              <button
+                type="button"
+                class="family-metrics__arrow"
+                aria-label="Geser kelompok aset ke kiri"
+                aria-controls="family-metrics-track"
+                :disabled="!canScrollFamilyLeft"
+                @click="scrollFamilyTrack(-1)"
+              >
+                <ChevronLeft :size="18" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                class="family-metrics__arrow"
+                aria-label="Geser kelompok aset ke kanan"
+                aria-controls="family-metrics-track"
+                :disabled="!canScrollFamilyRight"
+                @click="scrollFamilyTrack(1)"
+              >
+                <ChevronRight :size="18" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div class="family-metrics__grid family-metrics__grid--fluid">
+        <div
+          v-if="reliabilityGroups.length"
+          id="family-metrics-track"
+          ref="familyTrack"
+          data-family-track
+          class="family-metrics__track"
+          :class="isFamilyCarousel ? 'family-metrics__track--scroll' : 'family-metrics__track--fit'"
+          :tabindex="isFamilyCarousel ? 0 : undefined"
+          aria-label="Daftar kinerja kelompok aset"
+          @scroll="updateFamilyScrollState"
+        >
           <article
             v-for="group in reliabilityGroups"
             :key="`family-${group.id || group.code}`"
@@ -79,9 +113,15 @@
             :data-family-code="group.code"
             :aria-label="`${groupLabel(group)}: Reliability ${formatPercentage(group.reliability, 4)}, Availability ${formatPercentage(group.availability, 2)}`"
           >
-            <header class="family-metric__header" :style="{ backgroundColor: groupAccent(group) }" :class="contrastTextClass(groupAccent(group))">
-              <strong class="text-base font-extrabold tracking-wide">{{ group.code }}</strong>
-              <span class="mt-1 block text-xs font-semibold leading-snug opacity-90">{{ groupLabel(group) }}</span>
+            <header class="family-metric__header">
+              <strong
+                class="family-metric__code"
+                :class="contrastTextClass(groupAccent(group))"
+                :style="{ backgroundColor: groupAccent(group) }"
+              >
+                {{ group.code }}
+              </strong>
+              <span class="family-metric__name">{{ groupLabel(group) }}</span>
             </header>
             <dl class="family-metric__values family-metric__values--emphasized">
               <div>
@@ -95,6 +135,9 @@
             </dl>
           </article>
         </div>
+        <p v-else class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-6 text-center text-sm text-slate-600">
+          Belum ada data aset untuk wilayah terpilih.
+        </p>
       </section>
 
       <!-- PERALATAN PERSINYALAN & SUBSYSTEM EXPLORER -->
@@ -186,9 +229,10 @@
 
 <script setup>
 import { router } from '@inertiajs/vue3'
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
   Server,
@@ -219,8 +263,6 @@ const groupNames = {
   PLSE: 'Peralatan Luar Sinyal Elektrik',
   CDS: 'Catu Daya Sintel',
 }
-
-const groupOrder = ['PDSM', 'PLSM', 'PDSE', 'PLSE', 'CDS']
 
 const fallbackLabel = 'Tanpa data'
 const getLabel = (value) => String(value ?? '').trim() || fallbackLabel
@@ -253,18 +295,8 @@ const formatPercentage = (value, maxDecimals = 2) => {
   }).format(number)
 }
 
-const reliabilityGroups = computed(() => {
-  const providedGroups = props.summary?.reliabilityGroups || []
-  if (providedGroups.length) return providedGroups
-
-  return groupOrder.map((code) => ({
-    code,
-    name: groupNames[code],
-    color: groupColors[code],
-    reliability: null,
-    availability: null,
-  }))
-})
+const reliabilityGroups = computed(() => props.summary?.reliabilityGroups || [])
+const isFamilyCarousel = computed(() => reliabilityGroups.value.length > 7)
 
 const latestImportLabel = computed(() => {
   const value = props.summary?.latestImport?.date
@@ -282,6 +314,45 @@ const latestImportLabel = computed(() => {
 
   return `Data Terbaru · ${formatted}`
 })
+
+const familyTrack = ref(null)
+const canScrollFamilyLeft = ref(false)
+const canScrollFamilyRight = ref(false)
+
+const updateFamilyScrollState = () => {
+  const track = familyTrack.value
+  if (!track) return
+
+  if (!isFamilyCarousel.value) {
+    canScrollFamilyLeft.value = false
+    canScrollFamilyRight.value = false
+    return
+  }
+
+  const maxScroll = Math.max(track.scrollWidth - track.clientWidth, 0)
+  canScrollFamilyLeft.value = track.scrollLeft > 2
+  canScrollFamilyRight.value = track.scrollLeft < maxScroll - 2
+}
+
+const refreshFamilyScrollState = () => nextTick(updateFamilyScrollState)
+
+const scrollFamilyTrack = (direction) => {
+  const track = familyTrack.value
+  if (!track || !isFamilyCarousel.value) return
+
+  track.scrollBy({
+    left: direction * Math.max(track.clientWidth - 32, 1),
+    behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth',
+  })
+}
+
+onMounted(() => {
+  window.addEventListener('resize', updateFamilyScrollState)
+  refreshFamilyScrollState()
+})
+
+onBeforeUnmount(() => window.removeEventListener('resize', updateFamilyScrollState))
+watch(() => reliabilityGroups.value.length, refreshFamilyScrollState)
 
 const groupLabel = (group) => group?.name || groupNames[group?.code] || group?.code || 'Kelompok aset'
 const groupAccent = (group) => group?.color || groupColors[group?.code] || '#64748B'
@@ -486,24 +557,119 @@ const goToTroubleReport = (subsystemName = null) => {
   padding-bottom: 0.875rem;
 }
 
-.family-metrics__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+.family-metrics__heading-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
   gap: 0.75rem;
-  padding-top: 0.75rem;
+}
+
+.family-metrics__navigation {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.family-metrics__arrow {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #334155;
+}
+
+.family-metrics__arrow:not(:disabled):hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.family-metrics__arrow:focus-visible {
+  outline: 2px solid #f26522;
+  outline-offset: 2px;
+}
+
+.family-metrics__arrow:disabled {
+  cursor: not-allowed;
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #cbd5e1;
+}
+
+.family-metrics__track {
+  --family-gap: 0.625rem;
+  display: grid;
+  gap: var(--family-gap);
+  padding-top: 0.875rem;
+  padding-bottom: 0.25rem;
+}
+
+.family-metrics__track--fit {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+}
+
+.family-metrics__track--scroll {
+  grid-auto-flow: column;
+  grid-auto-columns: min(82%, 13rem);
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-padding-inline: 0.125rem;
+  scroll-snap-type: inline mandatory;
+  scrollbar-width: none;
+}
+
+.family-metrics__track--scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.family-metrics__track--scroll:focus-visible {
+  outline: 2px solid #f26522;
+  outline-offset: 3px;
 }
 
 .family-metric {
-  overflow: hidden;
+  display: grid;
+  grid-template-rows: 1fr auto;
   min-width: 0;
   border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
+  border-radius: 0.625rem;
   background: #ffffff;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .family-metric__header {
-  min-height: 4.5rem;
-  padding: 0.625rem 0.75rem;
+  min-height: 4.75rem;
+  padding: 0.5rem 0.625rem 0.625rem;
+  background: #ffffff;
+}
+
+.family-metric__code {
+  display: inline-flex;
+  min-height: 1.375rem;
+  align-items: center;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.family-metric__name {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 0.375rem;
+  color: #334155;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .family-metrics__latest-badge {
@@ -524,29 +690,31 @@ const goToTroubleReport = (subsystemName = null) => {
 .family-metric__values {
   display: grid;
   gap: 0.375rem;
-  padding: 0.625rem 0.75rem;
+  border-top: 1px solid #e2e8f0;
+  padding: 0.5rem 0.625rem;
   background: #f8fafc;
 }
 
 .family-metric__values div {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
+  display: block;
 }
 
 .family-metric__values dt {
   color: #64748b;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
 }
 
 .family-metric__values dd {
+  margin-top: 0.125rem;
   color: #0f172a;
-  font-size: 0.9375rem;
-  font-weight: 800;
+  font-size: 0.8125rem;
+  font-weight: 900;
   line-height: 1.2;
-  text-align: right;
+  text-align: left;
 }
 
 /* ASSET GROUPS ACCORDION */
@@ -623,6 +791,28 @@ const goToTroubleReport = (subsystemName = null) => {
 }
 
 .subsystem-btn:active { transform: translateY(0); }
+
+@media (min-width: 640px) {
+  .family-metrics__track--scroll {
+    grid-auto-columns: calc((100% - 1.875rem) / 4);
+  }
+}
+
+@media (min-width: 1280px) {
+  .family-metrics__track--scroll {
+    grid-auto-columns: calc((100% - 3.75rem) / 7);
+  }
+}
+
+@media (max-width: 639px) {
+  .family-metrics {
+    padding: 1rem;
+  }
+
+  .family-metrics__heading {
+    align-items: flex-start;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .asset-group__chevron,

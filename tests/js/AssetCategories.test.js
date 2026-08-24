@@ -15,7 +15,7 @@ const inertia = vi.hoisted(() => ({
 vi.mock('@inertiajs/vue3', () => ({
   Head: { template: '<div />' },
   Link: { props: ['href'], template: '<a :href="href"><slot /></a>' },
-  router: { get: inertia.get },
+  router: { get: inertia.get, delete: inertia.delete },
   usePage: () => inertia.page,
   useForm: (values) => {
     const keys = Object.keys(values)
@@ -175,30 +175,40 @@ describe('AssetCategories unlimited hierarchy', () => {
     expect(wrapper.find('dialog').exists()).toBe(false)
   })
 
-  it('creates an asset for the selected region and selected depth', async () => {
+  it('keeps asset creation in Master Aset instead of duplicating it here', () => {
     const wrapper = mountPage()
-    await wrapper.findAll('button').find((button) => button.text().includes('Tambah aset')).trigger('click')
-    expect(wrapper.find('#taxonomy-asset-name').exists()).toBe(false)
-    expect(wrapper.find('#taxonomy-asset-status').exists()).toBe(false)
-    await wrapper.get('#taxonomy-asset-units').setValue(5)
-    await wrapper.get('#taxonomy-asset-date').setValue('2020-02-01')
-    await wrapper.get('dialog form').trigger('submit')
-    expect(inertia.post).toHaveBeenCalledWith('/admin/asset-category-assets', expect.objectContaining({
-      unit_kerja_id: 10, asset_category_node_id: 11111, nama_aset: 'TC-900',
-      status: 'aktif', jumlah_unit: 5, tanggal_pemasangan: '2020-02-01',
-    }), expect.objectContaining({ preserveScroll: true }))
+    expect(wrapper.findAll('button').some((button) => button.text().includes('Tambah aset'))).toBe(false)
   })
 
-  it('previews counts before archiving only the selected region branch', async () => {
+  it('keeps long selected-category names clear of the action buttons', () => {
+    const longNode = node(
+      30,
+      1,
+      null,
+      'PERALATAN DALAM SINYAL ELEKTRIK DENGAN NAMA KATEGORI OPERASIONAL YANG SANGAT PANJANG',
+    )
+    const wrapper = mountPage({ nodes: [longNode], selectedNodeId: longNode.id })
+
+    expect(wrapper.get('[data-selected-category-name]').text()).toContain(longNode.name)
+    expect(wrapper.get('[data-selected-category-name]').classes()).toContain('break-words')
+    expect(wrapper.get('[data-selected-category-name]').classes()).not.toContain('truncate')
+    expect(wrapper.get('[data-category-actions]').classes()).toContain('grid')
+    expect(wrapper.get('[data-category-actions]').classes()).toContain('sm:grid-cols-2')
+  })
+
+  it('deletes only the selected regional asset after confirmation', async () => {
     const wrapper = mountPage()
-    await wrapper.findAll('button').find((button) => button.text().includes('Hapus aset wilayah')).trigger('click')
-    await Promise.resolve()
-    expect(fetch).toHaveBeenCalledWith('/admin/asset-category-nodes/11111/archive-preview?unit_kerja_id=10', expect.any(Object))
-    expect(wrapper.get('dialog').text()).toContain('Riwayat dipertahankan')
-    await wrapper.get('dialog').findAll('button').find((button) => button.text().includes('Hapus 2 aset wilayah')).trigger('click')
-    expect(inertia.delete).toHaveBeenCalledWith('/admin/asset-category-nodes/11111/assets', {
-      unit_kerja_id: 10, confirmation: 'HAPUS ASET WILAYAH',
-    }, expect.objectContaining({ preserveScroll: true }))
+    expect(wrapper.text()).not.toContain('Hapus aset wilayah')
+
+    await wrapper.get('[aria-label="Hapus aset Track Circuit STA"]').trigger('click')
+
+    expect(wrapper.get('dialog').text()).toContain('Track Circuit STA')
+    await wrapper.get('dialog').findAll('button').find((button) => button.text() === 'Hapus aset').trigger('click')
+
+    expect(inertia.delete).toHaveBeenCalledWith('/master-asset/7', expect.objectContaining({
+      preserveScroll: true,
+      onFinish: expect.any(Function),
+    }))
   })
 
   it('keeps global taxonomy read-only for regional users while allowing regional assets', () => {
@@ -209,12 +219,13 @@ describe('AssetCategories unlimited hierarchy', () => {
     })
     expect(wrapper.find('[aria-label="Tambah level kategori"]').exists()).toBe(false)
     expect(wrapper.find('[aria-label^="Tambah Aset Prasarana"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('Tambah aset')
+    expect(wrapper.text()).not.toContain('Tambah aset')
+    expect(wrapper.get('[aria-label="Hapus aset Track Circuit STA"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('DAOP-1')
   })
 })
 
-describe('MainLayout administration navigation', () => {
+describe('MainLayout scoped navigation', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', {
       getItem: vi.fn(() => null),
@@ -232,8 +243,9 @@ describe('MainLayout administration navigation', () => {
       props: { auth: { user: { id: 2, name: 'Operator', username: 'daop1', role: 'wilayah', unit_kerja: units[0] } }, flash: {} },
     }
     const wrapper = mount(MainLayout, { global: { stubs: { Teleport: true } } })
-    expect(wrapper.text()).toContain('Kategori Aset')
-    expect(wrapper.text()).not.toContain('Unit & Akun')
+    expect(wrapper.get('nav').text()).toContain('Kategori Aset')
+    expect(wrapper.get('nav').text()).not.toContain('Unit & Akun')
+    expect(wrapper.get('nav').text()).toContain('Import Data RAMS')
     wrapper.unmount()
   })
 
@@ -243,9 +255,47 @@ describe('MainLayout administration navigation', () => {
       props: { auth: { user: { id: 1, name: 'Admin Pusat', username: 'admin', role: 'pusat', unit_kerja: null } }, flash: {} },
     }
     const wrapper = mount(MainLayout, { global: { stubs: { Teleport: true } } })
-    expect(wrapper.text()).toContain('Kategori Aset')
-    expect(wrapper.text()).toContain('Unit & Akun')
-    expect(wrapper.html()).not.toContain('border-l-[3px]')
+    expect(wrapper.get('nav').text()).toContain('Kategori Aset')
+    expect(wrapper.get('nav').text()).toContain('Unit & Akun')
+    expect(wrapper.get('nav').text()).toContain('Import Data RAMS')
+    wrapper.unmount()
+  })
+
+  it('keeps Dashboard direct and places RAMS modules behind a disclosure control', async () => {
+    inertia.page = {
+      url: '/dashboard',
+      props: { auth: { user: { id: 1, name: 'Admin Pusat', username: 'admin', role: 'pusat', unit_kerja: null } }, flash: {} },
+    }
+
+    const wrapper = mount(MainLayout, { global: { stubs: { Teleport: true } } })
+
+    const dashboardLink = wrapper.get('nav a[href="/dashboard"]')
+    const moduleToggle = wrapper.get('button[aria-controls="rams-module-menu"]')
+
+    expect(dashboardLink.element.closest('li').querySelector('button')).toBeNull()
+    expect(dashboardLink.classes()).toContain('bg-[#171650]/[0.06]')
+    expect(moduleToggle.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.get('#rams-module-menu').attributes('style')).toContain('display: none')
+    expect(wrapper.get('nav a[href="/trouble-report/import"]').isVisible()).toBe(true)
+
+    await moduleToggle.trigger('click')
+
+    expect(moduleToggle.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('#rams-module-menu').attributes('style')).not.toContain('display: none')
+    wrapper.unmount()
+  })
+
+  it('opens Modul RAMS automatically when one of its routes is active', () => {
+    inertia.page = {
+      url: '/risk-matrix',
+      props: { auth: { user: { id: 1, name: 'Admin Pusat', username: 'admin', role: 'pusat', unit_kerja: null } }, flash: {} },
+    }
+
+    const wrapper = mount(MainLayout, { global: { stubs: { Teleport: true } } })
+
+    expect(wrapper.get('button[aria-controls="rams-module-menu"]').attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('nav a[href="/risk-matrix"]').isVisible()).toBe(true)
+    expect(wrapper.get('nav a[href="/risk-matrix"]').classes()).toContain('bg-[#171650]/[0.06]')
     wrapper.unmount()
   })
 })

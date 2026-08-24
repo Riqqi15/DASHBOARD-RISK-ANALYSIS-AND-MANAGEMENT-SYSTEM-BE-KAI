@@ -92,6 +92,10 @@ const counters = computed(() => props.result ? [
   { key: 'logs-updated', label: 'Log Diperbarui', help: 'Jumlah laporan gangguan yang sudah ada lalu diperbarui.', value: props.result.updated ?? 0, tone: 'text-indigo-700 bg-indigo-50 border-indigo-100' },
   { key: 'logs-unchanged', label: 'Log Tetap', help: 'Jumlah laporan gangguan yang sama persis sehingga tidak perlu diubah.', value: props.result.unchanged ?? 0, tone: 'text-slate-700 bg-slate-50 border-slate-200' },
   { key: 'logs-skipped', label: 'Log Dilewati', help: 'Jumlah baris laporan gangguan yang tidak dimasukkan karena memiliki masalah atau tidak memenuhi aturan import.', value: props.result.skipped ?? 0, tone: 'text-amber-700 bg-amber-50 border-amber-100' },
+  { key: 'invalid-rows', label: 'Tanggal/waktu invalid', help: 'Baris berisi Failure Event tetapi tanggal atau waktunya tidak dapat dipakai.', value: props.result.invalid_rows ?? 0, tone: 'text-red-700 bg-red-50 border-red-100' },
+  { key: 'empty-event-rows', label: 'Failure Event kosong', help: 'Baris memiliki data operasional lain tetapi kolom Failure Event kosong.', value: props.result.empty_rows ?? 0, tone: 'text-amber-700 bg-amber-50 border-amber-100' },
+  { key: 'unrecognized-sheets', label: 'Header tidak dikenali', help: 'Sheet terlihat berisi Trouble Report tetapi tidak memiliki seluruh header wajib.', value: props.result.unrecognized_sheets ?? 0, tone: 'text-amber-700 bg-amber-50 border-amber-100' },
+  { key: 'timestamp-conflicts', label: 'Konflik timestamp', help: 'Timestamp formula berbeda dari kolom tanggal dan waktu; sistem memakai nilai pada kolom tanggal dan waktu.', value: props.result.timestamp_conflicts ?? 0, tone: 'text-orange-700 bg-orange-50 border-orange-100' },
   { key: 'parity-calculated', label: 'Parity dihitung', help: 'Jumlah ringkasan reliability yang dibandingkan antara hasil sistem dan Excel.', value: props.result.parity?.calculated ?? 0, tone: 'text-violet-700 bg-violet-50 border-violet-100' },
   { key: 'parity-matched', label: 'Sesuai Excel', help: 'Jumlah hasil perbandingan yang sama atau masih dalam batas toleransi dengan Excel.', value: props.result.parity?.matched ?? 0, tone: 'text-emerald-700 bg-emerald-50 border-emerald-100' },
   { key: 'parity-mismatch', label: 'Ada selisih', help: 'Jumlah hasil perbandingan yang berbeda dari Excel dan perlu diperiksa.', value: props.result.parity?.mismatch ?? 0, tone: 'text-orange-700 bg-orange-50 border-orange-100' },
@@ -140,6 +144,10 @@ const detailMetrics = (batch) => {
     { key: `detail-spare-parts-created-${batch?.id}`, label: 'Suku cadang dibuat', help: 'Jumlah data suku cadang baru yang ditambahkan ke sistem.', value: summary.spare_parts_created ?? 0 },
     { key: `detail-spare-parts-updated-${batch?.id}`, label: 'Suku cadang diperbarui', help: 'Jumlah data suku cadang yang sudah ada lalu diperbarui.', value: summary.spare_parts_updated ?? 0 },
     { key: `detail-logs-created-${batch?.id}`, label: 'Trouble Report dibuat', help: 'Jumlah laporan gangguan baru yang masuk ke sistem.', value: summary.created ?? 0 },
+    { key: `detail-invalid-rows-${batch?.id}`, label: 'Tanggal/waktu invalid', help: 'Baris berisi Failure Event tetapi tanggal atau waktunya tidak dapat dipakai.', value: summary.invalid_rows ?? 0 },
+    { key: `detail-empty-event-rows-${batch?.id}`, label: 'Failure Event kosong', help: 'Baris memiliki data operasional lain tetapi kolom Failure Event kosong.', value: summary.empty_rows ?? 0 },
+    { key: `detail-unrecognized-sheets-${batch?.id}`, label: 'Header tidak dikenali', help: 'Sheet terlihat berisi Trouble Report tetapi tidak memiliki seluruh header wajib.', value: summary.unrecognized_sheets ?? 0 },
+    { key: `detail-timestamp-conflicts-${batch?.id}`, label: 'Konflik timestamp', help: 'Timestamp formula berbeda dari kolom tanggal dan waktu; sistem memakai nilai pada kolom tanggal dan waktu.', value: summary.timestamp_conflicts ?? 0 },
     { key: `detail-reliability-snapshots-${batch?.id}`, label: 'Snapshot reliability', help: 'Jumlah ringkasan reliability dari Excel yang disimpan sebagai rekaman import.', value: summary.snapshots ?? 0 },
     { key: `detail-parity-matched-${batch?.id}`, label: 'Parity sesuai Excel', help: 'Jumlah hasil perbandingan yang sama atau masih dalam batas toleransi dengan Excel.', value: summary.parity?.matched ?? 0 },
     { key: `detail-parity-mismatch-${batch?.id}`, label: 'Parity berbeda', help: 'Jumlah hasil perbandingan yang berbeda dari Excel dan perlu diperiksa.', value: summary.parity?.mismatch ?? 0 },
@@ -176,6 +184,48 @@ const severityLabel = (severity) => ({
   warning: 'Peringatan',
   info: 'Informasi',
 }[severity] || 'Masalah')
+
+const parityMetricLabels = {
+  unit_count: 'Jumlah unit',
+  operating_hours: 'Jam operasi',
+  downtime_value: 'Total downtime',
+  uptime_hours: 'Jam uptime',
+  failure_count: 'Jumlah gangguan',
+  mttf_hours: 'MTTF',
+  mtbf_hours: 'MTBF',
+  failure_rate: 'Failure rate',
+  reliability: 'Reliability',
+  availability: 'Availability',
+  spare_part_replacement_count: 'Penggantian suku cadang',
+  vandalism_count: 'Tindak vandalisme',
+}
+
+const formatParityValue = (value) => {
+  if (value === null || value === undefined || String(value).trim() === '') return 'Tidak tersedia'
+
+  const number = Number(value)
+  return Number.isFinite(number)
+    ? new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(number)
+    : String(value)
+}
+
+const parityIssue = (issue) => {
+  const message = String(issue?.message || '')
+  const match = message.match(/^Selisih parity pada aset (.+?)\. Detail: (.+?)\. Penyebab: (.+)$/s)
+  if (!match) return null
+
+  const details = match[2]
+    .split(/,\s*(?=[a-z_]+\s*\()/i)
+    .map(detail => detail.match(/^([a-z_]+)\s*\(Sistem:\s*(.*?),\s*Excel:\s*(.*?)\)$/i))
+    .filter(Boolean)
+    .map((detail) => ({
+      label: parityMetricLabels[detail[1]] || detail[1],
+      system: formatParityValue(detail[2]),
+      excel: formatParityValue(detail[3]),
+    }))
+
+  return details.length ? { asset: match[1], details, cause: match[3] } : null
+}
 
 const fetchBatch = async (id) => {
   batchDetailLoading.value = { ...batchDetailLoading.value, [id]: true }
@@ -422,8 +472,32 @@ onBeforeUnmount(() => {
                 <AlertTriangle v-else-if="issue.severity === 'warning'" class="mt-0.5 shrink-0 text-amber-600" :size="18" aria-hidden="true" />
                 <Info v-else class="mt-0.5 shrink-0 text-blue-600" :size="18" aria-hidden="true" />
                 
-                <div class="min-w-0">
-                  <p class="text-sm font-semibold" :class="{
+                <div class="min-w-0 flex-1">
+                  <template v-if="parityIssue(issue)">
+                    <div v-for="parity in [parityIssue(issue)]" :key="`parity-${index}`" data-parity-issue class="space-y-3">
+                      <div>
+                        <p class="text-xs font-bold uppercase tracking-[0.12em] text-amber-700">Selisih parity pada aset</p>
+                        <p class="mt-1 text-base font-bold text-slate-950">{{ parity.asset }}</p>
+                      </div>
+                      <div class="grid gap-2 sm:grid-cols-2">
+                        <div v-for="detail in parity.details" :key="detail.label" class="rounded-lg border border-amber-100 bg-white px-3 py-2.5">
+                          <p class="text-xs font-semibold text-slate-500">{{ detail.label }}</p>
+                          <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+                            <span class="text-slate-500">Sistem</span>
+                            <strong class="text-slate-950">{{ detail.system }}</strong>
+                            <span class="text-slate-300">vs</span>
+                            <span class="text-slate-500">Excel</span>
+                            <strong class="text-slate-950">{{ detail.excel }}</strong>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="rounded-lg border border-amber-200 bg-amber-100/60 px-3 py-2.5">
+                        <p class="text-xs font-bold text-amber-900">Penyebab</p>
+                        <p class="mt-1 text-sm leading-5 text-amber-950">{{ parity.cause }}</p>
+                      </div>
+                    </div>
+                  </template>
+                  <p v-else class="text-sm font-semibold" :class="{
                     'text-red-900': issue.severity === 'error',
                     'text-amber-900': issue.severity === 'warning',
                     'text-blue-900': issue.severity === 'info'
@@ -595,8 +669,35 @@ onBeforeUnmount(() => {
                           <XCircle v-if="issue.severity === 'error'" class="mt-0.5 shrink-0 text-red-600" :size="17" aria-hidden="true" />
                           <AlertTriangle v-else-if="issue.severity === 'warning'" class="mt-0.5 shrink-0 text-amber-600" :size="17" aria-hidden="true" />
                           <Info v-else class="mt-0.5 shrink-0 text-blue-600" :size="17" aria-hidden="true" />
-                          <div class="min-w-0">
-                            <div class="flex flex-wrap items-center gap-2">
+                          <div class="min-w-0 flex-1">
+                            <template v-if="parityIssue(issue)">
+                              <div v-for="parity in [parityIssue(issue)]" :key="`batch-parity-${issueIndex}`" data-parity-issue class="space-y-3">
+                                <div class="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <p class="text-xs font-bold uppercase tracking-[0.12em] text-amber-700">Selisih parity pada aset</p>
+                                    <p class="mt-1 text-base font-bold text-slate-950">{{ parity.asset }}</p>
+                                  </div>
+                                  <span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">{{ severityLabel(issue.severity) }}</span>
+                                </div>
+                                <div class="grid gap-2 sm:grid-cols-2">
+                                  <div v-for="detail in parity.details" :key="detail.label" class="rounded-lg border border-amber-100 bg-amber-50/40 px-3 py-2.5">
+                                    <p class="text-xs font-semibold text-slate-500">{{ detail.label }}</p>
+                                    <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+                                      <span class="text-slate-500">Sistem</span>
+                                      <strong class="text-slate-950">{{ detail.system }}</strong>
+                                      <span class="text-slate-300">vs</span>
+                                      <span class="text-slate-500">Excel</span>
+                                      <strong class="text-slate-950">{{ detail.excel }}</strong>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div class="rounded-lg border border-amber-200 bg-amber-100/60 px-3 py-2.5">
+                                  <p class="text-xs font-bold text-amber-900">Penyebab</p>
+                                  <p class="mt-1 text-sm leading-5 text-amber-950">{{ parity.cause }}</p>
+                                </div>
+                              </div>
+                            </template>
+                            <div v-else class="flex flex-wrap items-center gap-2">
                               <p class="text-sm font-semibold text-slate-900">{{ issue.message }}</p>
                               <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide" :class="issue.severity === 'error' ? 'bg-red-50 text-red-700' : issue.severity === 'warning' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'">
                                 {{ severityLabel(issue.severity) }}
