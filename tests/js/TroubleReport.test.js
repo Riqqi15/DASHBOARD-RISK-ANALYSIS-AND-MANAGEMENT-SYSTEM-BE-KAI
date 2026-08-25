@@ -9,6 +9,7 @@ const router = vi.hoisted(() => ({
 }))
 
 vi.mock('@inertiajs/vue3', () => ({
+  Head: { template: '<div />' },
   router,
 }))
 

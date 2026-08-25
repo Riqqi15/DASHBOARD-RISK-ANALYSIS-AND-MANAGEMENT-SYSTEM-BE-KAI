@@ -120,8 +120,8 @@ const submit = () => {
             <p v-if="form.errors.password" id="password-error" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.password }}</p>
           </div>
 
-          <label class="flex w-fit cursor-pointer items-center gap-2.5 text-sm text-slate-700">
-            <input v-model="form.remember" type="checkbox" class="h-4 w-4 rounded border-slate-300 accent-[#2d2a70]" />
+          <label for="remember" class="flex w-fit cursor-pointer items-center gap-2.5 text-sm text-slate-700">
+            <input id="remember" v-model="form.remember" type="checkbox" class="h-4 w-4 rounded border-slate-300 accent-[#2d2a70]" />
             Ingat saya di perangkat ini
           </label>
 

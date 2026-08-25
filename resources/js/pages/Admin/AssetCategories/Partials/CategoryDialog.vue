@@ -103,8 +103,8 @@ const numberValue = (event) => event.target.value === '' ? '' : event.target.val
             <p v-if="form.errors.dashboard_color" role="alert" class="mt-2 text-sm text-red-600">{{ form.errors.dashboard_color }}</p>
           </div>
 
-          <label v-if="Object.prototype.hasOwnProperty.call(form, 'is_active')" class="flex items-start gap-3 rounded-lg bg-slate-50 p-4">
-            <input :checked="form.is_active" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-[#171650] focus:ring-[#171650]" @change="updateField('is_active', $event.target.checked)" />
+          <label v-if="Object.prototype.hasOwnProperty.call(form, 'is_active')" for="category-is-active" class="flex items-start gap-3 rounded-lg bg-slate-50 p-4">
+            <input id="category-is-active" :checked="form.is_active" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-[#171650] focus:ring-[#171650]" @change="updateField('is_active', $event.target.checked)" />
             <span><span class="block text-sm font-medium text-slate-800">Kategori aktif</span><span class="mt-1 block text-xs leading-5 text-slate-500">Kategori nonaktif tetap tersimpan, tetapi tidak dapat dipilih untuk data baru.</span></span>
           </label>
 

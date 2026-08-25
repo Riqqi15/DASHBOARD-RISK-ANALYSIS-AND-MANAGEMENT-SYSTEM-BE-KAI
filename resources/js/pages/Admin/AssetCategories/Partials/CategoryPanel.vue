@@ -55,10 +55,11 @@ const visibleItems = computed(() => {
         </div>
       </div>
 
-      <label class="relative mt-3 block">
+      <label :for="`category-panel-search-${position}`" class="relative mt-3 block">
         <span class="sr-only">Cari {{ title }}</span>
         <Search :size="17" class="pointer-events-none absolute left-3 top-3 text-slate-400" aria-hidden="true" />
         <input
+          :id="`category-panel-search-${position}`"
           v-model="query"
           type="search"
           :disabled="!parentSelected"

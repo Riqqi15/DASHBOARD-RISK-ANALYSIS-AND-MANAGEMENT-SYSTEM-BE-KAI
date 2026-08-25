@@ -74,8 +74,8 @@ const today = new Date().toISOString().slice(0, 10)
     </div>
 
     <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-      <label class="flex cursor-pointer items-start gap-3">
-        <input v-model="form.is_active" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#2d2a70]" />
+      <label for="unit-is-active" class="flex cursor-pointer items-start gap-3">
+        <input id="unit-is-active" v-model="form.is_active" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#2d2a70]" />
         <span>
           <span class="block text-sm font-medium text-slate-800">Unit aktif</span>
           <span class="mt-1 block text-xs leading-5 text-slate-500">Unit aktif dapat dipilih saat administrator membuat atau memindahkan akun wilayah.</span>
@@ -120,8 +120,8 @@ const today = new Date().toISOString().slice(0, 10)
         <label for="baseline-change-reason" class="mt-3 block text-sm font-medium text-slate-800">Alasan perubahan</label>
         <textarea id="baseline-change-reason" v-model="form.baseline_change_reason" rows="3" maxlength="500" required class="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-3 text-sm outline-none focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" placeholder="Contoh: Koreksi baseline berdasarkan workbook hasil validasi KAI." />
         <p v-if="form.errors.baseline_change_reason" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.baseline_change_reason }}</p>
-        <label class="mt-3 flex cursor-pointer items-start gap-3">
-          <input v-model="form.baseline_change_confirmed" type="checkbox" required class="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#2d2a70]" />
+        <label for="baseline-change-confirmed" class="mt-3 flex cursor-pointer items-start gap-3">
+          <input id="baseline-change-confirmed" v-model="form.baseline_change_confirmed" type="checkbox" required class="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#2d2a70]" />
           <span class="text-xs leading-5 text-slate-700">Saya memahami perubahan ini memengaruhi seluruh perhitungan keandalan pada wilayah ini.</span>
         </label>
         <p v-if="form.errors.baseline_change_confirmed" class="mt-2 text-sm text-red-600" role="alert">{{ form.errors.baseline_change_confirmed }}</p>

@@ -211,20 +211,47 @@ const formatParityValue = (value) => {
 
 const parityIssue = (issue) => {
   const message = String(issue?.message || '')
-  const match = message.match(/^Selisih parity pada aset (.+?)\. Detail: (.+?)\. Penyebab: (.+)$/s)
-  if (!match) return null
+  const prefix = 'Selisih parity pada aset '
+  const detailMarker = '. Detail: '
+  const causeMarker = '. Penyebab: '
+  if (!message.startsWith(prefix)) return null
 
-  const details = match[2]
-    .split(/,\s*(?=[a-z_]+\s*\()/i)
-    .map(detail => detail.match(/^([a-z_]+)\s*\(Sistem:\s*(.*?),\s*Excel:\s*(.*?)\)$/i))
-    .filter(Boolean)
-    .map((detail) => ({
-      label: parityMetricLabels[detail[1]] || detail[1],
-      system: formatParityValue(detail[2]),
-      excel: formatParityValue(detail[3]),
-    }))
+  const detailAt = message.indexOf(detailMarker, prefix.length)
+  if (detailAt < 0) return null
+  const causeAt = message.indexOf(causeMarker, detailAt + detailMarker.length)
+  if (causeAt < 0) return null
 
-  return details.length ? { asset: match[1], details, cause: match[3] } : null
+  const asset = message.slice(prefix.length, detailAt)
+  const detailText = message.slice(detailAt + detailMarker.length, causeAt)
+  const cause = message.slice(causeAt + causeMarker.length)
+  if (!asset || !detailText || !cause) return null
+
+  const details = []
+  let cursor = 0
+  while (cursor < detailText.length) {
+    const openAt = detailText.indexOf('(Sistem:', cursor)
+    if (openAt < 0) break
+    const key = detailText.slice(cursor, openAt).trim().replace(/,$/, '').trim()
+    const systemStart = openAt + '(Sistem:'.length
+    const excelMarker = ', Excel:'
+    const excelAt = detailText.indexOf(excelMarker, systemStart)
+    if (excelAt < 0) break
+    const closeAt = detailText.indexOf(')', excelAt + excelMarker.length)
+    if (closeAt < 0) break
+    const system = detailText.slice(systemStart, excelAt).trim()
+    const excel = detailText.slice(excelAt + excelMarker.length, closeAt).trim()
+    if (key) {
+      details.push({
+        label: parityMetricLabels[key] || key,
+        system: formatParityValue(system),
+        excel: formatParityValue(excel),
+      })
+    }
+    cursor = closeAt + 1
+    if (detailText[cursor] === ',') cursor += 1
+  }
+
+  return details.length ? { asset, details, cause } : null
 }
 
 const fetchBatch = async (id) => {

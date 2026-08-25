@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { routerGet } = vi.hoisted(() => ({ routerGet: vi.fn() }))
 
 vi.mock('@inertiajs/vue3', () => ({
+  Head: { template: '<div />' },
   router: { get: routerGet },
 }))
 

@@ -55,17 +55,19 @@ const paginationLabel = (label) => label
 
     <section class="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <form class="grid gap-3 lg:grid-cols-[minmax(15rem,1fr)_12rem_12rem_auto]" @submit.prevent="applyFilters">
-        <label class="relative">
+        <label for="units-search" class="relative">
           <span class="sr-only">Cari unit</span>
           <Search :size="17" class="pointer-events-none absolute left-3 top-3 text-slate-400" aria-hidden="true" />
-          <input v-model="filters.search" type="search" class="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-sm outline-none focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" placeholder="Cari unit atau username…" />
+          <input id="units-search" v-model="filters.search" type="search" class="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-sm outline-none focus:border-[#2d2a70] focus:ring-4 focus:ring-[#2d2a70]/10" placeholder="Cari unit atau username…" />
         </label>
-        <select v-model="filters.type" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#2d2a70]" aria-label="Filter jenis unit">
+        <label for="units-type" class="sr-only">Filter jenis unit</label>
+        <select id="units-type" v-model="filters.type" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#2d2a70]" aria-label="Filter jenis unit">
           <option value="">Semua jenis</option>
           <option value="daop">Daop</option>
           <option value="divre">Divre</option>
         </select>
-        <select v-model="filters.status" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#2d2a70]" aria-label="Filter status unit">
+        <label for="units-status" class="sr-only">Filter status unit</label>
+        <select id="units-status" v-model="filters.status" class="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#2d2a70]" aria-label="Filter status unit">
           <option value="">Semua status</option>
           <option value="1">Aktif</option>
           <option value="0">Nonaktif</option>

@@ -6,6 +6,7 @@
     FIRST VIEWPORT: Wilayah aktif, ringkasan kinerja, dan status gangguan menjadi fokus; detail dan aset muncul bertahap.
     FORM: Operate dashboard dengan progressive disclosure; alur Trouble Report dan data hierarchy tetap dipertahankan.
   -->
+  <Head><title>Dashboard RAMS</title></Head>
   <MainLayout>
     <AreaSelectorBanner collapsible :units="units" :selected-area="selected_area" />
 
@@ -228,7 +229,7 @@
 </template>
 
 <script setup>
-import { router } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   ChevronDown,

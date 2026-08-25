@@ -249,8 +249,8 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
           <p class="mt-1 text-sm text-slate-600">Buka kategori seperti folder. Aset wilayah muncul di panel kanan.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm font-medium text-slate-600 hover:bg-slate-100">
-            <input v-model="showEmptyCategories" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-[#171650] focus:ring-[#171650]" />
+          <label for="show-empty-categories" class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm font-medium text-slate-600 hover:bg-slate-100">
+            <input id="show-empty-categories" v-model="showEmptyCategories" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-[#171650] focus:ring-[#171650]" />
             Tampilkan kategori kosong
           </label>
           <button v-if="canManageTaxonomy && lastLevel?.position > 3" type="button" class="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-[#171650]" :aria-label="`Hapus level ${lastLevel.name}`" :title="`Hapus level ${lastLevel.name}`" @click="openDeleteLevel(lastLevel)"><Trash2 :size="17" aria-hidden="true" /></button>
@@ -280,10 +280,10 @@ const statusLabel = (value) => ({ aktif: 'Aktif', nonaktif: 'Nonaktif', dalam_pe
               </div>
               <button v-if="canManageTaxonomy" type="button" class="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg bg-orange-50 px-3 text-xs font-semibold text-orange-700 hover:bg-orange-100 focus-visible:ring-2 focus-visible:ring-[#171650] disabled:cursor-not-allowed disabled:opacity-50" :aria-label="`Tambah ${currentLevel?.name}`" :disabled="currentLevelIndex > 0 && !currentParent" @click="openCreateCurrentNode"><Plus :size="16" aria-hidden="true" /> Tambah</button>
             </div>
-            <label class="relative mt-4 block">
+            <label for="category-explorer-search" class="relative mt-4 block">
               <span class="sr-only">Cari pada {{ currentLevel?.name }}</span>
               <Search :size="17" class="pointer-events-none absolute left-3 top-3 text-slate-400" aria-hidden="true" />
-              <input v-model="categoryQuery" type="search" :aria-label="`Cari pada ${currentLevel?.name}`" class="h-11 w-full rounded-lg border border-slate-300 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10" placeholder="Cari kategori…" />
+              <input id="category-explorer-search" v-model="categoryQuery" type="search" :aria-label="`Cari pada ${currentLevel?.name}`" class="h-11 w-full rounded-lg border border-slate-300 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-[#171650] focus:ring-4 focus:ring-[#171650]/10" placeholder="Cari kategori…" />
             </label>
           </header>
 

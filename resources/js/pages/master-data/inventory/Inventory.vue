@@ -272,8 +272,8 @@ const reconciliationTone = (status) => ({
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#171650] text-white"><Scale :size="20" aria-hidden="true" /></span>
               <div><h2 id="reconciliation-title" class="text-sm font-semibold text-slate-950">Rekonsiliasi stok Excel dan ledger</h2><p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Perbandingan ini hanya untuk pemeriksaan. Koreksi harus dicatat sebagai transaksi IN/OUT atau koreksi resmi agar jejak audit tetap utuh.</p></div>
             </div>
-            <label class="flex min-w-56 flex-col gap-1 text-sm font-semibold text-slate-700">Status
-              <select v-model="filterState.reconciliation_status" class="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-[#2d2a70] focus:ring-2 focus:ring-indigo-100" @change="changeFilter({ key: 'reconciliation_status', value: filterState.reconciliation_status })">
+            <label for="inventory-reconciliation-status" class="flex min-w-56 flex-col gap-1 text-sm font-semibold text-slate-700">Status
+              <select id="inventory-reconciliation-status" v-model="filterState.reconciliation_status" class="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-[#2d2a70] focus:ring-2 focus:ring-indigo-100" @change="changeFilter({ key: 'reconciliation_status', value: filterState.reconciliation_status })">
                 <option value="all">Semua status</option><option value="matched">Sesuai</option><option value="difference">Ada selisih</option><option value="missing_ledger">Belum ada stok ledger</option><option value="missing_excel">Tidak ada referensi Excel</option><option value="ambiguous">Kecocokan ambigu</option>
               </select>
             </label>

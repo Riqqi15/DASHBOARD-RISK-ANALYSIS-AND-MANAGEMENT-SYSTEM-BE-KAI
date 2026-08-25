@@ -1,4 +1,5 @@
 <template>
+  <Head><title>Trouble Report</title></Head>
   <MainLayout>
     <div class="space-y-6 pb-10">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-5 gap-4">
@@ -286,7 +287,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { router } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import MainLayout from '@/layouts/MainLayout.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import { ActivityIcon, AlertTriangleIcon, CalendarDaysIcon, InfoIcon, PlusIcon, SettingsIcon, EditIcon, TrashIcon } from 'lucide-vue-next'

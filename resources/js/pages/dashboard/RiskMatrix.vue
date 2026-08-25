@@ -1,4 +1,5 @@
 <template>
+  <Head><title>Risk Matrix</title></Head>
   <MainLayout>
     <AreaSelectorBanner collapsible :units="units" :selected-area="selected_area" />
     <div class="space-y-6 pb-12">
@@ -219,6 +220,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { Head } from '@inertiajs/vue3'
 import MainLayout from '@/layouts/MainLayout.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import AreaSelectorBanner from '@/components/dashboard/AreaSelectorBanner.vue'
