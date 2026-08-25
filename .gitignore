@@ -3,6 +3,7 @@
 .env.backup
 .env.production
 .env.testing
+.env.uat
 
 # Dependencies and build output
 /node_modules
@@ -22,6 +23,7 @@
 /.phpunit.result.cache
 /storage/*.key
 /storage/pail
+/storage/uat/
 
 # Editor and tool settings
 .DS_Store

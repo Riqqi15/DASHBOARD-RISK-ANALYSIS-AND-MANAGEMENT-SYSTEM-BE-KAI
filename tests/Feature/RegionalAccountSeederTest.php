@@ -55,6 +55,15 @@ class RegionalAccountSeederTest extends TestCase
         $this->assertDatabaseCount('users', 0);
     }
 
+    public function test_seeder_creates_daop_accounts_in_uat_when_enabled(): void
+    {
+        $this->app->detectEnvironment(fn (): string => 'uat');
+
+        app(RegionalAccountSeeder::class)->run();
+
+        $this->assertDatabaseCount('users', 9);
+    }
+
     public function test_seeder_does_nothing_in_production(): void
     {
         $this->app->detectEnvironment(fn (): string => 'production');

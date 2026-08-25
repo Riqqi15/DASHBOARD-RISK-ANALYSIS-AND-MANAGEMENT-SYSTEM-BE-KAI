@@ -14,7 +14,7 @@ class RegionalAccountSeeder extends Seeder
 {
     public function run(): void
     {
-        if (! app()->environment(['local', 'testing']) || ! config('rams.demo_accounts.enabled')) {
+        if (! app()->environment(['local', 'testing', 'uat']) || ! config('rams.demo_accounts.enabled')) {
             return;
         }
 

@@ -49,6 +49,59 @@ services:
     ports:
       - "${PHPMYADMIN_FORWARD_PORT:-8080}:80"
 
+  mysql-uat:
+    image: mysql:8.4
+    profiles: ["uat"]
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-rams_uat}
+      MYSQL_USER: ${DB_USERNAME:-rams_uat}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      TZ: Asia/Jakarta
+    ports:
+      - "${DB_FORWARD_PORT:-3309}:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --sql-mode=STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+      - --log-bin-trust-function-creators=1
+    volumes:
+      - rams_mysql_uat_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis-uat:
+    image: redis:7-alpine
+    profiles: ["uat"]
+    restart: unless-stopped
+    ports:
+      - "${REDIS_FORWARD_PORT:-6380}:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - rams_redis_uat_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  phpmyadmin-uat:
+    image: phpmyadmin:5.2-apache
+    profiles: ["uat"]
+    restart: unless-stopped
+    depends_on:
+      mysql-uat:
+        condition: service_healthy
+    environment:
+      PMA_HOST: mysql-uat
+      PMA_PORT: 3306
+    ports:
+      - "${PHPMYADMIN_FORWARD_PORT:-8081}:80"
+
   mysql-test:
     image: mysql:8.4
     profiles: ["test"]
@@ -76,3 +129,5 @@ services:
 volumes:
   rams_mysql_data:
   rams_redis_data:
+  rams_mysql_uat_data:
+  rams_redis_uat_data:

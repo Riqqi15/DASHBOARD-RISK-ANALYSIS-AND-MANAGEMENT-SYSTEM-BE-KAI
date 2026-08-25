@@ -49,7 +49,7 @@ daop2 / daop1234
 daop9 / daop1234
 ```
 
-Akun ini hanya dibuat ketika `APP_ENV` adalah `local` atau `testing` dan `RAMS_SEED_DEMO_ACCOUNTS=true`. Jangan aktifkan kredensial demo pada production.
+Akun ini hanya dibuat ketika `APP_ENV` adalah `local`, `testing`, atau `uat` dan `RAMS_SEED_DEMO_ACCOUNTS=true`. Jangan aktifkan kredensial demo pada production.
 
 ## Menjalankan aplikasi
 
@@ -112,6 +112,45 @@ php vendor/bin/pint --test
 ```
 
 PHPUnit memakai MySQL pada port 3307. Vitest menguji interaksi Vue yang kritis.
+
+## Lingkungan UAT lokal
+
+UAT memakai layanan terpisah agar data development tidak tercampur:
+
+| Layanan | Alamat |
+| --- | --- |
+| Web UAT | `http://127.0.0.1:8100` |
+| MySQL UAT | `127.0.0.1:3309` / database `rams_uat` |
+| Redis UAT | `127.0.0.1:6380` |
+| phpMyAdmin UAT | `http://127.0.0.1:8081` |
+
+Salin `.env.uat.example` menjadi `.env.uat`, lalu ganti seluruh nilai
+`change-this-before-setup`. File `.env.uat` diabaikan Git dan tidak boleh
+dibagikan. Setup pertama menjalankan build, migrasi, seeder akun, server, dan
+queue worker:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/uat.ps1 setup
+```
+
+Perintah operasional berikut tidak menghapus database UAT:
+
+```powershell
+# Menyalakan kembali layanan UAT
+powershell -ExecutionPolicy Bypass -File scripts/uat.ps1 start
+
+# Memeriksa migrasi, Redis, server, worker, dan halaman login
+powershell -ExecutionPolicy Bypass -File scripts/uat.ps1 check
+
+# Menghentikan proses dan container UAT
+powershell -ExecutionPolicy Bypass -File scripts/uat.ps1 stop
+```
+
+Seeder UAT membuat akun Pusat dari `RAMS_ADMIN_*` serta akun `daop1` sampai
+`daop9` dari `RAMS_DAOP_PASSWORD`. Password UAT wajib berbeda dari development
+dan production. Reset database sengaja tidak dimasukkan ke skrip karena bersifat
+destruktif; lakukan backup dan minta persetujuan sebelum memakai
+`migrate:fresh`.
 
 ## Struktur frontend
 
