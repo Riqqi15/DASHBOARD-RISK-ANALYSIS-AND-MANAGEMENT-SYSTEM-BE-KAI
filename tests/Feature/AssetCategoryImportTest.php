@@ -316,7 +316,7 @@ class AssetCategoryImportTest extends TestCase
         $this->assertSame(1, AuditLog::query()->where('action', 'unit_subsystem_opening.imported')->count());
     }
 
-    public function test_explicit_reimport_restores_a_soft_deleted_imported_asset(): void
+    public function test_reimport_keeps_a_soft_deleted_imported_asset_deleted(): void
     {
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-1']);
         $path = $this->workbook([['Kelompok', 'System', 'Subsystem', 5, 2, 1, 40909]]);
@@ -328,10 +328,12 @@ class AssetCategoryImportTest extends TestCase
         $result = app(MasterAssetWorkbookImporter::class)->import($path, $unit);
 
         $this->assertSame(0, $result['created']);
-        $this->assertSame(1, $result['updated']);
-        $this->assertFalse($asset->fresh()->trashed());
-        $this->assertDatabaseCount('assets', 1);
-        $this->assertSame(1, AuditLog::query()->where('action', 'asset.import_restored')->count());
+        $this->assertSame(0, $result['updated']);
+        $this->assertSame(1, $result['skipped']);
+        $this->assertSame(1, $result['duplicates_skipped']);
+        $this->assertTrue(Asset::withTrashed()->findOrFail($asset->id)->trashed());
+        $this->assertSame(1, Asset::withTrashed()->count());
+        $this->assertSame(0, Asset::query()->count());
     }
 
     public function test_missing_sparepart_header_aborts_before_any_workbook_write(): void
