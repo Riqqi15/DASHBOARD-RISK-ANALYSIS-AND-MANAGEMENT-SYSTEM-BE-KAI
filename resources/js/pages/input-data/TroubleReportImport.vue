@@ -500,8 +500,8 @@ onBeforeUnmount(() => {
                 <Info v-else class="mt-0.5 shrink-0 text-blue-600" :size="18" aria-hidden="true" />
                 
                 <div class="min-w-0 flex-1">
-                  <template v-if="parityIssue(issue)">
-                    <div v-for="parity in [parityIssue(issue)]" :key="`parity-${index}`" data-parity-issue class="space-y-3">
+                  <template v-for="parity in [parityIssue(issue)].filter(Boolean)" :key="parity.asset">
+                    <div data-parity-issue class="space-y-3">
                       <div>
                         <p class="text-xs font-bold uppercase tracking-[0.12em] text-amber-700">Selisih parity pada aset</p>
                         <p class="mt-1 text-base font-bold text-slate-950">{{ parity.asset }}</p>
@@ -524,7 +524,7 @@ onBeforeUnmount(() => {
                       </div>
                     </div>
                   </template>
-                  <p v-else class="text-sm font-semibold" :class="{
+                  <p v-if="!parityIssue(issue)" class="text-sm font-semibold" :class="{
                     'text-red-900': issue.severity === 'error',
                     'text-amber-900': issue.severity === 'warning',
                     'text-blue-900': issue.severity === 'info'
@@ -697,8 +697,8 @@ onBeforeUnmount(() => {
                           <AlertTriangle v-else-if="issue.severity === 'warning'" class="mt-0.5 shrink-0 text-amber-600" :size="17" aria-hidden="true" />
                           <Info v-else class="mt-0.5 shrink-0 text-blue-600" :size="17" aria-hidden="true" />
                           <div class="min-w-0 flex-1">
-                            <template v-if="parityIssue(issue)">
-                              <div v-for="parity in [parityIssue(issue)]" :key="`batch-parity-${issueIndex}`" data-parity-issue class="space-y-3">
+                            <template v-for="parity in [parityIssue(issue)].filter(Boolean)" :key="parity.asset">
+                              <div data-parity-issue class="space-y-3">
                                 <div class="flex flex-wrap items-start justify-between gap-2">
                                   <div>
                                     <p class="text-xs font-bold uppercase tracking-[0.12em] text-amber-700">Selisih parity pada aset</p>
@@ -724,7 +724,7 @@ onBeforeUnmount(() => {
                                 </div>
                               </div>
                             </template>
-                            <div v-else class="flex flex-wrap items-center gap-2">
+                            <div v-if="!parityIssue(issue)" class="flex flex-wrap items-center gap-2">
                               <p class="text-sm font-semibold text-slate-900">{{ issue.message }}</p>
                               <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide" :class="issue.severity === 'error' ? 'bg-red-50 text-red-700' : issue.severity === 'warning' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'">
                                 {{ severityLabel(issue.severity) }}
