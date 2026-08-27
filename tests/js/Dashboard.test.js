@@ -36,7 +36,10 @@ const mountPage = (overrides = {}) => mount(Dashboard, {
   global: {
     stubs: {
       MainLayout: { template: '<main><slot /></main>' },
-      AreaSelectorBanner: true,
+      AreaSelectorBanner: {
+        props: ['failureCount'],
+        template: '<div data-dashboard-command-bar>{{ failureCount }} gangguan tercatat</div>',
+      },
     },
   },
 })
@@ -247,10 +250,10 @@ describe('Dashboard', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('Ringkasan kinerja persinyalan')
-    expect(wrapper.text()).toContain('Rekap gangguan tercatat')
-    expect(wrapper.text()).toContain('9 kejadian')
-    expect(wrapper.get('.failure-stat-card').classes()).toContain('failure-stat-card--plain')
+    expect(wrapper.get('[data-dashboard-command-bar]').text()).toContain('9 gangguan tercatat')
+    expect(wrapper.find('.dashboard-hero').exists()).toBe(false)
+    expect(wrapper.find('.failure-stat-card').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('KAI RAMS')
     expect(wrapper.get('.asset-group__summary').classes()).toContain('asset-group__summary--plain')
     expect(wrapper.get('.asset-group__summary').classes()).toContain('asset-group__summary--white')
   })

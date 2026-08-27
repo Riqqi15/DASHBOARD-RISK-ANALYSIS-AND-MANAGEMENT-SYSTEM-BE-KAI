@@ -8,45 +8,13 @@
   -->
   <Head><title>Dashboard RAMS</title></Head>
   <MainLayout>
-    <AreaSelectorBanner collapsible :units="units" :selected-area="selected_area" />
+    <AreaSelectorBanner
+      :units="units"
+      :selected-area="selected_area"
+      :failure-count="formatNumber(failureCountNumber)"
+    />
 
     <div class="dashboard-shell space-y-7 pb-12">
-      <!-- HERO HEADER -->
-      <section class="dashboard-hero" aria-labelledby="dashboard-heading">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2">
-            <span class="inline-flex items-center rounded-md bg-orange-50 px-2 py-0.5 text-xs font-bold text-[#f26522] ring-1 ring-inset ring-orange-200">
-              KAI RAMS
-            </span>
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Persinyalan & Telekomunikasi</span>
-          </div>
-          <h1 id="dashboard-heading" class="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-            Ringkasan kinerja persinyalan
-          </h1>
-          <p class="mt-1.5 max-w-3xl text-sm leading-6 text-slate-600">
-            Lihat kondisi umum dan catatan kegagalan peralatan di wilayah yang sedang dipilih. Buka rincian hanya saat Anda membutuhkannya.
-          </p>
-        </div>
-      </section>
-
-      <!-- REKAP GANGGUAN TERCATAT -->
-      <section aria-labelledby="failure-status-title">
-        <div class="failure-stat-card failure-stat-card--plain">
-          <div class="flex items-center gap-3.5">
-            <span class="failure-stat-card__icon" aria-hidden="true">
-              <FileSpreadsheet :size="20" :stroke-width="2" />
-            </span>
-            <div>
-              <span class="failure-stat-card__label">Rekap gangguan tercatat</span>
-              <p class="failure-stat-card__hint">Total akumulasi catatan kegagalan peralatan pada wilayah terpilih</p>
-            </div>
-          </div>
-          <strong id="failure-status-title" class="failure-stat-card__value">
-            {{ formattedFailureCount }}
-          </strong>
-        </div>
-      </section>
-
       <!-- KINERJA PER KELOMPOK ASET (SINTEL KAI) -->
       <section class="family-metrics" aria-labelledby="family-metrics-title">
         <div class="family-metrics__heading">
@@ -235,7 +203,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  FileSpreadsheet,
   Server,
 } from 'lucide-vue-next'
 import MainLayout from '@/layouts/MainLayout.vue'
@@ -276,11 +243,6 @@ const formatNumber = (value) => {
 const failureCountNumber = computed(() => {
   const failures = Number(props.summary?.totalFailure)
   return Number.isFinite(failures) ? failures : 0
-})
-
-const formattedFailureCount = computed(() => {
-  const failures = failureCountNumber.value
-  return `${formatNumber(failures)} kejadian`
 })
 
 const formatPercentage = (value, maxDecimals = 2) => {
@@ -486,60 +448,6 @@ const goToTroubleReport = (subsystemName = null) => {
 </script>
 
 <style scoped>
-.dashboard-hero {
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 1.25rem;
-}
-
-/* GANGGUAN TERCATAT STAT CARD */
-.failure-stat-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
-  padding: 1.125rem 1.5rem;
-  border-radius: 0.875rem;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgb(15 23 42 / 0.04), 0 1px 2px -1px rgb(15 23 42 / 0.04);
-}
-
-.failure-stat-card__icon {
-  display: flex;
-  height: 2.5rem;
-  width: 2.5rem;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.625rem;
-  background: #fee2e2;
-  color: #b91c1c;
-  border: 1px solid #fecaca;
-}
-
-.failure-stat-card__label {
-  display: block;
-  font-size: 0.9375rem;
-  font-weight: 700;
-  color: #0f172a;
-  line-height: 1.25;
-}
-
-.failure-stat-card__hint {
-  margin-top: 0.125rem;
-  font-size: 0.8125rem;
-  color: #64748b;
-  line-height: 1.25;
-}
-
-.failure-stat-card__value {
-  font-size: 1.875rem;
-  font-weight: 900;
-  letter-spacing: -0.03em;
-  color: #dc2626;
-  line-height: 1;
-}
-
 /* FAMILY METRICS (PDSM, PLSM, PDSE, PLSE, CDS) */
 .family-metrics {
   border: 1px solid #e2e8f0;

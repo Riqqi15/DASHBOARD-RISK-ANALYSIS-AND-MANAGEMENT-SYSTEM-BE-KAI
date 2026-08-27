@@ -29,7 +29,7 @@ const units = [
 ]
 
 const mountBanner = (selectedArea = null, extraProps = {}) => mount(AreaSelectorBanner, {
-  props: { units, selectedArea, ...extraProps },
+  props: { units, selectedArea, failureCount: '13', ...extraProps },
 })
 
 describe('AreaSelectorBanner', () => {
@@ -43,15 +43,19 @@ describe('AreaSelectorBanner', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders all areas and marks the current selection', () => {
+  it('renders the compact dashboard command bar with active area and failure count', () => {
     const wrapper = mountBanner('DAOP-1')
 
-    expect(wrapper.text()).toContain('Wilayah data')
-    expect(wrapper.text()).toContain('Wilayah kerja')
+    expect(wrapper.get('[data-dashboard-command-bar]').classes()).toContain('area-selector--sticky')
+    expect(wrapper.text()).toContain('Dashboard Persinyalan')
+    expect(wrapper.text()).toContain('DAOP-1 — Daerah Operasi 1 Jakarta')
+    expect(wrapper.text()).toContain('13 gangguan tercatat')
     expect(wrapper.get('#area-select').element.value).toBe('DAOP-1')
     expect(wrapper.get('[data-area-code="DAOP-1"]').exists()).toBe(true)
     expect(wrapper.find('[data-area-code="national"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Nasional (Pusat)')
+    expect(wrapper.find('[data-dashboard-brand-badge]').exists()).toBe(false)
+    expect(wrapper.find('.area-selector__icon-box').exists()).toBe(false)
   })
 
   it('navigates with the selected unit code', async () => {
@@ -65,34 +69,15 @@ describe('AreaSelectorBanner', () => {
     })
   })
 
-  it('collapses at the sticky threshold and expands when returning to the top', async () => {
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback()
-      return 1
-    })
-    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
-      bottom: 300,
-      height: 200,
-      left: 0,
-      right: 1000,
-      top: 100,
-      width: 1000,
-      x: 0,
-      y: 100,
-      toJSON: () => ({}),
-    })
+  it('keeps the command bar sticky without switching presentation while scrolling', async () => {
+    const wrapper = mountBanner('DAOP-1')
 
-    const wrapper = mountBanner('DAOP-1', { collapsible: true })
-
-    window.scrollY = 40
+    window.scrollY = 400
     window.dispatchEvent(new Event('scroll'))
     await nextTick()
-    expect(wrapper.classes()).toContain('area-selector--compact')
 
-    window.scrollY = 0
-    window.dispatchEvent(new Event('scroll'))
-    await nextTick()
+    expect(wrapper.classes()).toContain('area-selector--sticky')
     expect(wrapper.classes()).not.toContain('area-selector--compact')
+    expect(wrapper.text()).toContain('Dashboard Persinyalan')
   })
 })
