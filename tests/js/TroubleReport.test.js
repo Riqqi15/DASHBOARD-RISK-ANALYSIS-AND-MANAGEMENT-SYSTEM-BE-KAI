@@ -33,6 +33,24 @@ const mountPage = (overrides = {}) => mount(TroubleReport, {
 })
 
 describe('TroubleReport', () => {
+  it('renders a neutral operational report without decorative subsystem badges or gradients', () => {
+    const wrapper = mountPage()
+    const contextLabel = wrapper.get('[data-report-context-label]')
+    const reportSections = wrapper.findAll('[data-report-section]')
+
+    expect(contextLabel.text()).toBe('Subsystem')
+    expect(contextLabel.classes()).not.toContain('bg-blue-100')
+    expect(contextLabel.classes()).not.toContain('rounded-full')
+    expect(wrapper.find('[class*="bg-gradient"]').exists()).toBe(false)
+    expect(reportSections).toHaveLength(3)
+
+    reportSections.forEach((section) => {
+      expect(section.classes()).toContain('rounded-md')
+      expect(section.classes()).not.toContain('rounded-xl')
+      expect(section.classes()).not.toContain('shadow-sm')
+    })
+  })
+
   it('shows the subsystem installation date once in the report identity', () => {
     const wrapper = mountPage()
 

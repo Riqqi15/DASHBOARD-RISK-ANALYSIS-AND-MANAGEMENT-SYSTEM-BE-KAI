@@ -4,21 +4,32 @@
     <div class="space-y-6 pb-10">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-5 gap-4">
         <div>
-          <div class="flex items-center gap-2 mb-1">
-            <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold tracking-widest uppercase">Subsystem</span>
-          </div>
+          <p
+            data-report-context-label
+            class="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500"
+          >
+            Subsystem
+          </p>
           <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">{{ subsystemName }}</h2>
           <p class="text-sm text-slate-500 mt-1">Formulir Laporan Gangguan (Trouble Report) dan Ringkasan Keandalan</p>
         </div>
         <div class="flex items-center gap-3">
           <BaseButton variant="secondary" @click="backToDashboard">Kembali</BaseButton>
-          <BaseButton :disabled="assets.length === 0" variant="primary" @click="isModalOpen = true" class="shadow-md shadow-blue-500/20 flex items-center gap-2">
-            <PlusIcon class="w-4 h-4" /> Input Manual
+          <BaseButton
+            :disabled="assets.length === 0"
+            variant="primary"
+            class="flex items-center gap-2"
+            @click="isModalOpen = true"
+          >
+            <PlusIcon class="h-4 w-4" /> Input Manual
           </BaseButton>
         </div>
       </div>
 
-      <section class="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-3" aria-label="Identitas subsystem">
+      <section
+        class="grid gap-3 rounded-md border border-slate-200 bg-white p-4 sm:grid-cols-3"
+        aria-label="Identitas subsystem"
+      >
         <div>
           <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Wilayah</p>
           <p class="mt-1 text-sm font-semibold text-slate-900">{{ selectedAreaLabel }}</p>
@@ -46,7 +57,7 @@
                   <span
                     id="calculation-baseline-tooltip"
                     role="tooltip"
-                    class="pointer-events-none invisible absolute right-0 top-full z-20 mt-2 w-72 max-w-[calc(100vw-3rem)] rounded-lg bg-slate-900 px-3 py-2.5 text-left text-xs font-normal leading-5 text-white opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+                    class="pointer-events-none invisible absolute right-0 top-full z-20 mt-2 w-72 max-w-[calc(100vw-3rem)] rounded-md bg-slate-900 px-3 py-2.5 text-left text-xs font-normal leading-5 text-white opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
                   >
                     Reliability dan availability memakai baseline wilayah dari Dashboard Excel: <strong>{{ calculationBaselineLabel }}</strong>. Tanggal pemasangan equipment hanya informasi aset.
                   </span>
@@ -66,7 +77,7 @@
             </button>
           </div>
 
-          <div v-if="isInstallationDateEditorOpen" class="mt-3 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div v-if="isInstallationDateEditorOpen" class="mt-3 space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
             <div v-for="asset in assets" :key="asset.id" class="space-y-1.5">
               <label :for="`installation-date-${asset.id}`" class="block text-xs font-semibold text-slate-700">
                 {{ asset.nama_aset || subsystemName }}
@@ -78,12 +89,12 @@
                   :data-installation-date-input="asset.id"
                   type="date"
                   :max="today"
-                  class="h-10 min-w-44 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                  class="h-10 min-w-44 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                 >
                 <button
                   type="button"
                   :data-save-installation-date="asset.id"
-                  class="h-10 rounded-lg bg-[#171650] px-4 text-sm font-semibold text-white hover:bg-[#24236a]"
+                  class="h-10 rounded-md bg-[#171650] px-4 text-sm font-semibold text-white hover:bg-[#24236a]"
                   @click="saveInstallationDate(asset)"
                 >
                   Simpan
@@ -96,17 +107,20 @@
         </div>
       </section>
 
-      <!-- Tabel Ringkasan (Biru - Modern) -->
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="bg-gradient-to-r from-[#4A72B2] to-[#3a5a8f] px-4 py-3 border-b border-slate-200">
-          <h3 class="text-white font-bold text-sm flex items-center gap-2">
-            <ActivityIcon class="w-4 h-4 text-white/80" />
+      <!-- Tabel Ringkasan Keandalan -->
+      <section
+        data-report-section="reliability"
+        class="overflow-hidden rounded-md border border-slate-200 bg-white"
+      >
+        <div class="border-b border-slate-200 bg-white px-4 py-3">
+          <h3 class="flex items-center gap-2 text-sm font-bold text-slate-900">
+            <ActivityIcon class="h-4 w-4 text-slate-500" aria-hidden="true" />
             Ringkasan Keandalan (Reliability Data)
           </h3>
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full text-xs text-left">
-            <thead class="bg-slate-50 text-slate-500">
+          <table class="w-full text-left text-xs text-slate-700">
+            <thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
               <tr>
                 <th class="p-3 font-semibold min-w-[150px]">Subsystem</th>
                 <th class="p-3 font-semibold text-center">Unit</th>
@@ -124,28 +138,20 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
-              <tr v-if="summaryData" class="hover:bg-slate-50 transition-colors">
+              <tr v-if="summaryData" class="transition-colors hover:bg-slate-50">
                 <td class="p-3 font-semibold text-slate-700">{{ subsystemName }}</td>
                 <td class="p-3 text-center">{{ formatNumber(summaryData.jumlah_unit) }}</td>
                 <td class="p-3 text-center">{{ formatNumber(summaryData.total_operating_hour) }}</td>
-                <td class="p-3 text-center text-emerald-600 font-medium">{{ formatNumber(summaryData.total_uptime) }}</td>
-                <td class="p-3 text-center text-rose-600 font-medium">{{ formatNumber(summaryData.total_downtime) }}</td>
-                <td class="p-3 text-center font-bold">{{ formatNumber(summaryData.jumlah_failure) }}</td>
-                <td class="p-3 text-center">{{ formatNumber(summaryData.mttf) }}</td>
-                <td class="p-3 text-center font-medium">{{ formatNumber(summaryData.mtbf) }}</td>
-                <td class="p-3 text-center">{{ formatDecimal(summaryData.failure_rate) }}</td>
-                <td class="p-3 text-center">
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800">
-                    {{ formatPercent(summaryData.reliability) }}
-                  </span>
-                </td>
-                <td class="p-3 text-center">
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800">
-                    {{ formatPercent(summaryData.availability) }}
-                  </span>
-                </td>
-                <td class="p-3 text-center bg-orange-50 font-bold text-orange-600 border-l border-r border-orange-100">{{ formatNumber(summaryData.spare_part_replacement_count) }}</td>
-                <td class="p-3 text-center font-bold text-rose-600">{{ formatNumber(summaryData.vandalism_count) }}</td>
+                <td class="p-3 text-center tabular-nums text-slate-900">{{ formatNumber(summaryData.total_uptime) }}</td>
+                <td class="p-3 text-center tabular-nums text-slate-900">{{ formatNumber(summaryData.total_downtime) }}</td>
+                <td class="p-3 text-center font-semibold tabular-nums text-slate-900">{{ formatNumber(summaryData.jumlah_failure) }}</td>
+                <td class="p-3 text-center tabular-nums">{{ formatNumber(summaryData.mttf) }}</td>
+                <td class="p-3 text-center font-medium tabular-nums">{{ formatNumber(summaryData.mtbf) }}</td>
+                <td class="p-3 text-center tabular-nums">{{ formatDecimal(summaryData.failure_rate) }}</td>
+                <td class="p-3 text-center font-semibold tabular-nums text-slate-900">{{ formatPercent(summaryData.reliability) }}</td>
+                <td class="p-3 text-center font-semibold tabular-nums text-slate-900">{{ formatPercent(summaryData.availability) }}</td>
+                <td class="p-3 text-center font-semibold tabular-nums text-slate-900">{{ formatNumber(summaryData.spare_part_replacement_count) }}</td>
+                <td class="p-3 text-center font-semibold tabular-nums text-slate-900">{{ formatNumber(summaryData.vandalism_count) }}</td>
               </tr>
               <tr v-else>
                 <td colspan="13" class="p-8 text-center text-slate-400">Memuat data ringkasan...</td>
@@ -153,19 +159,22 @@
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
 
-      <!-- Tabel Input (Ungu - Modern) -->
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-8">
-        <div class="bg-gradient-to-r from-[#7030A0] to-[#582182] px-4 py-3 border-b border-slate-200">
-          <h3 class="text-white font-bold text-sm flex items-center gap-2">
-            <AlertTriangleIcon class="w-4 h-4 text-white/80" />
+      <!-- Tabel Log Kejadian Kegagalan -->
+      <section
+        data-report-section="failures"
+        class="mt-6 overflow-hidden rounded-md border border-slate-200 bg-white"
+      >
+        <div class="border-b border-slate-200 bg-white px-4 py-3">
+          <h3 class="flex items-center gap-2 text-sm font-bold text-slate-900">
+            <AlertTriangleIcon class="h-4 w-4 text-slate-500" aria-hidden="true" />
             Log Kejadian Kegagalan (Failure Report)
           </h3>
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full text-xs text-left">
-            <thead class="bg-slate-50 text-slate-500 border-b border-slate-200">
+          <table class="w-full text-left text-xs text-slate-700">
+            <thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
               <tr>
                 <th class="p-3 font-semibold min-w-[120px]">Lokasi</th>
                 <th class="p-3 font-semibold min-w-[120px]">Resor</th>
@@ -190,8 +199,13 @@
                     <AlertTriangleIcon class="w-8 h-8 text-slate-300 mb-2" />
                     <p>Belum ada data kejadian kegagalan untuk subsystem ini di unit kerja Anda.</p>
                     <div class="mt-4 flex gap-3 justify-center items-center">
-                      <button v-if="assets.length > 0" type="button" @click="openCreateModal" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 flex items-center gap-2 transition">
-                        <PlusIcon class="w-4 h-4" /> Input Manual
+                      <button
+                        v-if="assets.length > 0"
+                        type="button"
+                        class="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                        @click="openCreateModal"
+                      >
+                        <PlusIcon class="h-4 w-4" /> Input Manual
                       </button>
                     </div>
                   </div>
@@ -209,8 +223,8 @@
                 </td>
                 <td class="p-3 text-center" :class="log.tindak_vandalisme === 'Y' || log.tindak_vandalisme === 'Ya' ? 'text-rose-600 font-bold' : ''">{{ log.tindak_vandalisme }}</td>
                 
-                <td class="p-3 whitespace-nowrap text-rose-600 font-medium">{{ formatReportDateTime(log.tanggal_jam_kejadian || (log.tanggal_kejadian + ' ' + (log.mulai || '00:00'))) }}</td>
-                <td class="p-3 whitespace-nowrap text-emerald-600 font-medium">{{ formatReportDateTime(log.tanggal_jam_penanganan || (log.tanggal_penanganan + ' ' + (log.selesai || '00:00'))) }}</td>
+                <td class="whitespace-nowrap p-3 font-medium tabular-nums text-slate-700">{{ formatReportDateTime(log.tanggal_jam_kejadian || (log.tanggal_kejadian + ' ' + (log.mulai || '00:00'))) }}</td>
+                <td class="whitespace-nowrap p-3 font-medium tabular-nums text-slate-700">{{ formatReportDateTime(log.tanggal_jam_penanganan || (log.tanggal_penanganan + ' ' + (log.selesai || '00:00'))) }}</td>
                 
                 <td class="p-3 text-center font-bold">{{ log.downtime_jam !== undefined ? log.downtime_jam : '-' }}</td>
                 <td class="p-3 text-center text-slate-600">{{ log.downtime_menit !== undefined ? log.downtime_menit : '-' }}</td>
@@ -229,49 +243,52 @@
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
 
-      <!-- Tabel Output: Daftar Kebutuhan Sparepart (Kuning/Amber) -->
-      <div class="bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden mt-8">
-        <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 border-b border-amber-200">
-          <h3 class="text-white font-bold text-sm flex items-center gap-2">
-            <SettingsIcon class="w-4 h-4 text-white/90" />
+      <!-- Tabel Output Kebutuhan Sparepart -->
+      <section
+        data-report-section="spare-parts"
+        class="mt-6 overflow-hidden rounded-md border border-slate-200 bg-white"
+      >
+        <div class="border-b border-slate-200 bg-white px-4 py-3">
+          <h3 class="flex items-center gap-2 text-sm font-bold text-slate-900">
+            <SettingsIcon class="h-4 w-4 text-slate-500" aria-hidden="true" />
             Output Report: Daftar Kebutuhan & Penggantian Sparepart
           </h3>
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full text-xs text-left">
-            <thead class="bg-amber-50 text-amber-900 border-b border-amber-100">
+          <table class="w-full text-left text-xs text-slate-700">
+            <thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
               <tr>
                 <th class="p-3 font-semibold">Tgl Kejadian</th>
                 <th class="p-3 font-semibold">Lokasi / Resor</th>
                 <th class="p-3 font-semibold">Failure Event</th>
                 <th class="p-3 font-semibold">Tindakan</th>
-                <th class="p-3 font-semibold text-center bg-amber-100">Nama Sparepart</th>
-                <th class="p-3 font-semibold text-center bg-amber-100">Jumlah</th>
+                <th class="p-3 font-semibold text-center">Nama Sparepart</th>
+                <th class="p-3 font-semibold text-center">Jumlah</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-amber-100">
+            <tbody class="divide-y divide-slate-100">
               <tr v-if="sparepartLogs.length === 0">
-                <td colspan="6" class="p-8 text-center text-amber-600/70">
+                <td colspan="6" class="p-8 text-center text-slate-500">
                   <div class="flex flex-col items-center justify-center">
-                    <SettingsIcon class="w-8 h-8 text-amber-300 mb-2 opacity-50" />
+                    <SettingsIcon class="mb-2 h-7 w-7 text-slate-300" aria-hidden="true" />
                     <p>Belum ada laporan gangguan yang memerlukan penggantian sparepart di unit ini.</p>
                   </div>
                 </td>
               </tr>
-              <tr v-for="(log, idx) in sparepartLogs" :key="'sp-'+idx" class="hover:bg-amber-50/50 transition-colors">
+              <tr v-for="(log, idx) in sparepartLogs" :key="'sp-'+idx" class="transition-colors hover:bg-slate-50">
                 <td class="p-3 font-medium text-slate-700">{{ formatReportDateTime(log.tanggal_jam_kejadian) }}</td>
                 <td class="p-3">{{ log.lokasi }} <br><span class="text-[10px] text-slate-500">{{ log.resor }}</span></td>
                 <td class="p-3">{{ log.failure_event }}</td>
                 <td class="p-3">{{ log.tindakan }}</td>
-                <td class="p-3 text-center font-bold text-amber-700 bg-amber-50/30">{{ log.nama_sparepart || 'Sesuai Tindakan' }}</td>
-                <td class="p-3 text-center font-bold text-amber-700 bg-amber-50/30">{{ log.jumlah_sparepart || '1' }}</td>
+                <td class="p-3 text-center font-semibold text-slate-900">{{ log.nama_sparepart || 'Sesuai Tindakan' }}</td>
+                <td class="p-3 text-center font-semibold tabular-nums text-slate-900">{{ log.jumlah_sparepart || '1' }}</td>
               </tr>
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
 
       <TroubleReportModal
         :is-open="isModalOpen"
