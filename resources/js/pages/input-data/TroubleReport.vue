@@ -112,9 +112,9 @@
         data-report-section="reliability"
         class="overflow-hidden rounded-md border border-slate-200 bg-white"
       >
-        <div class="border-b border-slate-200 bg-white px-4 py-3">
-          <h3 class="flex items-center gap-2 text-sm font-bold text-slate-900">
-            <ActivityIcon class="h-4 w-4 text-slate-500" aria-hidden="true" />
+        <div class="border-b border-[#294f85] bg-[#365f9c] px-4 py-3">
+          <h3 class="flex items-center gap-2 text-sm font-bold text-white">
+            <ActivityIcon class="h-4 w-4 text-white/80" aria-hidden="true" />
             Ringkasan Keandalan (Reliability Data)
           </h3>
         </div>
@@ -142,8 +142,8 @@
                 <td class="p-3 font-semibold text-slate-700">{{ subsystemName }}</td>
                 <td class="p-3 text-center">{{ formatNumber(summaryData.jumlah_unit) }}</td>
                 <td class="p-3 text-center">{{ formatNumber(summaryData.total_operating_hour) }}</td>
-                <td class="p-3 text-center tabular-nums text-slate-900">{{ formatNumber(summaryData.total_uptime) }}</td>
-                <td class="p-3 text-center tabular-nums text-slate-900">{{ formatNumber(summaryData.total_downtime) }}</td>
+                <td class="p-3 text-center font-semibold tabular-nums text-emerald-700">{{ formatNumber(summaryData.total_uptime) }}</td>
+                <td class="p-3 text-center font-semibold tabular-nums text-red-700">{{ formatNumber(summaryData.total_downtime) }}</td>
                 <td class="p-3 text-center font-semibold tabular-nums text-slate-900">{{ formatNumber(summaryData.jumlah_failure) }}</td>
                 <td class="p-3 text-center tabular-nums">{{ formatNumber(summaryData.mttf) }}</td>
                 <td class="p-3 text-center font-medium tabular-nums">{{ formatNumber(summaryData.mtbf) }}</td>
@@ -166,9 +166,9 @@
         data-report-section="failures"
         class="mt-6 overflow-hidden rounded-md border border-slate-200 bg-white"
       >
-        <div class="border-b border-slate-200 bg-white px-4 py-3">
-          <h3 class="flex items-center gap-2 text-sm font-bold text-slate-900">
-            <AlertTriangleIcon class="h-4 w-4 text-slate-500" aria-hidden="true" />
+        <div class="border-b border-[#54217c] bg-[#6b2a9b] px-4 py-3">
+          <h3 class="flex items-center gap-2 text-sm font-bold text-white">
+            <AlertTriangleIcon class="h-4 w-4 text-white/80" aria-hidden="true" />
             Log Kejadian Kegagalan (Failure Report)
           </h3>
         </div>
@@ -250,9 +250,9 @@
         data-report-section="spare-parts"
         class="mt-6 overflow-hidden rounded-md border border-slate-200 bg-white"
       >
-        <div class="border-b border-slate-200 bg-white px-4 py-3">
-          <h3 class="flex items-center gap-2 text-sm font-bold text-slate-900">
-            <SettingsIcon class="h-4 w-4 text-slate-500" aria-hidden="true" />
+        <div class="border-b border-[#c75e0a] bg-[#e87516] px-4 py-3">
+          <h3 class="flex items-center gap-2 text-sm font-bold text-white">
+            <SettingsIcon class="h-4 w-4 text-white/80" aria-hidden="true" />
             Output Report: Daftar Kebutuhan & Penggantian Sparepart
           </h3>
         </div>

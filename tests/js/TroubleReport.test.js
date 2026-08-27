@@ -33,16 +33,40 @@ const mountPage = (overrides = {}) => mount(TroubleReport, {
 })
 
 describe('TroubleReport', () => {
-  it('renders a neutral operational report without decorative subsystem badges or gradients', () => {
-    const wrapper = mountPage()
+  it('uses color only for report headers and uptime or downtime values', () => {
+    const wrapper = mountPage({
+      reliability: [{
+        total_operating_hour: 115488,
+        total_uptime: 115350,
+        total_downtime: 138,
+        jumlah_failure: 3,
+        mttf: 4626.6222,
+        mtbf: 38450,
+        failure_rate: 0.000026,
+        reliability: 0.99997,
+        availability: 0.9988,
+        spare_part_replacement_count: 0,
+        vandalism_count: 0,
+      }],
+    })
     const contextLabel = wrapper.get('[data-report-context-label]')
     const reportSections = wrapper.findAll('[data-report-section]')
+    const reliabilityHeader = wrapper.get('[data-report-section="reliability"] > div')
+    const failureHeader = wrapper.get('[data-report-section="failures"] > div')
+    const sparepartHeader = wrapper.get('[data-report-section="spare-parts"] > div')
+    const uptime = wrapper.get('[data-report-section="reliability"] tbody td:nth-child(4)')
+    const downtime = wrapper.get('[data-report-section="reliability"] tbody td:nth-child(5)')
 
     expect(contextLabel.text()).toBe('Subsystem')
     expect(contextLabel.classes()).not.toContain('bg-blue-100')
     expect(contextLabel.classes()).not.toContain('rounded-full')
     expect(wrapper.find('[class*="bg-gradient"]').exists()).toBe(false)
     expect(reportSections).toHaveLength(3)
+    expect(reliabilityHeader.classes()).toContain('bg-[#365f9c]')
+    expect(failureHeader.classes()).toContain('bg-[#6b2a9b]')
+    expect(sparepartHeader.classes()).toContain('bg-[#e87516]')
+    expect(uptime.classes()).toContain('text-emerald-700')
+    expect(downtime.classes()).toContain('text-red-700')
 
     reportSections.forEach((section) => {
       expect(section.classes()).toContain('rounded-md')
