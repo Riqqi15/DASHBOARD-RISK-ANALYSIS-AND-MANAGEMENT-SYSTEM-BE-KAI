@@ -2,9 +2,12 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import RiskRegister from '@/pages/risk-register/Index.vue'
 
+const inertiaState = vi.hoisted(() => ({ pageUrl: '/risk-register' }))
+
 vi.mock('@inertiajs/vue3', () => ({
   Head: { template: '<div />' },
   router: { delete: vi.fn() },
+  usePage: () => ({ get url() { return inertiaState.pageUrl } }),
   useForm: values => ({ ...values, errors: {}, processing: false, defaults: vi.fn(), reset: vi.fn(), clearErrors: vi.fn(), post: vi.fn(), put: vi.fn() }),
 }))
 
@@ -16,6 +19,7 @@ const register = {
 
 describe('RiskRegister', () => {
   it('shows register data and opens the editor', async () => {
+    inertiaState.pageUrl = '/risk-register'
     const wrapper = mount(RiskRegister, {
       props: { assets: [{ id: 3, name: 'Interlocking', unit: { code: 'DAOP-1' } }], registers: [register] },
       global: { stubs: { MainLayout: { template: '<main><slot /></main>' }, AreaSelectorBanner: true } },
@@ -29,6 +33,7 @@ describe('RiskRegister', () => {
   })
 
   it('submits and deletes within the selected area', async () => {
+    inertiaState.pageUrl = '/risk-register?area=DAOP-1'
     const wrapper = mount(RiskRegister, {
       props: {
         selected_area: 'DAOP-1',
@@ -42,5 +47,22 @@ describe('RiskRegister', () => {
 
     await wrapper.get('button').trigger('click')
     expect(wrapper.vm.form?.unit_kerja_id ?? '').not.toBe('')
+  })
+
+  it('opens the create form when requested from the matrix page', async () => {
+    inertiaState.pageUrl = '/risk-register?area=DAOP-1&create=1'
+    const wrapper = mount(RiskRegister, {
+      props: {
+        selected_area: 'DAOP-1',
+        can_choose_unit: true,
+        units: [{ id: 7, code: 'DAOP-1', name: 'Daerah Operasi 1' }],
+        assets: [{ id: 3, name: 'Interlocking', unit: { code: 'DAOP-1' } }],
+        registers: [],
+      },
+      global: { stubs: { MainLayout: { template: '<main><slot /></main>' }, AreaSelectorBanner: true } },
+    })
+
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('Tambah Risk Register')
   })
 })

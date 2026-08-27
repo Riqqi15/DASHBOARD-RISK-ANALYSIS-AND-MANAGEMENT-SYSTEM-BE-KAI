@@ -1,6 +1,6 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { Head, router, useForm } from '@inertiajs/vue3'
+import { computed, onMounted, ref } from 'vue'
+import { Head, router, useForm, usePage } from '@inertiajs/vue3'
 import { Pencil, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-vue-next'
 import MainLayout from '@/layouts/MainLayout.vue'
 import AreaSelectorBanner from '@/components/dashboard/AreaSelectorBanner.vue'
@@ -13,6 +13,7 @@ const props = defineProps({
   registers: { type: Array, default: () => [] },
 })
 
+const page = usePage()
 const search = ref('')
 const status = ref('all')
 const dialogOpen = ref(false)
@@ -82,6 +83,11 @@ const submit = () => {
 const scopedUrl = path => props.can_choose_unit && props.selected_area
   ? `${path}?area=${encodeURIComponent(props.selected_area)}`
   : path
+
+onMounted(() => {
+  const query = page.url.includes('?') ? page.url.split('?')[1] : ''
+  if (new URLSearchParams(query).get('create') === '1') openCreate()
+})
 
 const remove = (item) => {
   if (window.confirm(`Hapus Risk Register “${item.risk_event}”?`)) {

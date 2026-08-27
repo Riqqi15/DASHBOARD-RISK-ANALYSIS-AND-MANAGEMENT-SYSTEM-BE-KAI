@@ -1,233 +1,183 @@
 <template>
-  <Head><title>Risk Matrix</title></Head>
+  <Head><title>Matriks Risiko</title></Head>
   <MainLayout>
     <AreaSelectorBanner collapsible :units="units" :selected-area="selected_area" />
-    <div class="space-y-6 pb-12">
-      <!-- Premium Header Banner -->
-      <div class="relative bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 overflow-hidden shadow-lg border border-slate-700">
-        <div class="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white opacity-5 rounded-full blur-3xl"></div>
-        <div class="absolute bottom-0 right-20 w-32 h-32 bg-amber-500 opacity-10 rounded-full blur-2xl"></div>
-        
-        <div class="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+
+    <div class="space-y-5 pb-12">
+      <header
+        data-testid="risk-page-header"
+        class="flex flex-col gap-4 rounded-md border border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div class="flex min-w-0 items-start gap-3">
+          <AlertTriangleIcon class="mt-0.5 h-5 w-5 shrink-0 text-orange-600" />
           <div>
-            <div class="flex items-center gap-3 mb-1">
-              <div class="p-2 bg-slate-700/50 rounded-lg backdrop-blur-sm border border-slate-600">
-                <AlertTriangleIcon class="w-6 h-6 text-amber-400" />
-              </div>
-              <h2 class="text-2xl font-extrabold text-white tracking-tight">Risk Matrix & Risk Register</h2>
-            </div>
-            <p class="text-slate-300 text-sm max-w-xl">
-              Pemetaan tingkat risiko keamanan dan operasional aset berdasarkan analisis <span class="font-bold text-amber-400">Likelihood</span> (Kemungkinan) dan <span class="font-bold text-rose-400">Consequence</span> (Dampak).
+            <h1 class="text-xl font-bold tracking-tight text-slate-950">Matriks Risiko</h1>
+            <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+              Ringkasan likelihood dan consequence untuk aset pada wilayah yang dipilih.
             </p>
           </div>
-          <BaseButton variant="primary" class="bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20 border-none flex items-center gap-2 whitespace-nowrap">
-            <PlusIcon class="w-4 h-4" />
-            Asesmen Risiko Baru
-          </BaseButton>
         </div>
-      </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        <!-- Risk Matrix 4x4 Visual (Takes up 2 columns on large screens) -->
-        <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div class="px-5 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-            <h3 class="font-bold text-slate-800 flex items-center gap-2">
-              <GridIcon class="w-4 h-4 text-slate-500" />
-              Matriks LxC 4x4
-            </h3>
-            <div class="flex gap-3 text-[10px] font-bold">
-              <div class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-emerald-400"></span> Rendah</div>
-              <div class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-yellow-400"></span> Sedang</div>
-              <div class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-orange-400"></span> Tinggi</div>
-              <div class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-rose-600"></span> Ekstrem</div>
+        <Link
+          data-testid="create-risk-assessment"
+          :href="riskRegisterCreateUrl"
+          class="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-orange-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+        >
+          <PlusIcon class="h-4 w-4" />
+          Asesmen Risiko Baru
+        </Link>
+      </header>
+
+      <div class="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(280px,0.8fr)]">
+        <section class="overflow-hidden rounded-md border border-slate-200 bg-white" aria-labelledby="matrix-title">
+          <header class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 id="matrix-title" class="font-semibold text-slate-950">Matriks L × C 4 × 4</h2>
+              <p class="mt-1 text-xs text-slate-500">Angka menunjukkan skor risiko. Penanda gelap menunjukkan jumlah asesmen.</p>
             </div>
-          </div>
-          
-          <div class="p-6 flex-1 flex items-center justify-center relative overflow-x-auto">
-            
-            <div class="flex">
-              <!-- Y-Axis Label (Likelihood) -->
-              <div class="flex flex-col justify-center mr-4">
-                <span class="text-xs font-bold text-slate-500 -rotate-90 uppercase tracking-widest whitespace-nowrap">Likelihood (Frekuensi)</span>
+            <div class="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-600" aria-label="Legenda tingkat risiko">
+              <span v-for="item in riskDistribution" :key="item.level" class="inline-flex items-center gap-1.5">
+                <span class="h-2.5 w-2.5" :class="item.swatchClass"></span>{{ item.label }}
+              </span>
+            </div>
+          </header>
+
+          <div class="overflow-x-auto px-4 py-6 sm:px-6">
+            <div class="mx-auto w-max">
+              <div class="mb-2 ml-28 grid grid-cols-4 gap-1.5 text-center">
+                <div v-for="c in 4" :key="`column-${c}`" class="w-20">
+                  <p class="text-xs font-semibold text-slate-800">C{{ c }}</p>
+                  <p class="mt-0.5 text-[10px] text-slate-500">{{ consequenceLabels[c - 1] }}</p>
+                </div>
               </div>
-              
-              <!-- Matrix Grid -->
-              <div class="relative">
-                <div class="grid grid-cols-5 gap-1 w-max">
-                  <!-- Empty top left -->
-                  <div class="w-12 h-12"></div>
-                  <!-- X-Axis Headers (Consequence) -->
-                  <div class="w-20 h-12 flex flex-col items-center justify-end pb-2" v-for="c in 4" :key="'ch-'+c">
-                    <span class="text-xs font-bold text-slate-700">C{{ c }}</span>
-                    <span class="text-[9px] text-slate-400 leading-none text-center">{{ consequenceLabels[c-1] }}</span>
+
+              <div class="flex items-center gap-3">
+                <p class="w-5 -rotate-90 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Likelihood
+                </p>
+                <div class="space-y-1.5">
+                  <div v-for="likelihood in [4, 3, 2, 1]" :key="`row-${likelihood}`" class="flex items-center gap-2">
+                    <div class="w-16 text-right">
+                      <p class="text-xs font-semibold text-slate-800">L{{ likelihood }}</p>
+                      <p class="text-[10px] text-slate-500">{{ likelihoodLabels[likelihood - 1] }}</p>
+                    </div>
+
+                    <div class="grid grid-cols-4 gap-1.5">
+                      <div
+                        v-for="consequence in 4"
+                        :key="`cell-${likelihood}-${consequence}`"
+                        :data-risk-level="getRiskLevel(likelihood, consequence)"
+                        class="relative flex h-16 w-20 items-center justify-center border border-black/5 text-white"
+                        :class="getRiskColorClass(likelihood, consequence)"
+                        :title="`${getRiskLevelName(likelihood, consequence)} · ${getAssetCountInCell(likelihood, consequence)} asesmen`"
+                      >
+                        <span class="text-lg font-semibold">{{ likelihood * consequence }}</span>
+                        <span
+                          v-if="getAssetCountInCell(likelihood, consequence) > 0"
+                          class="absolute right-1.5 top-1.5 min-w-5 bg-slate-950 px-1.5 py-0.5 text-center text-[10px] font-semibold text-white"
+                        >
+                          {{ getAssetCountInCell(likelihood, consequence) }}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  
-                  <!-- Rows -->
-                  <template v-for="l in 4" :key="'row-'+l">
-                    <!-- Y-Axis Header -->
-                    <div class="w-12 h-16 flex flex-col items-end justify-center pr-2">
-                      <span class="text-xs font-bold text-slate-700">L{{ 5-l }}</span>
-                      <span class="text-[9px] text-slate-400 leading-none text-right">{{ likelihoodLabels[4-l] }}</span>
-                    </div>
-                    
-                    <!-- Cells -->
-                    <div v-for="c in 4" :key="'cell-'+l+'-'+c"
-                         class="w-20 h-16 rounded border border-white flex flex-col items-center justify-center transition-transform hover:scale-105 cursor-pointer shadow-sm relative group"
-                         :class="getRiskColorClass(5-l, c)">
-                      <span class="text-xl font-bold text-white/90 drop-shadow-md">{{ (5-l) * c }}</span>
-                      
-                      <!-- Tooltip (Count of assets in this cell) -->
-                      <div v-if="getAssetCountInCell(5-l, c) > 0" class="absolute -top-2 -right-2 w-6 h-6 bg-slate-900 rounded-full text-white text-[10px] flex items-center justify-center font-bold shadow-md border-2 border-white z-10">
-                        {{ getAssetCountInCell(5-l, c) }}
-                      </div>
-                      
-                      <!-- Hover Detail -->
-                      <div class="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-800 text-white p-2 rounded text-xs shadow-xl z-20 pointer-events-none transition-all">
-                        <p class="font-bold text-amber-400 mb-1 border-b border-slate-600 pb-1">Skor: {{ (5-l) * c }} ({{ getRiskLevelName(5-l, c) }})</p>
-                        <p>L{{5-l}}: {{ likelihoodLabels[4-l] }}</p>
-                        <p>C{{c}}: {{ consequenceLabels[c-1] }}</p>
-                        <p class="mt-1 pt-1 border-t border-slate-600 text-emerald-400">{{ getAssetCountInCell(5-l, c) }} Aset dalam kategori ini</p>
-                      </div>
-                    </div>
-                  </template>
-                </div>
-                
-                <!-- X-Axis Bottom Label -->
-                <div class="flex justify-center mt-4 pl-12">
-                  <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Consequence (Dampak)</span>
                 </div>
               </div>
+
+              <p class="ml-28 mt-4 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Consequence (Dampak)
+              </p>
             </div>
           </div>
-        </div>
+        </section>
 
-        <!-- Risk Summary & Stats -->
-        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div class="px-5 py-4 border-b border-slate-200 bg-slate-50">
-            <h3 class="font-bold text-slate-800 flex items-center gap-2">
-              <PieChartIcon class="w-4 h-4 text-slate-500" />
-              Distribusi Risiko
-            </h3>
-          </div>
-          <div class="p-5 flex-1 flex flex-col gap-4">
-            
-            <div class="flex items-center justify-between p-3 rounded-lg bg-rose-50 border border-rose-100 cursor-pointer hover:bg-rose-100 transition-colors">
+        <section class="overflow-hidden rounded-md border border-slate-200 bg-white" aria-labelledby="distribution-title">
+          <header class="border-b border-slate-200 px-5 py-4">
+            <h2 id="distribution-title" class="font-semibold text-slate-950">Distribusi Risiko</h2>
+            <p class="mt-1 text-xs text-slate-500">Jumlah asesmen per tingkat risiko.</p>
+          </header>
+
+          <dl class="divide-y divide-slate-200 px-5">
+            <div
+              v-for="item in riskDistribution"
+              :key="item.level"
+              data-testid="risk-distribution-row"
+              class="flex items-center justify-between gap-4 bg-white py-4"
+            >
               <div class="flex items-center gap-3">
-                <div class="w-3 h-10 bg-rose-500 rounded-full"></div>
+                <span class="h-3 w-3 shrink-0" :class="item.swatchClass"></span>
                 <div>
-                  <p class="text-xs font-bold text-rose-800 uppercase">Extreme Risk</p>
-                  <p class="text-[10px] text-rose-600">Kombinasi L/C ekstrem</p>
+                  <dt class="text-sm font-semibold text-slate-900">{{ item.label }}</dt>
+                  <p class="mt-0.5 text-xs text-slate-500">{{ item.description }}</p>
                 </div>
               </div>
-              <span class="text-2xl font-black text-rose-600">{{ getCountByRiskLevel('Extreme') }}</span>
+              <dd class="text-xl font-semibold tabular-nums text-slate-950">{{ getCountByRiskLevel(item.level) }}</dd>
             </div>
-
-            <div class="flex items-center justify-between p-3 rounded-lg bg-orange-50 border border-orange-100 cursor-pointer hover:bg-orange-100 transition-colors">
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-10 bg-orange-400 rounded-full"></div>
-                <div>
-                  <p class="text-xs font-bold text-orange-800 uppercase">High Risk</p>
-                  <p class="text-[10px] text-orange-600">Kombinasi L/C tinggi</p>
-                </div>
-              </div>
-              <span class="text-2xl font-black text-orange-600">{{ getCountByRiskLevel('High') }}</span>
-            </div>
-
-            <div class="flex items-center justify-between p-3 rounded-lg bg-yellow-50 border border-yellow-100 cursor-pointer hover:bg-yellow-100 transition-colors">
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-10 bg-yellow-400 rounded-full"></div>
-                <div>
-                  <p class="text-xs font-bold text-yellow-800 uppercase">Medium Risk</p>
-                  <p class="text-[10px] text-yellow-600">Kombinasi L/C sedang</p>
-                </div>
-              </div>
-              <span class="text-2xl font-black text-yellow-600">{{ getCountByRiskLevel('Medium') }}</span>
-            </div>
-
-            <div class="flex items-center justify-between p-3 rounded-lg bg-emerald-50 border border-emerald-100 cursor-pointer hover:bg-emerald-100 transition-colors">
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-10 bg-emerald-400 rounded-full"></div>
-                <div>
-                  <p class="text-xs font-bold text-emerald-800 uppercase">Low Risk</p>
-                  <p class="text-[10px] text-emerald-600">Kombinasi L/C rendah</p>
-                </div>
-              </div>
-              <span class="text-2xl font-black text-emerald-600">{{ getCountByRiskLevel('Low') }}</span>
-            </div>
-
-          </div>
-        </div>
+          </dl>
+        </section>
       </div>
 
-      <!-- Risk Register Table -->
-      <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div class="px-5 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-          <h3 class="font-bold text-slate-800 flex items-center gap-2">
-            <ListIcon class="w-4 h-4 text-slate-500" />
-            Risk Register (Subsystem Terdaftar)
-          </h3>
-          <div class="relative w-64">
-            <SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
-            <label for="risk-matrix-search" class="sr-only">Cari subsystem</label>
-            <input id="risk-matrix-search" type="text" placeholder="Cari subsystem..." class="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 outline-none" />
+      <section class="overflow-hidden rounded-md border border-slate-200 bg-white" aria-labelledby="register-title">
+        <header class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 id="register-title" class="font-semibold text-slate-950">Daftar asesmen</h2>
+            <p class="mt-1 text-xs text-slate-500">Risiko aset yang membentuk matriks di atas.</p>
           </div>
-        </div>
-        
+          <div class="relative w-full sm:w-64">
+            <SearchIcon class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <label for="risk-matrix-search" class="sr-only">Cari subsystem</label>
+            <input id="risk-matrix-search" type="search" placeholder="Cari subsystem" class="h-9 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-xs outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100" />
+          </div>
+        </header>
+
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-sm text-slate-700 border-collapse">
-            <thead class="bg-slate-50/50 border-b border-slate-200 text-[11px] text-slate-500 uppercase font-bold tracking-wider">
+          <table class="w-full min-w-[820px] border-collapse text-left text-sm text-slate-700">
+            <thead class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th class="py-3 px-5">ID / System</th>
-                <th class="py-3 px-5">Subsystem</th>
-                <th class="py-3 px-5 text-center">Likelihood (L)</th>
-                <th class="py-3 px-5 text-center">Consequence (C)</th>
-                <th class="py-3 px-5 text-center">Total Skor</th>
-                <th class="py-3 px-5">Kategori Risiko</th>
-                <th class="py-3 px-5 text-right">Update Terakhir</th>
+                <th class="px-5 py-3">ID / System</th>
+                <th class="px-5 py-3">Subsystem</th>
+                <th class="px-5 py-3 text-center">Likelihood</th>
+                <th class="px-5 py-3 text-center">Consequence</th>
+                <th class="px-5 py-3 text-center">Skor</th>
+                <th class="px-5 py-3">Tingkat</th>
+                <th class="px-5 py-3 text-right">Pembaruan</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-if="riskAssets.length === 0">
-                <td colspan="7" class="py-8 px-5 text-center text-slate-500">Belum ada hasil asesmen risiko.</td>
+                <td colspan="7" class="px-5 py-10 text-center text-slate-500">Belum ada hasil asesmen risiko.</td>
               </tr>
-              <tr v-for="asset in riskAssets" :key="asset.id" class="hover:bg-slate-50 transition-colors">
-                <td class="py-3 px-5">
-                  <span class="text-xs font-mono text-slate-400">#{{ String(asset.id).padStart(4, '0') }}</span>
-                  <p class="font-bold text-slate-700 text-xs mt-0.5">{{ asset.system }}</p>
+              <tr v-for="asset in riskAssets" :key="asset.id" class="hover:bg-slate-50/70">
+                <td class="px-5 py-3">
+                  <span class="font-mono text-xs text-slate-400">#{{ String(asset.id).padStart(4, '0') }}</span>
+                  <p class="mt-0.5 text-xs font-semibold text-slate-800">{{ asset.system }}</p>
                 </td>
-                <td class="py-3 px-5 font-semibold text-slate-800">{{ asset.subsystem }}</td>
-                <td class="py-3 px-5 text-center font-bold text-slate-600">L{{ asset.likelihood }}</td>
-                <td class="py-3 px-5 text-center font-bold text-slate-600">C{{ asset.consequence }}</td>
-                <td class="py-3 px-5 text-center font-black text-lg text-slate-800">{{ asset.likelihood * asset.consequence }}</td>
-                <td class="py-3 px-5">
-                  <span class="inline-flex items-center px-2.5 py-1 rounded text-xs font-bold shadow-sm" :class="getRiskBadgeClass(asset.level)">
-                    {{ asset.level }} Risk
+                <td class="px-5 py-3 font-medium text-slate-900">{{ asset.subsystem }}</td>
+                <td class="px-5 py-3 text-center font-semibold">L{{ asset.likelihood }}</td>
+                <td class="px-5 py-3 text-center font-semibold">C{{ asset.consequence }}</td>
+                <td class="px-5 py-3 text-center text-base font-semibold text-slate-950">{{ asset.likelihood * asset.consequence }}</td>
+                <td class="px-5 py-3">
+                  <span class="inline-flex items-center gap-2 text-xs font-semibold text-slate-800">
+                    <span class="h-2.5 w-2.5" :class="getRiskSwatchClass(asset.level)"></span>
+                    {{ getRiskLevelLabel(asset.level) }}
                   </span>
                 </td>
-                <td class="py-3 px-5 text-right text-xs text-slate-500">
-                  {{ asset.last_update }}
-                </td>
+                <td class="px-5 py-3 text-right text-xs text-slate-500">{{ asset.last_update }}</td>
               </tr>
             </tbody>
           </table>
         </div>
-      </div>
-      
+      </section>
     </div>
   </MainLayout>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import { Head } from '@inertiajs/vue3'
+import { Head, Link } from '@inertiajs/vue3'
+import { AlertTriangleIcon, PlusIcon, SearchIcon } from 'lucide-vue-next'
 import MainLayout from '@/layouts/MainLayout.vue'
-import BaseButton from '@/components/base/BaseButton.vue'
 import AreaSelectorBanner from '@/components/dashboard/AreaSelectorBanner.vue'
-import { 
-  AlertTriangleIcon, PlusIcon, GridIcon, PieChartIcon, 
-  ListIcon, SearchIcon
-} from 'lucide-vue-next'
 
 const likelihoodLabels = ['Rare', 'Unlikely', 'Possible', 'Likely']
 const consequenceLabels = ['Insignificant', 'Minor', 'Moderate', 'Major']
@@ -246,33 +196,44 @@ const props = defineProps({
 })
 
 const riskAssets = computed(() => props.risks)
+const riskRegisterCreateUrl = computed(() => {
+  const query = new URLSearchParams()
+  if (props.selected_area) query.set('area', props.selected_area)
+  query.set('create', '1')
 
-const getAssetCountInCell = (l, c) => {
-  return riskAssets.value.filter(a => a.likelihood === l && a.consequence === c).length
-}
+  return `/risk-register?${query.toString()}`
+})
 
-const getCountByRiskLevel = (level) => {
-  return riskAssets.value.filter(a => (a.level ?? getRiskLevel(a.likelihood, a.consequence)) === level).length
-}
+const riskDistribution = [
+  { level: 'Extreme', label: 'Ekstrem', description: 'Perlu penanganan segera', swatchClass: 'bg-rose-600' },
+  { level: 'High', label: 'Tinggi', description: 'Perlu rencana mitigasi', swatchClass: 'bg-orange-500' },
+  { level: 'Medium', label: 'Sedang', description: 'Perlu pemantauan', swatchClass: 'bg-amber-400' },
+  { level: 'Low', label: 'Rendah', description: 'Dalam batas penerimaan', swatchClass: 'bg-emerald-500' },
+]
 
-const getRiskColorClass = (l, c) => {
-  const level = getRiskLevel(l, c)
-  if (level === 'Extreme') return 'bg-rose-500 hover:bg-rose-400'
-  if (level === 'High') return 'bg-orange-400 hover:bg-orange-300'
-  if (level === 'Medium') return 'bg-yellow-400 hover:bg-yellow-300'
-  return 'bg-emerald-400 hover:bg-emerald-300'
-}
+const getAssetCountInCell = (likelihood, consequence) => riskAssets.value.filter(
+  asset => asset.likelihood === likelihood && asset.consequence === consequence,
+).length
 
-const getRiskLevel = (l, c) => riskLevelByCoordinate[`${l}:${c}`] ?? 'Low'
+const getCountByRiskLevel = level => riskAssets.value.filter(
+  asset => (asset.level ?? getRiskLevel(asset.likelihood, asset.consequence)) === level,
+).length
 
-const getRiskLevelName = (l, c) => {
-  return `${getRiskLevel(l, c)} Risk`
-}
+const getRiskLevel = (likelihood, consequence) => riskLevelByCoordinate[`${likelihood}:${consequence}`] ?? 'Low'
+const getRiskLevelName = (likelihood, consequence) => `${getRiskLevelLabel(getRiskLevel(likelihood, consequence))} Risk`
+const getRiskLevelLabel = level => ({ Extreme: 'Ekstrem', High: 'Tinggi', Medium: 'Sedang', Low: 'Rendah' }[level] ?? level)
 
-const getRiskBadgeClass = (level) => {
-  if (level === 'Extreme') return 'bg-rose-100 text-rose-700 border border-rose-200'
-  if (level === 'High') return 'bg-orange-100 text-orange-700 border border-orange-200'
-  if (level === 'Medium') return 'bg-yellow-100 text-yellow-700 border border-yellow-200'
-  return 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-}
+const getRiskColorClass = (likelihood, consequence) => ({
+  Extreme: 'bg-rose-600',
+  High: 'bg-orange-500',
+  Medium: 'bg-amber-400',
+  Low: 'bg-emerald-500',
+}[getRiskLevel(likelihood, consequence)])
+
+const getRiskSwatchClass = level => ({
+  Extreme: 'bg-rose-600',
+  High: 'bg-orange-500',
+  Medium: 'bg-amber-400',
+  Low: 'bg-emerald-500',
+}[level] ?? 'bg-slate-400')
 </script>
