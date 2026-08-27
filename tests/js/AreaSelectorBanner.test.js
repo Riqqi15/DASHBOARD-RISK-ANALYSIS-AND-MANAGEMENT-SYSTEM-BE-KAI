@@ -29,7 +29,7 @@ const units = [
 ]
 
 const mountBanner = (selectedArea = null, extraProps = {}) => mount(AreaSelectorBanner, {
-  props: { units, selectedArea, failureCount: '13', ...extraProps },
+  props: { units, selectedArea, ...extraProps },
 })
 
 describe('AreaSelectorBanner', () => {
@@ -43,13 +43,13 @@ describe('AreaSelectorBanner', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders the compact dashboard command bar with active area and failure count', () => {
+  it('renders the compact dashboard command bar with the active area only', () => {
     const wrapper = mountBanner('DAOP-1')
 
     expect(wrapper.get('[data-dashboard-command-bar]').classes()).toContain('area-selector--sticky')
     expect(wrapper.text()).toContain('Dashboard Persinyalan')
     expect(wrapper.text()).toContain('DAOP-1 — Daerah Operasi 1 Jakarta')
-    expect(wrapper.text()).toContain('13 gangguan tercatat')
+    expect(wrapper.text()).not.toContain('gangguan tercatat')
     expect(wrapper.get('#area-select').element.value).toBe('DAOP-1')
     expect(wrapper.get('[data-area-code="DAOP-1"]').exists()).toBe(true)
     expect(wrapper.find('[data-area-code="national"]').exists()).toBe(false)

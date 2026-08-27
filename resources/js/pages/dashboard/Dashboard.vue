@@ -11,10 +11,19 @@
     <AreaSelectorBanner
       :units="units"
       :selected-area="selected_area"
-      :failure-count="formatNumber(failureCountNumber)"
     />
 
     <div class="dashboard-shell space-y-7 pb-12">
+      <section data-failure-summary-bar class="failure-summary" aria-labelledby="failure-summary-title">
+        <div>
+          <h2 id="failure-summary-title" class="failure-summary__title">Gangguan tercatat</h2>
+          <p class="failure-summary__description">Total catatan kegagalan pada wilayah terpilih</p>
+        </div>
+        <p class="failure-summary__value" aria-live="polite">
+          {{ formatNumber(failureCountNumber) }} kejadian
+        </p>
+      </section>
+
       <!-- KINERJA PER KELOMPOK ASET (SINTEL KAI) -->
       <section class="family-metrics" aria-labelledby="family-metrics-title">
         <div class="family-metrics__heading">
@@ -448,6 +457,39 @@ const goToTroubleReport = (subsystemName = null) => {
 </script>
 
 <style scoped>
+.failure-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  border: 1px solid #dbe3ee;
+  background: #ffffff;
+  padding: 1rem 1.25rem;
+}
+
+.failure-summary__title {
+  color: #0f172a;
+  font-size: 0.9375rem;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.failure-summary__description {
+  margin-top: 0.125rem;
+  color: #64748b;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.failure-summary__value {
+  flex-shrink: 0;
+  color: #b91c1c;
+  font-size: clamp(1.25rem, 2vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
 /* FAMILY METRICS (PDSM, PLSM, PDSE, PLSE, CDS) */
 .family-metrics {
   border: 1px solid #e2e8f0;
@@ -714,6 +756,12 @@ const goToTroubleReport = (subsystemName = null) => {
 }
 
 @media (max-width: 639px) {
+  .failure-summary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.625rem;
+  }
+
   .family-metrics {
     padding: 1rem;
   }

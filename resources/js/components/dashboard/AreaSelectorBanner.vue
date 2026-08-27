@@ -10,32 +10,26 @@
         <p class="area-selector__region">{{ activeAreaLabel }}</p>
       </div>
 
-      <div class="area-selector__controls">
-        <p class="area-selector__status" aria-live="polite">
-          <strong>{{ failureCount }}</strong> gangguan tercatat
-        </p>
-
-        <div v-if="currentUser.isPusat()" class="area-selector__action">
-          <label for="area-select" class="sr-only">Wilayah kerja</label>
-          <div class="area-selector__select-wrap">
-            <select
-              id="area-select"
-              :value="displayedArea || ''"
-              class="area-selector__select"
-              @change="selectArea($event.target.value)"
+      <div v-if="currentUser.isPusat()" class="area-selector__action">
+        <label for="area-select" class="sr-only">Wilayah kerja</label>
+        <div class="area-selector__select-wrap">
+          <select
+            id="area-select"
+            :value="displayedArea || ''"
+            class="area-selector__select"
+            @change="selectArea($event.target.value)"
+          >
+            <option v-if="!units.length" value="">Belum ada wilayah</option>
+            <option
+              v-for="area in units"
+              :key="area.id"
+              :value="area.code"
+              :data-area-code="area.code"
             >
-              <option v-if="!units.length" value="">Belum ada wilayah</option>
-              <option
-                v-for="area in units"
-                :key="area.id"
-                :value="area.code"
-                :data-area-code="area.code"
-              >
-                {{ areaLabel(area) }}
-              </option>
-            </select>
-            <ChevronDown class="area-selector__select-chevron" :size="18" aria-hidden="true" />
-          </div>
+              {{ areaLabel(area) }}
+            </option>
+          </select>
+          <ChevronDown class="area-selector__select-chevron" :size="18" aria-hidden="true" />
         </div>
       </div>
     </div>
@@ -51,7 +45,6 @@ import { useAuth } from '@/application/composables/useAuth'
 const props = defineProps({
   units: { type: Array, default: () => [] },
   selectedArea: { type: String, default: null },
-  failureCount: { type: [String, Number], default: 0 },
 })
 
 const { currentUser } = useAuth()
@@ -124,26 +117,6 @@ const selectArea = (code) => {
   white-space: nowrap;
 }
 
-.area-selector__controls {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 1.25rem;
-}
-
-.area-selector__status {
-  color: #475569;
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
-.area-selector__status strong {
-  color: #0f172a;
-  font-size: 0.9375rem;
-  font-weight: 750;
-}
-
 .area-selector__action {
   flex-shrink: 0;
 }
@@ -198,11 +171,6 @@ const selectArea = (code) => {
     padding: 0.75rem 1rem;
   }
 
-  .area-selector__controls {
-    justify-content: space-between;
-    gap: 0.75rem;
-  }
-
   .area-selector__action,
   .area-selector__select-wrap {
     min-width: 0;
@@ -210,14 +178,4 @@ const selectArea = (code) => {
   }
 }
 
-@media (max-width: 520px) {
-  .area-selector__controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .area-selector__status {
-    white-space: normal;
-  }
-}
 </style>
