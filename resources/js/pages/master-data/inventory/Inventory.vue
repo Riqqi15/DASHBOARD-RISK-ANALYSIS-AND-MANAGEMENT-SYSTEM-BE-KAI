@@ -210,7 +210,7 @@ const reconciliationTone = (status) => ({
   <MainLayout>
     <div class="min-w-0 space-y-5 pb-10">
       <header class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="border-l-4 border-[#f26522] px-5 py-5 sm:px-6">
+        <div data-inventory-heading class="px-5 py-5 sm:px-6">
           <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div class="min-w-0">
               <p class="font-mono text-sm font-semibold uppercase tracking-[0.18em] text-[#2d2a70]">Operasional / ledger persediaan</p>

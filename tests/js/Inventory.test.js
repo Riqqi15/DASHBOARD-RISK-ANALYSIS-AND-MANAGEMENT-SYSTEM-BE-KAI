@@ -146,6 +146,14 @@ describe('Inventory', () => {
     expect(wrapper.findAll('button').some((button) => button.text() === 'Catat IN/OUT')).toBe(true)
   })
 
+  it('renders the inventory heading without a decorative left border', () => {
+    const wrapper = mountPage()
+    const heading = wrapper.get('[data-inventory-heading]')
+
+    expect(heading.classes()).not.toContain('border-l-4')
+    expect(heading.classes()).not.toContain('border-[#f26522]')
+  })
+
   it('shows only safety stock in the master spare parts table and cards', () => {
     const wrapper = mountPage({ filters: { ...props.filters, tab: 'master' } })
 
