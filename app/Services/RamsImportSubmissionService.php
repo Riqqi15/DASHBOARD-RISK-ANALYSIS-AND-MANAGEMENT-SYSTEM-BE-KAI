@@ -14,6 +14,8 @@ use RuntimeException;
 
 final class RamsImportSubmissionService
 {
+    public function __construct(private readonly RamsImportWorkbookStorage $storage) {}
+
     /** @return array{batch: RamsImportBatch, duplicate: bool} */
     public function submit(UploadedFile $workbook, UnitKerja $unit, bool $dryRun, User $actor): array
     {
@@ -32,10 +34,11 @@ final class RamsImportSubmissionService
             implode('|', [$workbookHash, (string) $unit->id, FailureLogImportService::IMPORT_VERSION]),
         );
         $extension = strtolower($workbook->getClientOriginalExtension()) ?: 'xlsx';
-        $storedPath = $workbook->storeAs('rams-imports', $fingerprint.'-'.Str::uuid().'.'.$extension, 'local');
-        if (! is_string($storedPath) || $storedPath === '') {
-            throw new RuntimeException('Workbook gagal disimpan ke penyimpanan private.');
-        }
+        $storageDisk = $this->storage->configuredDisk();
+        $storedPath = $this->storage->store(
+            $workbook,
+            'rams-imports/'.$fingerprint.'-'.Str::uuid().'.'.$extension,
+        );
 
         $batch = RamsImportBatch::query()->create([
             'unit_kerja_id' => $unit->id,
@@ -44,6 +47,7 @@ final class RamsImportSubmissionService
             'import_version' => FailureLogImportService::IMPORT_VERSION,
             'workbook_name' => $workbook->getClientOriginalName(),
             'file_size' => $workbook->getSize() ?: 0,
+            'storage_disk' => $storageDisk,
             'stored_path' => $storedPath,
             'status' => 'queued',
             'progress_stage' => 'Menunggu antrean',

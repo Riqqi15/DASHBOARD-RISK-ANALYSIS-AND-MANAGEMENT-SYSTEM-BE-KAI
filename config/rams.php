@@ -11,4 +11,7 @@ return [
         'enabled' => (bool) env('RAMS_SEED_DEMO_ACCOUNTS', false),
         'daop_password' => env('RAMS_DAOP_PASSWORD'),
     ],
+    'imports' => [
+        'disk' => env('RAMS_IMPORT_DISK', 'local'),
+    ],
 ];

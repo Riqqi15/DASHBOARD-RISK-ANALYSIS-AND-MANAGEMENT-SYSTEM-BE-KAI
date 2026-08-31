@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
         'import_version',
         'workbook_name',
         'file_size',
+        'storage_disk',
         'stored_path',
         'status',
         'progress_stage',

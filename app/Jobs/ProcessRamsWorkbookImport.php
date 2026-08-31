@@ -6,13 +6,13 @@ namespace App\Jobs;
 
 use App\Models\RamsImportBatch;
 use App\Services\FailureLogImportService;
+use App\Services\RamsImportWorkbookStorage;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Throwable;
 
@@ -34,24 +34,31 @@ final class ProcessRamsWorkbookImport implements ShouldBeUniqueUntilProcessing, 
         return (string) $this->batchId;
     }
 
-    public function handle(FailureLogImportService $service): void
+    public function handle(FailureLogImportService $service, RamsImportWorkbookStorage $storage): void
     {
         $batch = RamsImportBatch::query()
             ->with(['unitKerja', 'uploadedBy'])
             ->findOrFail($this->batchId);
         $storedPath = $batch->stored_path;
-        if (! is_string($storedPath) || ! Storage::disk('local')->exists($storedPath)) {
+        $storageDisk = is_string($batch->storage_disk) && $batch->storage_disk !== ''
+            ? $batch->storage_disk
+            : 'local';
+        if (! is_string($storedPath) || ! $storage->exists($storageDisk, $storedPath)) {
             throw new RuntimeException('File workbook antrean tidak ditemukan.');
         }
 
-        $service->processBatch(
-            $batch,
-            Storage::disk('local')->path($storedPath),
-            $batch->unitKerja,
-            $batch->uploadedBy,
+        $storage->withLocalCopy(
+            $storageDisk,
+            $storedPath,
+            fn (string $localPath) => $service->processBatch(
+                $batch,
+                $localPath,
+                $batch->unitKerja,
+                $batch->uploadedBy,
+            ),
         );
 
-        Storage::disk('local')->delete($storedPath);
+        $storage->delete($storageDisk, $storedPath);
         $batch->update(['stored_path' => null]);
     }
 
@@ -63,7 +70,10 @@ final class ProcessRamsWorkbookImport implements ShouldBeUniqueUntilProcessing, 
         }
 
         if (is_string($batch->stored_path)) {
-            Storage::disk('local')->delete($batch->stored_path);
+            app(RamsImportWorkbookStorage::class)->delete(
+                is_string($batch->storage_disk) && $batch->storage_disk !== '' ? $batch->storage_disk : 'local',
+                $batch->stored_path,
+            );
         }
         $batch->update([
             'stored_path' => null,

@@ -12,6 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 use Tests\TestCase;
 
 final class RamsImportQueueTest extends TestCase
@@ -21,7 +22,8 @@ final class RamsImportQueueTest extends TestCase
     public function test_pusat_upload_auto_detects_unit_stores_private_file_and_dispatches_job(): void
     {
         Queue::fake();
-        Storage::fake('local');
+        config()->set('rams.imports.disk', 'rams-import-test');
+        Storage::fake('rams-import-test');
         $unit = UnitKerja::factory()->create(['code' => 'DAOP-4', 'is_active' => true]);
         $user = User::factory()->pusat()->create();
 
@@ -41,7 +43,8 @@ final class RamsImportQueueTest extends TestCase
         $this->assertSame($user->id, $batch->uploaded_by_user_id);
         $this->assertSame('queued', $batch->status);
         $this->assertSame(0, $batch->progress_percent);
-        Storage::disk('local')->assertExists($batch->stored_path);
+        $this->assertSame('rams-import-test', $batch->storage_disk);
+        Storage::disk('rams-import-test')->assertExists($batch->stored_path);
         Queue::assertPushed(
             ProcessRamsWorkbookImport::class,
             fn (ProcessRamsWorkbookImport $job): bool => $job->batchId === $batch->id,
@@ -109,5 +112,37 @@ final class RamsImportQueueTest extends TestCase
 
         $this->assertDatabaseCount('rams_import_batches', 0);
         Queue::assertNothingPushed();
+    }
+
+    public function test_final_job_failure_removes_the_workbook_from_its_recorded_disk(): void
+    {
+        Storage::fake('rams-import-test');
+        $unit = UnitKerja::factory()->create();
+        $user = User::factory()->pusat()->create();
+        $storedPath = 'rams-imports/failed.xlsx';
+        Storage::disk('rams-import-test')->put($storedPath, 'workbook bytes');
+        $batch = RamsImportBatch::query()->create([
+            'unit_kerja_id' => $unit->id,
+            'uploaded_by_user_id' => $user->id,
+            'fingerprint' => hash('sha256', 'failed workbook'),
+            'import_version' => 'test',
+            'workbook_name' => 'failed.xlsx',
+            'file_size' => 14,
+            'storage_disk' => 'rams-import-test',
+            'stored_path' => $storedPath,
+            'status' => 'processing',
+            'progress_stage' => 'Memproses',
+            'progress_percent' => 50,
+            'dry_run' => false,
+            'started_at' => now(),
+        ]);
+
+        (new ProcessRamsWorkbookImport($batch->id))->failed(new RuntimeException('processing failed'));
+
+        Storage::disk('rams-import-test')->assertMissing($storedPath);
+        $batch->refresh();
+        $this->assertNull($batch->stored_path);
+        $this->assertSame('failed', $batch->status);
+        $this->assertSame('processing failed', $batch->error_message);
     }
 }
