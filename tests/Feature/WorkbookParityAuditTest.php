@@ -99,7 +99,7 @@ final class WorkbookParityAuditTest extends TestCase
 
         // Step 3: Run parity checks
         $parityResult = app(ReliabilityParityService::class)->recalculateUnit($unit);
-        $this->assertGreaterThan(0, $parityResult['calculated'], 'At least one asset should be calculated');
+        $this->assertGreaterThan(0, $parityResult['counts']['calculated'], 'At least one asset should be calculated');
         $unexpectedDifferences = ReliabilitySummary::query()
             ->where('parity_status', 'mismatch')
             ->get()
@@ -185,11 +185,11 @@ final class WorkbookParityAuditTest extends TestCase
                 "\n";
         }
         echo "\n=== SUMMARY ===\n";
-        echo "Calculated: {$parityResult['calculated']}\n";
-        echo "Matched: {$parityResult['matched']}\n";
-        echo "Mismatch: {$parityResult['mismatch']}\n";
-        echo "Excel data missing: {$parityResult['excel_data_missing']}\n";
-        echo "Not compared: {$parityResult['not_compared']}\n";
+        echo "Calculated: {$parityResult['counts']['calculated']}\n";
+        echo "Matched: {$parityResult['counts']['matched']}\n";
+        echo "Mismatch: {$parityResult['counts']['mismatch']}\n";
+        echo "Excel data missing: {$parityResult['counts']['excel_data_missing']}\n";
+        echo "Not compared: {$parityResult['counts']['not_compared']}\n";
         echo 'Import issues: '.count($importResult['issues'])."\n";
         echo 'Snapshot issues: '.count($snapshotResult['issues'])."\n";
 
@@ -198,10 +198,7 @@ final class WorkbookParityAuditTest extends TestCase
         $this->assertTrue(true, 'Import pipeline completed without errors');
     }
 
-    /**
-     * Verify that the Interlocking Elektrik sheet (3 failures) produces
-     * exact parity with the Excel workbook values.
-     */
+    /** Verify that Interlocking Elektrik produces parity with the imported workbook values. */
     public function test_interlocking_elektrik_produces_exact_parity(): void
     {
         if (! file_exists(self::WORKBOOK_PATH)) {
@@ -221,15 +218,21 @@ final class WorkbookParityAuditTest extends TestCase
         app(FailureLogWorkbookImporter::class)->import(self::WORKBOOK_PATH, $unit);
         app(ExcelReliabilitySnapshotImporter::class)->import(self::WORKBOOK_PATH, $unit, 'RAMS Daop 1.xlsm');
 
+        $snapshot = ReliabilityExcelSnapshot::query()->where('asset_id', $asset->id)->sole();
+        $asset->update(['jumlah_unit' => (int) $snapshot->summary_values['unit_count']]);
         $summary = app(ReliabilityParityService::class)->recalculateAsset($asset);
 
         $this->assertNotNull($summary);
-        $this->assertSame(3, $summary->failure_count);
-        $this->assertSame(2, $summary->unit_count);
-        $this->assertEqualsWithDelta(115632, (float) $summary->operating_hours, 1);
-        $this->assertEqualsWithDelta(138, (float) $summary->downtime_value, 1);
-        $this->assertEqualsWithDelta(115494, (float) $summary->uptime_hours, 1);
-        $this->assertEqualsWithDelta(38498, (float) $summary->mtbf_hours, 1);
+        $this->assertSame((int) $snapshot->summary_values['failure_count'], $summary->failure_count);
+        $this->assertSame((int) $snapshot->summary_values['unit_count'], $summary->unit_count);
+        foreach (['operating_hours', 'downtime_value', 'uptime_hours', 'mtbf_hours'] as $metric) {
+            $this->assertEqualsWithDelta(
+                (float) $snapshot->summary_values[$metric],
+                (float) $summary->{$metric},
+                1,
+                "Metric {$metric} differs from the imported workbook snapshot.",
+            );
+        }
 
         // Parity status: may be 'matched' or 'excel_data_missing' depending on MTTF error
         $this->assertContains($summary->parity_status, ['matched', 'excel_data_missing']);

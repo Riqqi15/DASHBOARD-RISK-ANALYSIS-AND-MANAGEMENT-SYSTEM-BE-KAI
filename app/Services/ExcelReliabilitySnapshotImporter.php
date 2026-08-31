@@ -79,6 +79,11 @@ final class ExcelReliabilitySnapshotImporter
 
                     try {
                         $asset = $this->assetResolver->resolve($sheet, $unit, $sheetName);
+                        if ($asset === null) {
+                            throw new RuntimeException(
+                                "Aset untuk sheet {$sheetName} tidak ditemukan atau ambigu.",
+                            );
+                        }
                         $formulas = $this->summaryFormulas($sheet, $headers['row'], $headers['columns']);
                         $errors = $this->summaryErrors($sheet, $headers['row'], $headers['columns']);
                         $values = $this->summaryValues($sheet, $headers['row'], $headers['columns']);
